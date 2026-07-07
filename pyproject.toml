@@ -1,0 +1,26 @@
+[project]
+name = "euclid-mcp"
+version = "0.1.0"
+description = "MCP server per deduzioni logiche via Prolog — trasforma fatti in dimostrazioni"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "mcp>=1.27",
+    "pydantic>=2.0",
+    "PyYAML>=6.0",
+]
+
+[project.urls]
+homepage = "https://github.com/meo/euclid-mcp"
+repository = "https://github.com/meo/euclid-mcp"
+
+[project.scripts]
+euclid-mcp = "euclid_mcp:main"
+
+[tool.setuptools.packages.find]
+include = ["euclid_mcp*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
