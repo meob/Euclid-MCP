@@ -160,6 +160,87 @@ for sol in result.solutions:
 - **Education**: Interactive logic tutoring with visible proof chains
 - **Knowledge preload**: Complex business rules can be loaded in Euclid instead of using a RAG query
 
+### Real-world examples
+
+```bash
+# Genealogy — recursive family tree reasoning
+python3 examples/01_genealogy.py
+
+# RBAC — Role-Based Access Control
+python3 examples/02_rbac.py
+
+# Classification — biological taxonomy
+python3 examples/03_classification.py
+
+# Business rules — loan eligibility
+python3 examples/04_loan_eligibility.py
+
+# Compliance auditor — cloud resource policy enforcement
+python3 examples/05_compliance_auditor/auditor.py
+
+# Loan officer — CSV-driven eligibility with detailed breakdown
+python3 examples/06_loan_eligibility/loan_officer.py
+```
+
+Each example runs a complete reasoning session and prints solutions with proof trees — no LLM required.  
+Use them as templates for integrating Euclid-MCP into your own agents.
+
+The two newer examples (05, 06) demonstrate a **data-driven agent workflow**:
+- Read external data (JSON, CSV) that simulates API/CRM exports
+- Convert structured data to Euclid facts in Python
+- Load policy rules from `.euclid` files (separated from data)
+- Call `reason()` for deduction
+- Format results into human-readable reports with proof chains
+
+This mirrors how a real agent would work: collect data, describe it as facts, let Euclid reason, and present the results.
+
+## Integrations
+
+### OpenCode
+
+Euclid-MCP includes a pre-configured agent in `.opencode.json`:
+
+```json
+{
+  "mcpServers": {
+    "euclid-mcp": {
+      "command": "python3",
+      "args": ["-m", "euclid_mcp"],
+      "cwd": "."
+    }
+  },
+  "agents": {
+    "reasoning-engine": {
+      "description": "Deterministic logic engine",
+      "instructions": "Write facts in Euclid IR, use the reason tool...",
+      "mcpServers": ["euclid-mcp"]
+    }
+  }
+}
+```
+
+### n8n / Zapier / Make
+
+Run the HTTP API:
+
+```bash
+python3 integrations/euclid_api.py --port 8080
+```
+
+```
+POST /reason  →  {"knowledge": "red(apple)\n? red($x)"}
+GET  /health
+```
+
+Connect an **HTTP Request** node to `http://localhost:8080/reason`.
+
+### CLI pipeline
+
+```bash
+echo '{"knowledge": "red(apple)\\n? red($x)"}' | python3 integrations/euclid_cli.py
+```
+
+See `integrations/README.md` for full details.
 
 ## Why External Inference?
 

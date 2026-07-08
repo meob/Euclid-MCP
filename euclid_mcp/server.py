@@ -2,36 +2,43 @@ import time
 
 from mcp.server.fastmcp import FastMCP
 
-from .language import parse
-from .models import ReasonResult
-from .prolog_bridge import execute as prolog_execute
-from .translator import to_prolog
+from euclid_mcp.language import parse
+from euclid_mcp.models import ReasonResult
+from euclid_mcp.prolog_bridge import execute as prolog_execute
+from euclid_mcp.translator import to_prolog
 
 mcp = FastMCP(
     "Euclid-MCP",
-    instructions="""Euclid-MCP e' un motore di deduzione logica.
+    instructions="""Euclid-MCP is a deterministic logical reasoning engine.
 
-Trasforma fatti e regole in un linguaggio intermedio semplice in dimostrazioni
-formali usando SWI-Prolog come backend.
+Write facts, rules, and a query in the Euclid Intermediate Language:
 
-Il linguaggio intermedio supporta:
-  - Fatti:  parent(tom, bob)
-  - Regole: ancestor($x, $y) IF parent($x, $y) AND parent($y, $z)
-  - Query:  ? ancestor(tom, $who)
+Variables: $name  (e.g., $who, $x, $y)
+Implication: IF  (e.g., mortal($x) IF human($x))
+Conjunction: AND  (e.g., parent($x, $z) AND ancestor($z, $y))
+Query prefix: ?
 
-Si puo' usare anche formato YAML:
+Examples:
+    mortal(socrates)
+    human(socrates)
+    mortal($x) IF human($x)
+    ? mortal($who)
+
+The engine returns solutions with proof trees (fact/rule/and nodes).
+
+YAML format is also supported:
   facts: [parent(tom, bob)]
   rules: [ancestor($x, $y) IF parent($x, $y)]
   query: ancestor(tom, $who)
 
-Variabili con $nome, IF per implicazione, AND per congiunzione.
+Prefer the text format — it is more concise and less error-prone.
 """,
 )
 
 
 @mcp.tool(
-    description="Esegue deduzioni logiche su una base di conoscenza "
-    "e restituisce soluzioni con la catena di dimostrazione",
+    description="Perform logical deduction on a knowledge base "
+    "and return solutions with proof trees for each result",
 )
 def reason(
     knowledge: str,
@@ -45,7 +52,7 @@ def reason(
         kb = parse(knowledge)
     except Exception as exc:
         return ReasonResult(
-            error=f"Errore nel parsing della conoscenza: {exc}",
+            error=f"Knowledge parsing error: {exc}",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
 
@@ -54,9 +61,9 @@ def reason(
 
     if not kb.query:
         return ReasonResult(
-            error="Nessuna query specificata. "
-            "Aggiungi ? query o query: nel knowledge, "
-            "o passa il parametro query.",
+            error="No query specified. "
+            "Add ? query or query: in the knowledge, "
+            "or pass the query parameter.",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
 
@@ -64,7 +71,7 @@ def reason(
         prolog_code = to_prolog(kb, max_depth=max_depth)
     except Exception as exc:
         return ReasonResult(
-            error=f"Errore nella generazione del codice Prolog: {exc}",
+            error=f"Prolog code generation error: {exc}",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
 

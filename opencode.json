@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "euclid-mcp": {
+      "type": "local",
+      "command": [".venv/bin/python", "-m", "euclid_mcp"],
+      "enabled": true
+    }
+  }
+}

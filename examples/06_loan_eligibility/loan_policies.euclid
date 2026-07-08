@@ -1,0 +1,18 @@
+# ── Loan Eligibility Business Rules ──
+# Rules are pre-defined and stay stable. Only the facts change per applicant.
+
+# Standard path: high income + excellent credit + employed
+eligible($p) IF adult($p) AND income_high($p) AND credit_excellent($p) AND employed($p)
+
+# Alternative path: medium income + good credit + employed
+eligible($p) IF adult($p) AND income_medium($p) AND credit_good($p) AND employed($p)
+
+# Conditional: meets all criteria except employment
+conditional($p) IF adult($p) AND income_medium($p) AND credit_good($p)
+
+# Explicit rejection reasons
+rejected($p, low_credit) IF adult($p) AND income_medium($p) AND credit_fair($p) AND employed($p)
+rejected($p, unemployed) IF adult($p) AND income_medium($p) AND credit_good($p) AND unemployed($p)
+
+# Query
+? eligible($who)

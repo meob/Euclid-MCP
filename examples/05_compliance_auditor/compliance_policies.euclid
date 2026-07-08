@@ -1,0 +1,17 @@
+# ── Security Compliance Policies ──
+# Each policy defines what constitutes a violation.
+
+# Policy 1: Production resources must be encrypted at rest
+violation($r, unencrypted_prod_resource) IF environment($r, production) AND encrypted($r, false)
+
+# Policy 2: Production resources must have automated backups enabled
+violation($r, missing_backup) IF environment($r, production) AND backup($r, false)
+
+# Policy 3: Production resources must not be publicly accessible
+violation($r, publicly_exposed) IF environment($r, production) AND public_access($r, true)
+
+# Cross-policy: critical if both encryption and backup are missing
+critical_violation($r) IF violation($r, unencrypted_prod_resource) AND violation($r, missing_backup)
+
+# Query: find all policy violations
+? violation($resource, $reason)

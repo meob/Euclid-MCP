@@ -1,0 +1,37 @@
+[
+  {
+    "id": "s3_prod_bucket",
+    "env": "production",
+    "encrypted": true,
+    "backup": true,
+    "public": false
+  },
+  {
+    "id": "dynamodb_users_table",
+    "env": "production",
+    "encrypted": false,
+    "backup": true,
+    "public": false
+  },
+  {
+    "id": "ec2_web_server_01",
+    "env": "production",
+    "encrypted": true,
+    "backup": false,
+    "public": true
+  },
+  {
+    "id": "s3_dev_static",
+    "env": "staging",
+    "encrypted": true,
+    "backup": false,
+    "public": true
+  },
+  {
+    "id": "rds_main_db",
+    "env": "production",
+    "encrypted": true,
+    "backup": true,
+    "public": false
+  }
+]

@@ -1,0 +1,7 @@
+name,age,income,credit_score,employed
+Alice,35,75000,780,true
+Bob,28,42000,620,true
+Carol,42,90000,550,true
+Diana,31,68000,740,false
+Eve,29,38000,710,false
+Frank,45,120000,820,true

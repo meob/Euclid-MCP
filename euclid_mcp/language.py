@@ -48,7 +48,8 @@ def _parse_text(text: str) -> KB:
     query: str | None = None
 
     for line in text.split("\n"):
-        line = re.sub(r"\s*(#|//).*$", "", line).strip()
+        # Strip comments (# or //) but not inside atoms (e.g. ://)
+        line = re.sub(r"(?<!\S)\s*(#|//).*$", "", line).strip()
         if not line:
             continue
         line = line.rstrip(".")

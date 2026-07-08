@@ -56,10 +56,13 @@ def execute(prolog_code: str, timeout: int = 30) -> list[Solution]:
                 continue
             if not isinstance(data, dict) or "solution" not in data or "proof" not in data:
                 continue
-            proof = _parse_proof(data["proof"])
-            solutions.append(
-                Solution(substitutions=data["solution"], proof=proof)
-            )
+            try:
+                proof = _parse_proof(data["proof"])
+                solutions.append(
+                    Solution(substitutions=data["solution"], proof=proof)
+                )
+            except Exception:
+                continue
 
         if warnings:
             pass
@@ -70,7 +73,7 @@ def execute(prolog_code: str, timeout: int = 30) -> list[Solution]:
         raise RuntimeError(f"SWI-Prolog timed out after {timeout}s")
     except FileNotFoundError:
         raise RuntimeError(
-            "SWI-Prolog (swipl) non trovato. Installa con: brew install swi-prolog"
+            "SWI-Prolog (swipl) not found. Install with: brew install swi-prolog"
         )
     finally:
         try:

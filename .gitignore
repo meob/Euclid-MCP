@@ -24,3 +24,4 @@ Thumbs.db
 # Test output
 .pytest_cache/
 coverage/
+staff/

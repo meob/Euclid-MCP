@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Any, Optional
 
 
 class ProofNode(BaseModel):
@@ -12,7 +12,7 @@ class ProofNode(BaseModel):
 
 
 class Solution(BaseModel):
-    substitutions: dict[str, str] = Field(default_factory=dict)
+    substitutions: dict[str, Any] = Field(default_factory=dict)
     proof: ProofNode
 
 
