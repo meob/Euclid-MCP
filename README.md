@@ -254,6 +254,8 @@ The external inference gives several advantages:
 In the current implementation Euclid-MCP uses Prolog.  
 Prolog is a 50-year-old battle-tested logic engine. Using it as a "deduction coprocessor" lets small LLMs perform complex multi-step reasoning without needing larger, more expensive models. The intermediate language strips away Prolog's syntax quirks while keeping its logical core.
 
+The [benchmarks](benchmarks/BENCHMARKS.md) demonstrate the difference: with 1 000+ facts, LLMs alone score 2/5 while Euclid-MCP scores 5/5 — and runs 7× faster while outputting 14× fewer tokens. The smaller the LLM, the greater the gain.
+
 
 ## How is Euclid?
 

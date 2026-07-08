@@ -45,7 +45,7 @@ This is the scale where LLM working memory fails.
 
 | KB size | LLM alone | LLM + Euclid-MCP |
 |---------|-----------|------------------|
-| Small (5–50 facts) | ✅ Sufficient | ⚠️ No gain, can regress |
+| Small (5–50 facts) | ✅ Sufficient | ⚠️ Comparable accuracy, higher input tokens |
 | Large (1 000+ facts) | ❌ Hallucinates | ✅ Exact deduction |
 
-**Euclid-MCP is necessary when facts exceed LLM working memory.** At small scale it adds latency without benefit.
+**Euclid-MCP proves its value at scale.** When facts fit in an LLM's context window, the overhead of a deterministic engine is rarely justified. When they don't — above a few hundred facts — Euclid-MCP delivers exact answers while LLMs of any size hallucinate systematically.
