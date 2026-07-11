@@ -1,13 +1,20 @@
 import re
-
 from .models import KB
 
 META_INTERPRETER = """
 % meta-interpreter: prove(+Goal, +MaxDepth, -ProofTree)
+% Built-in arithmetic/comparison operators
+is_arith_goal(Goal) :-
+    Goal =.. [Op, _, _],
+    member(Op, [>, >=, =<, <, =:=, =\\=, is]).
+
 prove(true, _, true) :- !.
 prove((A, B), D, and(PA, PB)) :- !,
     prove(A, D, PA),
     prove(B, D, PB).
+prove(Goal, _, true) :-
+    is_arith_goal(Goal), !,
+    Goal.
 prove(Goal, _, fact(Goal)) :-
     clause(Goal, true).
 prove(Goal, D, rule(Goal, Body, BodyProof)) :-
@@ -100,6 +107,8 @@ def _translate_rule(rule: str) -> str:
     head_pl = _translate_vars(head.strip())
     body = re.sub(r"\s+AND\s+", ", ", body.strip())
     body_pl = _translate_vars(body)
+    # Convert NOT to Prolog negation
+    body_pl = re.sub(r"\bNOT\s+", "\\+ ", body_pl)
     return f"{head_pl} :- {body_pl}."
 
 
@@ -128,8 +137,19 @@ def _generate_output(kb: KB, max_depth: int) -> list[str]:
     if not query:
         return ["output :- true."]
 
-    query_pl = _translate_vars(query.strip().rstrip("."))
-    var_names = re.findall(r"\$([a-z][a-zA-Z0-9_]*)", query)
+    # Convert AND to Prolog conjunction before translating vars
+    query_body = re.sub(r"\s+AND\s+", ", ", query.strip().rstrip("."))
+    # Wrap in parentheses if it's a conjunction (contains commas at top level)
+    if ", " in query_body:
+        query_body = f"({query_body})"
+    query_pl = _translate_vars(query_body)
+    # Deduplicate variable names while preserving order
+    seen = set()
+    var_names = []
+    for vn in re.findall(r"\$([a-z][a-zA-Z0-9_]*)", query):
+        if vn not in seen:
+            seen.add(vn)
+            var_names.append(vn)
 
     var_entries = []
     for vn in var_names:

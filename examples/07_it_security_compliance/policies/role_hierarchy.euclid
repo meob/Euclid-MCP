@@ -1,0 +1,85 @@
+# Company Role Hierarchy — Euclid IR
+#
+# Defines the organizational role structure and permission inheritance.
+# This is RECURSIVE: permissions flow upward through the hierarchy.
+# A tech_lead inherits everything a senior_dev has, plus their own.
+
+# ── Role definitions ──
+role(intern)
+role(junior_dev)
+role(mid_senior_dev)
+role(senior_dev)
+role(tech_lead)
+role(eng_manager)
+role(director)
+role(vp_engineering)
+role(cto)
+
+# Operations roles
+role(helpdesk)
+role(sysadmin)
+role(security_analyst)
+role(security_engineer)
+role(devops_engineer)
+
+# Business roles
+role(product_manager)
+role(business_analyst)
+
+# ── Hierarchy: each role inherits from the one below ──
+inherits(junior_dev, intern)
+inherits(mid_senior_dev, junior_dev)
+inherits(senior_dev, mid_senior_dev)
+inherits(tech_lead, senior_dev)
+inherits(eng_manager, tech_lead)
+inherits(director, eng_manager)
+inherits(vp_engineering, director)
+inherits(cto, vp_engineering)
+
+inherits(sysadmin, helpdesk)
+inherits(security_engineer, security_analyst)
+inherits(devops_engineer, sysadmin)
+
+# ── Department assignments ──
+department_role(engineering, junior_dev)
+department_role(engineering, mid_senior_dev)
+department_role(engineering, senior_dev)
+department_role(engineering, tech_lead)
+department_role(engineering, eng_manager)
+department_role(engineering, director)
+department_role(engineering, vp_engineering)
+department_role(engineering, cto)
+
+department_role(operations, helpdesk)
+department_role(operations, sysadmin)
+department_role(operations, devops_engineer)
+
+department_role(security, security_analyst)
+department_role(security, security_engineer)
+
+department_role(product, product_manager)
+department_role(product, business_analyst)
+
+# ── Recursive permission inheritance ──
+# A role has a permission if it's directly assigned OR inherited from a parent role.
+role_has_permission($role, $perm) IF role_permission($role, $perm)
+role_has_permission($role, $perm) IF inherits($role, $parent) AND role_has_permission($parent, $perm)
+
+# ── User-role assignment ──
+# A user has a permission if they hold a role that has that permission.
+user_has_permission($user, $perm) IF user($user) AND has_role($user, $role) AND role_has_permission($role, $perm)
+
+# ── Role-level access for deployments ──
+# Higher roles can deploy to more sensitive environments.
+deploy_role_level(intern, 0)
+deploy_role_level(junior_dev, 1)
+deploy_role_level(mid_senior_dev, 2)
+deploy_role_level(senior_dev, 3)
+deploy_role_level(tech_lead, 4)
+deploy_role_level(eng_manager, 5)
+deploy_role_level(director, 6)
+deploy_role_level(vp_engineering, 7)
+deploy_role_level(cto, 8)
+
+role_level($role, $level) IF deploy_role_level($role, $level)
+role_level($role, $level) IF inherits($role, $parent) AND role_level($parent, $parent_level) AND $level = $parent_level + 1

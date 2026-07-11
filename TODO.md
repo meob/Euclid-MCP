@@ -13,9 +13,9 @@
 - [x] Istruzioni FastMCP: italiano → inglese
 - [x] Error messages: italiano → inglese
 
-## Short term (provare utilità)
+## Short term (usefulness)
 
-- [x] **Esempi reali**: genealogia, RBAC, classificazione biologica, loan eligibility
+- [x] **Short real cases**: genealogia, RBAC, classificazione biologica, loan eligibility
   - `examples/01_genealogy.py` — ricorsione, soluzioni multiple, proof tree
   - `examples/02_rbac.py` — gerarchia ruoli, ereditarietà permessi, audit trail
   - `examples/03_classification.py` — tassonomia, proprietà per ereditarietà
@@ -30,8 +30,9 @@
   - `integrations/README.md` — documentazione integrazioni
 - [ ] README examples with Ollama (test with Llama 3B, Qwen 2.5 7B)
 - [ ] PyPI release (`pip install euclid-mcp`)
+- [ ] Policy Compiler
 
-## Medium term (qualità)
+## Medium term (quality)
 
 - [ ] CI pipeline (GitHub Actions: test on Ubuntu, macOS)
 - [ ] Lint + type checking (ruff, mypy)

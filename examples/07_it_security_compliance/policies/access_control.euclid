@@ -1,0 +1,96 @@
+# Access Control Rules — Euclid IR
+#
+# Combines role hierarchy, environment tiers, and data classification
+# into concrete access control decisions.
+# This is the main "policy engine" file.
+
+# ── Direct permission assignments ──
+# These map roles to specific permissions.
+
+# Engineering permissions
+role_permission(intern, read_code)
+role_permission(junior_dev, read_code)
+role_permission(junior_dev, write_code)
+role_permission(junior_dev, run_tests)
+role_permission(mid_senior_dev, read_code)
+role_permission(mid_senior_dev, write_code)
+role_permission(mid_senior_dev, run_tests)
+role_permission(mid_senior_dev, review_code)
+role_permission(senior_dev, read_code)
+role_permission(senior_dev, write_code)
+role_permission(senior_dev, run_tests)
+role_permission(senior_dev, review_code)
+role_permission(senior_dev, merge_pr)
+role_permission(tech_lead, read_code)
+role_permission(tech_lead, write_code)
+role_permission(tech_lead, run_tests)
+role_permission(tech_lead, review_code)
+role_permission(tech_lead, merge_pr)
+role_permission(tech_lead, deploy_code)
+
+# Operations permissions
+role_permission(helpdesk, read_logs)
+role_permission(helpdesk, reset_password)
+role_permission(helpdesk, view_tickets)
+role_permission(sysadmin, read_logs)
+role_permission(sysadmin, manage_users)
+role_permission(sysadmin, manage_servers)
+role_permission(sysadmin, access_database)
+role_permission(devops_engineer, read_logs)
+role_permission(devops_engineer, manage_servers)
+role_permission(devops_engineer, deploy_code)
+role_permission(devops_engineer, manage_ci_cd)
+role_permission(devops_engineer, manage_infrastructure)
+
+# Security permissions
+role_permission(security_analyst, read_logs)
+role_permission(security_analyst, view_audit)
+role_permission(security_analyst, scan_vulnerabilities)
+role_permission(security_engineer, read_logs)
+role_permission(security_engineer, view_audit)
+role_permission(security_engineer, scan_vulnerabilities)
+role_permission(security_engineer, manage_firewall)
+role_permission(security_engineer, manage_encryption)
+role_permission(security_engineer, rotate_keys)
+
+# Management permissions
+role_permission(eng_manager, manage_team)
+role_permission(eng_manager, approve_pto)
+role_permission(eng_manager, view_budget)
+role_permission(director, manage_team)
+role_permission(director, approve_pto)
+role_permission(director, view_budget)
+role_permission(director, approve_budget)
+role_permission(director, manage_department)
+role_permission(vp_engineering, manage_department)
+role_permission(vp_engineering, approve_budget)
+role_permission(vp_engineering, view_financials)
+role_permission(vp_engineering, manage_directors)
+role_permission(cto, manage_all_engineering)
+role_permission(cto, approve_budget)
+role_permission(cto, view_financials)
+role_permission(cto, manage_directors)
+role_permission(cto, set_policy)
+
+# Product permissions
+role_permission(product_manager, view_analytics)
+role_permission(product_manager, manage_backlog)
+role_permission(product_manager, approve_features)
+role_permission(business_analyst, view_analytics)
+role_permission(business_analyst, create_reports)
+
+# ── Critical operations (require special authorization) ──
+critical_operation(delete_data)
+critical_operation(manage_production)
+critical_operation(access_secret_data)
+critical_operation(modify_security_group)
+critical_operation(manage_encryption_keys)
+
+# ── Who can perform critical operations ──
+can_perform_critical($user, $op) IF user($user) AND user_has_permission($user, $op) AND has_role($user, $role) AND deploy_role_level($role, $level) AND $level >= 6
+
+# ── Database access rules ──
+can_access_database($user) IF user($user) AND user_has_permission($user, access_database)
+
+# Users who can access production databases need additional approval
+production_db_access($user) IF user($user) AND can_access_database($user) AND has_role($user, $role) AND deploy_role_level($role, $level) AND $level >= 5

@@ -47,17 +47,40 @@ def _parse_text(text: str) -> KB:
     rules: list[str] = []
     query: str | None = None
 
-    for line in text.split("\n"):
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
         # Strip comments (# or //) but not inside atoms (e.g. ://)
-        line = re.sub(r"(?<!\S)\s*(#|//).*$", "", line).strip()
+        line = re.sub(r"(?<!\S)\s*(#|//).*$", "", lines[i]).strip()
+        i += 1
         if not line:
             continue
         line = line.rstrip(".")
 
         if line.startswith("?"):
             query = line.lstrip("? ").strip()
-        elif " IF " in line:
-            head, body_str = line.split(" IF ", 1)
+        elif " IF " in line or line.endswith(" IF"):
+            if " IF " in line:
+                head, body_str = line.split(" IF ", 1)
+            else:
+                head = line[:-3]  # Remove trailing " IF"
+                body_str = ""
+            body_str = body_str.strip()
+            # Multi-line rule: if body is empty or ends with AND, keep reading
+            while body_str == "" or body_str.endswith("AND"):
+                if i >= len(lines):
+                    break
+                next_line = re.sub(r"(?<!\S)\s*(#|//).*$", "", lines[i]).strip()
+                i += 1
+                if not next_line:
+                    continue
+                next_line = next_line.rstrip(".")
+                if body_str == "":
+                    body_str = next_line
+                elif body_str.endswith("AND"):
+                    body_str = body_str + " " + next_line
+                else:
+                    body_str = body_str + " " + next_line
             body_parts = re.split(r"\s+AND\s+", body_str)
             body = ", ".join(p.strip() for p in body_parts)
             rules.append(f"{head.strip()} IF {body}")

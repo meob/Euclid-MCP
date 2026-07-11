@@ -10,28 +10,19 @@ from euclid_mcp.translator import to_prolog
 mcp = FastMCP(
     "Euclid-MCP",
     instructions="""Euclid-MCP is a deterministic logical reasoning engine.
+Write facts and rules in Euclid IR, the engine returns solutions with proof trees.
 
-Write facts, rules, and a query in the Euclid Intermediate Language:
-
-Variables: $name  (e.g., $who, $x, $y)
-Implication: IF  (e.g., mortal($x) IF human($x))
-Conjunction: AND  (e.g., parent($x, $z) AND ancestor($z, $y))
-Query prefix: ?
+Syntax:
+  Variables: $name  |  Implication: IF  |  Conjunction: AND  |  Query prefix: ?
+  Negation: NOT  |  Arithmetic: >, >=, <, <=, =:=, =\\=  |  Multi-line rules supported
 
 Examples:
-    mortal(socrates)
     human(socrates)
     mortal($x) IF human($x)
     ? mortal($who)
 
-The engine returns solutions with proof trees (fact/rule/and nodes).
-
-YAML format is also supported:
-  facts: [parent(tom, bob)]
-  rules: [ancestor($x, $y) IF parent($x, $y)]
-  query: ancestor(tom, $who)
-
-Prefer the text format — it is more concise and less error-prone.
+YAML format also supported (see AGENTS.md for full reference).
+Use when: logical rules, compliance checks, RBAC, proof trees, deterministic answers.
 """,
 )
 

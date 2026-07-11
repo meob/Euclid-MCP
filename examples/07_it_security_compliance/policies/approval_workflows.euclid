@@ -1,0 +1,54 @@
+# Approval Workflows — Euclid IR
+#
+# Defines multi-step approval chains for sensitive operations.
+# Certain actions require approval from a higher-level role before execution.
+
+# ── Approval requirements ──
+# operation, required_approver_role, max_age_days
+requires_approval(deploy_production, director, 7)
+requires_approval(deploy_golden, director, 7)
+requires_approval(manage_production, vp_engineering, 30)
+requires_approval(access_secret_data, security_engineer, 1)
+requires_approval(modify_security_group, security_engineer, 3)
+requires_approval(manage_encryption_keys, security_engineer, 1)
+requires_approval(delete_data, director, 1)
+requires_approval(manage_users, sysadmin, 30)
+
+# ── Approval chain: find who must approve ──
+approval_chain($op, $approver_role) IF requires_approval($op, $approver_role, _)
+
+# A user can self-approve only if they hold the approver role
+self_approve_allowed($user, $op) IF
+    user($user) AND has_role($user, $role) AND requires_approval($op, $approver_role, _) AND inherits($role, $approver_role)
+
+# Recursive: check if a role is at or above the approver level
+has_approver_clearance($role, $approver_role) IF inherits($role, $approver_role)
+has_approver_clearance($role, $approver_role) IF inherits($role, $parent) AND has_approver_clearance($parent, $approver_role)
+
+can_self_approve($user, $op) IF
+    user($user) AND has_role($user, $role) AND requires_approval($op, $approver_role, _) AND has_approver_clearance($role, $approver_role)
+
+# ── MFA requirements ──
+# Critical operations require MFA authentication.
+requires_mfa(deploy_production)
+requires_mfa(deploy_golden)
+requires_mfa(access_secret_data)
+requires_mfa(manage_encryption_keys)
+requires_mfa(manage_users)
+requires_mfa(modify_security_group)
+
+# ── Compliance checks ──
+# A deployment is compliant if it has approval + MFA + role clearance.
+compliant_deployment($user, $env) IF
+    user($user) AND can_deploy($user, $env) AND has_role($user, $role) AND deploy_requires_level($env, $min_level) AND deploy_role_level($role, $level) AND $level >= $min_level + 1
+
+# Non-compliant: deployed without sufficient role level
+non_compliant_deployment($user, $env) IF
+    user($user) AND user_has_permission($user, deploy_code) AND has_role($user, $role) AND deploy_requires_level($env, $min_level) AND deploy_role_level($role, $level) AND $level < $min_level
+
+# ── Incident response ──
+# During a security incident, additional restrictions apply.
+incident_mode(active)
+
+restricted_during_incident($user) IF
+    user($user) AND incident_mode(active) AND has_role($user, $role) AND deploy_role_level($role, $level) AND $level < 5

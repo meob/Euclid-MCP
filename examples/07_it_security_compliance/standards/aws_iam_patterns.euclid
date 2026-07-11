@@ -1,0 +1,80 @@
+# AWS IAM Best Practices — Euclid IR
+#
+# Industry-standard patterns for IAM security.
+# These rules express well-known AWS best practices as logical constraints.
+
+# ── Pattern 1: Separation of Duties ──
+# A user who can deploy should NOT also approve deployments.
+# A user who can create roles should NOT assign them to themselves.
+
+violates_separation_of_duties($user) IF
+    user($user) AND has_permission($user, deploy_code) AND has_permission($user, approve_deploy)
+
+violates_separation_of_duties($user) IF
+    user($user) AND has_permission($user, create_role) AND has_permission($user, assign_role)
+
+# ── Pattern 2: Least Privilege ──
+# Users with more than 15 direct permissions should be reviewed.
+
+excessive_permissions($user, $count) IF
+    user($user) AND permission_count($user, $count) AND $count > 15
+
+# ── Pattern 3: Stale Access ──
+# Users who haven't logged in for 90+ days retain permissions.
+
+stale_access($user) IF
+    user($user) AND is_active($user) AND last_login_days($user, $days) AND $days > 90
+
+# ── Pattern 4: Unused Permissions ──
+# Permissions granted but never used in the last 30 days.
+
+unused_permission($user, $perm) IF
+    user($user) AND has_permission($user, $perm) AND last_used_days($perm, $days) AND $days > 30
+
+# ── Pattern 5: Cross-Account Access ──
+# Cross-account roles should require MFA.
+
+cross_account_risk($user) IF
+    user($user) AND has_role($user, $role) AND cross_account_role($role) AND NOT mfa_enabled($user)
+
+# ── Pattern 6: Privilege Escalation Paths ──
+# Users who can modify IAM policies can escalate their own privileges.
+
+privilege_escalation_risk($user) IF
+    user($user) AND has_permission($user, attach_user_policy) AND has_permission($user, create_access_key)
+
+privilege_escalation_risk($user) IF
+    user($user) AND has_permission($user, put_role_policy) AND has_permission($user, assume_role)
+
+# ── Pattern 7: Root Account Protection ──
+# Root account should have no access keys, no MFA bypass.
+
+root_violation(root_account, has_access_keys) IF
+    iam_user(root_account) AND role(root_account, root) AND has_access_key(root_account)
+
+root_violation(root_account, no_mfa) IF
+    iam_user(root_account) AND role(root_account, root) AND NOT mfa_enabled(root_account)
+
+# ── Pattern 8: Service Account Hygiene ──
+# Service accounts should not have interactive console access.
+
+service_account_risk($user) IF
+    user($user) AND account_type($user, service) AND has_console_access($user)
+
+service_account_risk($user) IF
+    user($user) AND account_type($user, service) AND NOT rotate_keys_90d($user)
+
+# ── Pattern 9: Administrative Boundary ──
+# No single user should have both user management AND billing access.
+
+admin_boundary_violation($user) IF
+    user($user) AND has_permission($user, manage_users) AND has_permission($user, manage_billing)
+
+admin_boundary_violation($user) IF
+    user($user) AND has_permission($user, manage_users) AND has_permission($user, create_invoice)
+
+# ── Pattern 10: Resource-Level Permissions ──
+# Permissions should be scoped to specific resources, not wildcards.
+
+wildcard_risk($user) IF
+    user($user) AND has_wildcard_permission($user, $perm)

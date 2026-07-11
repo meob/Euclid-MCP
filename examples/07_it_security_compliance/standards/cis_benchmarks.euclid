@@ -1,0 +1,118 @@
+# CIS Amazon Web Services Foundations Benchmark
+# Based on CIS AWS Foundations Benchmark v2.0 / v3.0
+# https://www.cisecurity.org/benchmark/aws
+#
+# These are FACTS describing which CIS controls apply to which resource types.
+# The violation rules in access_control.euclid combine these with actual data.
+
+# ── Section 1: Identity and Access Management ──
+
+cis_control(cis_1_1, 'Maintain separate AWS accounts', high)
+cis_control(cis_1_2, 'Use organizations for multi-account', medium)
+cis_control(cis_1_3, 'Use SCPs to restrict account usage', medium)
+cis_control(cis_1_4, 'Do not use root account for daily tasks', critical)
+cis_control(cis_1_5, 'Create individual IAM users', high)
+cis_control(cis_1_6, 'Use IAM groups for user management', medium)
+cis_control(cis_1_7, 'Use strong password policy', high)
+cis_control(cis_1_8, 'Enable MFA for all IAM users', critical)
+cis_control(cis_1_9, 'Rotate access keys every 90 days', high)
+cis_control(cis_1_10, 'Do not create access keys for root', critical)
+cis_control(cis_1_11, 'Use MFA for root account', critical)
+
+# ── Section 2: Storage ──
+
+cis_control(cis_2_1, 'Enable S3 bucket versioning', medium)
+cis_control(cis_2_2, 'Enable S3 bucket logging', high)
+cis_control(cis_2_3, 'Ensure S3 buckets are not publicly accessible', critical)
+cis_control(cis_2_4, 'Ensure S3 bucket policies deny HTTP', high)
+cis_control(cis_2_5, 'Restrict S3 bucket policies to known principals', high)
+cis_control(cis_2_6, 'Enable EBS encryption by default', high)
+cis_control(cis_2_7, 'Enable RDS encryption', critical)
+cis_control(cis_2_8, 'Enable RDS automated backups', high)
+cis_control(cis_2_9, 'Restrict S3 access to specific VPC endpoints', medium)
+
+# ── Section 3: Logging ──
+
+cis_control(cis_3_1, 'Enable CloudTrail in all regions', critical)
+cis_control(cis_3_2, 'Enable CloudTrail log file validation', high)
+cis_control(cis_3_3, 'Ensure CloudTrail logs are stored in S3', high)
+cis_control(cis_3_4, 'Enable CloudTrail for global services', high)
+cis_control(cis_3_5, 'Enable VPC Flow Logs', high)
+cis_control(cis_3_6, 'Enable ALB access logging', medium)
+cis_control(cis_3_7, 'Enable ELB connection draining', medium)
+cis_control(cis_3_8, 'Ensure CloudWatch alarms for root login', critical)
+
+# ── Section 4: Networking ──
+
+cis_control(cis_4_1, 'Ensure no unrestricted security groups (0.0.0.0/0)', critical)
+cis_control(cis_4_2, 'Restrict SSH access (port 22) to known IPs', critical)
+cis_control(cis_4_3, 'Restrict RDP access (port 3389) to known IPs', critical)
+cis_control(cis_4_4, 'Ensure VPC subnets are not overly permissive', high)
+cis_control(cis_4_5, 'Use private subnets for databases', high)
+cis_control(cis_4_6, 'Enable NACLs on private subnets', medium)
+
+# ── Section 5: Monitoring ──
+
+cis_control(cis_5_1, 'Enable GuardDuty in all regions', high)
+cis_control(cis_5_2, 'Enable Security Hub in all regions', medium)
+cis_control(cis_5_3, 'Enable Config in all regions', medium)
+cis_control(cis_5_4, 'Enable Macie for S3 data discovery', medium)
+
+# ── Section 6: Databases ──
+
+cis_control(cis_6_1, 'Ensure RDS instances are not publicly accessible', critical)
+cis_control(cis_6_2, 'Enable DynamoDB encryption at rest', high)
+cis_control(cis_6_3, 'Enable ElastiCache encryption at rest', medium)
+cis_control(cis_6_4, 'Restrict DynamoDB access to specific VPCs', medium)
+cis_control(cis_6_5, 'Enable RDS enhanced monitoring', medium)
+cis_control(cis_6_6, 'Enable Neptune encryption', high)
+
+# ── Section 7: Compute ──
+
+cis_control(cis_7_1, 'Ensure EC2 instances are not publicly accessible', critical)
+cis_control(cis_7_2, 'Use IMDSv2 on EC2 instances', high)
+cis_control(cis_7_3, 'Enable EC2 instance detailed monitoring', medium)
+cis_control(cis_7_4, 'Ensure Lambda functions use latest runtime', medium)
+cis_control(cis_7_5, 'Restrict Lambda execution role to minimum permissions', high)
+
+# ── Mapping: resource types to relevant CIS controls ──
+
+# S3 buckets must satisfy these CIS controls
+cis_applies_to(s3_bucket, cis_2_1)
+cis_applies_to(s3_bucket, cis_2_2)
+cis_applies_to(s3_bucket, cis_2_3)
+cis_applies_to(s3_bucket, cis_2_4)
+cis_applies_to(s3_bucket, cis_2_5)
+cis_applies_to(s3_bucket, cis_2_9)
+
+# EC2 instances
+cis_applies_to(ec2_instance, cis_7_1)
+cis_applies_to(ec2_instance, cis_7_2)
+cis_applies_to(ec2_instance, cis_7_3)
+
+# RDS instances
+cis_applies_to(rds_instance, cis_2_7)
+cis_applies_to(rds_instance, cis_2_8)
+cis_applies_to(rds_instance, cis_6_1)
+cis_applies_to(rds_instance, cis_6_5)
+
+# DynamoDB tables
+cis_applies_to(dynamodb_table, cis_6_2)
+cis_applies_to(dynamodb_table, cis_6_4)
+
+# IAM users
+cis_applies_to(iam_user, cis_1_5)
+cis_applies_to(iam_user, cis_1_7)
+cis_applies_to(iam_user, cis_1_8)
+cis_applies_to(iam_user, cis_1_9)
+
+# Security groups
+cis_applies_to(security_group, cis_4_1)
+cis_applies_to(security_group, cis_4_2)
+cis_applies_to(security_group, cis_4_3)
+
+# ── Severity mapping ──
+cis_severity(critical, 4)
+cis_severity(high, 3)
+cis_severity(medium, 2)
+cis_severity(low, 1)

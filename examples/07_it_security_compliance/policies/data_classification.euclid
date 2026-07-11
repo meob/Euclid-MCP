@@ -1,0 +1,43 @@
+# Data Classification — Euclid IR
+#
+# Defines data sensitivity levels and access requirements.
+# Resources carry a classification; users must have matching clearance.
+
+# ── Classification levels (ordered by sensitivity) ──
+classification(public, 1, no_restrictions)
+classification(internal, 2, need_to_know)
+classification(confidential, 3, nda_required)
+classification(secret, 4, top_secret_clearance)
+
+# ── Role clearance levels ──
+# What level of data each role can access by default.
+role_clearance(intern, public)
+role_clearance(junior_dev, internal)
+role_clearance(helpdesk, internal)
+role_clearance(business_analyst, internal)
+role_clearance(product_manager, internal)
+role_clearance(mid_senior_dev, confidential)
+role_clearance(sysadmin, confidential)
+role_clearance(security_analyst, confidential)
+role_clearance(senior_dev, confidential)
+role_clearance(tech_lead, confidential)
+role_clearance(security_engineer, secret)
+role_clearance(devops_engineer, confidential)
+role_clearance(eng_manager, confidential)
+role_clearance(director, secret)
+role_clearance(vp_engineering, secret)
+role_clearance(cto, secret)
+
+# ── Recursive clearance: higher roles inherit lower clearance ──
+user_clearance($user, $level) IF user($user) AND has_role($user, $role) AND role_clearance($role, $cls) AND classification($cls, $level, _)
+
+user_max_clearance($user, $max_level) IF
+    user($user) AND has_role($user, $role) AND role_clearance($role, $cls) AND classification($cls, $max_level, _)
+
+# ── Access check: user can access resource if clearance >= resource classification ──
+can_access_resource($user, $resource) IF
+    user($user) AND resource($resource, _, _, _, _, $res_class) AND classification($res_class, $res_level, _) AND user_max_clearance($user, $user_level) AND $user_level >= $res_level
+
+# ── Violation: user accesses data above their clearance ──
+clearance_violation($user, $resource) IF
+    user($user) AND resource($resource, _, _, _, _, $res_class) AND classification($res_class, $res_level, _) AND user_max_clearance($user, $user_level) AND $user_level < $res_level

@@ -1,0 +1,14 @@
+{
+  "schema": "modelcontextprotocol.io/registry/0.1",
+  "name": "euclid-mcp",
+  "description": "Deterministic logical reasoning engine for AI agents — writes facts in Euclid IR, returns solutions with proof trees",
+  "version": "0.1.1",
+  "repository": "https://github.com/meo/euclid-mcp",
+  "license": "Apache-2.0",
+  "tools": [
+    {
+      "name": "reason",
+      "description": "Perform logical deduction on a knowledge base and return solutions with proof trees for each result"
+    }
+  ]
+}

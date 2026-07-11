@@ -1,0 +1,43 @@
+# Environment Tiers — Euclid IR
+#
+# Classifies deployment environments by security tier.
+# Production and golden environments require the highest security controls.
+
+# ── Environment classification ──
+environment(production, tier_1, highest_security)
+environment(golden, tier_1, highest_security)
+environment(staging, tier_2, high_security)
+environment(development, tier_3, standard_security)
+environment(sandbox, tier_4, minimal_security)
+
+# ── Deploy permissions per environment ──
+# Minimum role level required to deploy to each tier.
+deploy_requires_level(production, 6)
+deploy_requires_level(golden, 6)
+deploy_requires_level(staging, 4)
+deploy_requires_level(development, 2)
+deploy_requires_level(sandbox, 1)
+
+# ── Encryption requirements per tier ──
+requires_encryption(production)
+requires_encryption(golden)
+requires_encryption(staging)
+
+# ── Backup requirements per tier ──
+requires_backup(production)
+requires_backup(golden)
+
+# ── Public access restrictions ──
+allows_public_access(sandbox)
+allows_public_access(development)
+
+# ── Logging requirements ──
+requires_audit_log(production)
+requires_audit_log(golden)
+requires_audit_log(staging)
+
+# ── Access rules: who can access each tier ──
+can_access_tier($user, $env) IF user($user) AND has_role($user, $role) AND deploy_requires_level($env, $min_level) AND deploy_role_level($role, $level) AND $level >= $min_level
+
+# ── Deployment permission = role level >= tier requirement AND has deploy permission ──
+can_deploy($user, $env) IF user($user) AND has_role($user, $role) AND deploy_requires_level($env, $min_level) AND deploy_role_level($role, $level) AND $level >= $min_level AND user_has_permission($user, deploy_code)
