@@ -28,21 +28,25 @@
   - `integrations/euclid_api.py` — HTTP API per n8n/Zapier/Make
   - `integrations/euclid_cli.py` — CLI wrapper per shell pipeline
   - `integrations/README.md` — documentazione integrazioni
+- [x] **PyPI release** (`pip install euclid-mcp`) — v0.1.1 published
+- [x] **Negation support**: `NOT` keyword → Prolog `\+`
+- [x] **Arithmetic constraints**: `$x > 90`, `$x >= $y` in rules
+- [x] **Multi-line rules**: body on next lines
+- [x] **Conjunction queries**: `pred1($x) AND pred2($x)` with variable dedup
+- [x] **IT Security & Compliance demo**: `examples/07_it_security_compliance/` — 3,872 facts, 3 layers (standards, policies, data)
+- [x] MCP server `instructions` updated with new capabilities
+- [x] README updated: Euclid-IR syntax reference, arithmetic, multi-line, NOT
+- [x] Unit tests: 25/25 passing (17 original + 8 new)
 - [ ] README examples with Ollama (test with Llama 3B, Qwen 2.5 7B)
-- [ ] PyPI release (`pip install euclid-mcp`)
 - [ ] Policy Compiler
 
 ## Medium term (quality)
 
-- [ ] CI pipeline (GitHub Actions: test on Ubuntu, macOS)
+- [x] CI pipeline (GitHub Actions: PyPI publish on release)
 - [ ] Lint + type checking (ruff, mypy)
 - [ ] Test coverage su server.py (error paths)
 - [ ] Docker image with bundled SWI-Prolog
 - [ ] **Security**: Sanitize input, sandbox, limits
-- [ ] **Negation support**: `NOT` keyword in intermediate language
-  - Translate to Prolog's `\+` (negation-as-failure)
-- [ ] **Arithmetic constraints**: Allow `$x > 5`, `$x + $y = $z`
-  - Translate to Prolog's `is/2` and CLP(FD)
 - [ ] **Named knowledge bases**: Save/load KBs for reuse across sessions
 - [ ] **`explain` tool**: Convert proof tree to natural language via LLM
 
