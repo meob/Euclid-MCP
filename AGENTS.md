@@ -58,12 +58,11 @@ red(apple)
 
 ### 2. Rule with variable
 ```
-mortal(socrates)
 human(socrates)
 mortal($x) IF human($x)
 ? mortal($who)
 ```
-→ `$who = socrates` (2 solutions: fact + rule)
+→ `$who = socrates` (deduced from rule)
 
 ### 3. Rule chain (ancestry)
 ```

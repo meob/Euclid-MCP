@@ -17,7 +17,7 @@ python3 integrations/euclid_api.py --port 8080
 
 ```json
 {
-  "knowledge": "mortal(socrates)\nhuman(socrates)\nmortal($x) IF human($x)\n? mortal($who)",
+  "knowledge": "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)",
   "max_solutions": 5,
   "max_depth": 30
 }

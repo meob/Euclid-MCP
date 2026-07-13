@@ -32,7 +32,6 @@ Variables use `$name`, implication is `IF`, conjunction is `AND`.
 
 **Text format:**
 ```
-mortal(socrates)
 human(socrates)
 mortal($x) IF human($x)
 
@@ -183,7 +182,6 @@ pip install -e .
 from euclid_mcp.server import reason
 
 result = reason(knowledge="""
-    mortal(socrates)
     human(socrates)
     mortal($x) IF human($x)
     ? mortal($who)

@@ -266,13 +266,12 @@ blue(sky)
 ### 2. Rule with variable
 
 ```
-mortal(socrates)
 human(socrates)
 mortal($x) IF human($x)
 ? mortal($who)
 ```
 
-**Result:** `$who = socrates` (2 solutions: one from fact, one via rule)
+**Result:** `$who = socrates` (deduced from rule)
 
 ### 3. Recursive rules (ancestry)
 
