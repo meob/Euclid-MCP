@@ -1,0 +1,1057 @@
+% ═══════════════════════════════════════════════════════════════════
+% IT Security & Compliance — Full Knowledge Base (Small)
+% ═══════════════════════════════════════════════════════════════════
+%
+% 30 users, 50 resources, ~578 facts
+% Combined from policies/ + standards/ + data/
+%
+% For interactive evaluation with Euclid-MCP + Ollama.
+% Usage: paste this entire file as the "knowledge" parameter in reason()
+%
+% For the full dataset (200 users, 300 resources, ~3872 facts),
+% use: examples/07_it_security_compliance/demo.py
+% ═══════════════════════════════════════════════════════════════════
+
+
+% ───────────────────────────────────────────────────────────────
+% Layer 1: Standards
+% ───────────────────────────────────────────────────────────────
+
+% ── CIS Amazon Web Services Foundations Benchmark ──
+
+cis_control(cis_1_1, 'Maintain separate AWS accounts', high)
+cis_control(cis_1_2, 'Use organizations for multi-account', medium)
+cis_control(cis_1_3, 'Use SCPs to restrict account usage', medium)
+cis_control(cis_1_4, 'Do not use root account for daily tasks', critical)
+cis_control(cis_1_5, 'Create individual IAM users', high)
+cis_control(cis_1_6, 'Use IAM groups for user management', medium)
+cis_control(cis_1_7, 'Use strong password policy', high)
+cis_control(cis_1_8, 'Enable MFA for all IAM users', critical)
+cis_control(cis_1_9, 'Rotate access keys every 90 days', high)
+cis_control(cis_1_10, 'Do not create access keys for root', critical)
+cis_control(cis_1_11, 'Use MFA for root account', critical)
+
+cis_control(cis_2_1, 'Enable S3 bucket versioning', medium)
+cis_control(cis_2_2, 'Enable S3 bucket logging', high)
+cis_control(cis_2_3, 'Ensure S3 buckets are not publicly accessible', critical)
+cis_control(cis_2_4, 'Ensure S3 bucket policies deny HTTP', high)
+cis_control(cis_2_5, 'Restrict S3 bucket policies to known principals', high)
+cis_control(cis_2_6, 'Enable EBS encryption by default', high)
+cis_control(cis_2_7, 'Enable RDS encryption', critical)
+cis_control(cis_2_8, 'Enable RDS automated backups', high)
+cis_control(cis_2_9, 'Restrict S3 access to specific VPC endpoints', medium)
+
+cis_control(cis_3_1, 'Enable CloudTrail in all regions', critical)
+cis_control(cis_3_2, 'Enable CloudTrail log file validation', high)
+cis_control(cis_3_3, 'Ensure CloudTrail logs are stored in S3', high)
+cis_control(cis_3_4, 'Enable CloudTrail for global services', high)
+cis_control(cis_3_5, 'Enable VPC Flow Logs', high)
+cis_control(cis_3_6, 'Enable ALB access logging', medium)
+cis_control(cis_3_7, 'Enable ELB connection draining', medium)
+cis_control(cis_3_8, 'Ensure CloudWatch alarms for root login', critical)
+
+cis_control(cis_4_1, 'Ensure no unrestricted security groups (0.0.0.0/0)', critical)
+cis_control(cis_4_2, 'Restrict SSH access (port 22) to known IPs', critical)
+cis_control(cis_4_3, 'Restrict RDP access (port 3389) to known IPs', critical)
+cis_control(cis_4_4, 'Ensure VPC subnets are not overly permissive', high)
+cis_control(cis_4_5, 'Use private subnets for databases', high)
+cis_control(cis_4_6, 'Enable NACLs on private subnets', medium)
+
+cis_control(cis_5_1, 'Enable GuardDuty in all regions', high)
+cis_control(cis_5_2, 'Enable Security Hub in all regions', medium)
+cis_control(cis_5_3, 'Enable Config in all regions', medium)
+cis_control(cis_5_4, 'Enable Macie for S3 data discovery', medium)
+
+cis_control(cis_6_1, 'Ensure RDS instances are not publicly accessible', critical)
+cis_control(cis_6_2, 'Enable DynamoDB encryption at rest', high)
+cis_control(cis_6_3, 'Enable ElastiCache encryption at rest', medium)
+cis_control(cis_6_4, 'Restrict DynamoDB access to specific VPCs', medium)
+cis_control(cis_6_5, 'Enable RDS enhanced monitoring', medium)
+cis_control(cis_6_6, 'Enable Neptune encryption', high)
+
+cis_control(cis_7_1, 'Ensure EC2 instances are not publicly accessible', critical)
+cis_control(cis_7_2, 'Use IMDSv2 on EC2 instances', high)
+cis_control(cis_7_3, 'Enable EC2 instance detailed monitoring', medium)
+cis_control(cis_7_4, 'Ensure Lambda functions use latest runtime', medium)
+cis_control(cis_7_5, 'Restrict Lambda execution role to minimum permissions', high)
+
+cis_severity(critical, 4)
+cis_severity(high, 3)
+cis_severity(medium, 2)
+cis_severity(low, 1)
+
+% ── AWS IAM Best Practices ──
+
+violates_separation_of_duties($user) IF
+    user($user) AND has_permission($user, deploy_code) AND has_permission($user, approve_deploy)
+
+violates_separation_of_duties($user) IF
+    user($user) AND has_permission($user, create_role) AND has_permission($user, assign_role)
+
+excessive_permissions($user, $count) IF
+    user($user) AND permission_count($user, $count) AND $count > 15
+
+stale_access($user) IF
+    user($user) AND is_active($user) AND last_login_days($user, $days) AND $days > 90
+
+unused_permission($user, $perm) IF
+    user($user) AND has_permission($user, $perm) AND last_used_days($perm, $days) AND $days > 30
+
+cross_account_risk($user) IF
+    user($user) AND has_role($user, $role) AND cross_account_role($role) AND NOT mfa_enabled($user)
+
+privilege_escalation_risk($user) IF
+    user($user) AND has_permission($user, attach_user_policy) AND has_permission($user, create_access_key)
+
+privilege_escalation_risk($user) IF
+    user($user) AND has_permission($user, put_role_policy) AND has_permission($user, assume_role)
+
+root_violation(root_account, has_access_keys) IF
+    iam_user(root_account) AND role(root_account, root) AND has_access_key(root_account)
+
+root_violation(root_account, no_mfa) IF
+    iam_user(root_account) AND role(root_account, root) AND NOT mfa_enabled(root_account)
+
+service_account_risk($user) IF
+    user($user) AND account_type($user, service) AND has_console_access($user)
+
+service_account_risk($user) IF
+    user($user) AND account_type($user, service) AND NOT rotate_keys_90d($user)
+
+admin_boundary_violation($user) IF
+    user($user) AND has_permission($user, manage_users) AND has_permission($user, manage_billing)
+
+admin_boundary_violation($user) IF
+    user($user) AND has_permission($user, manage_users) AND has_permission($user, create_invoice)
+
+wildcard_risk($user) IF
+    user($user) AND has_wildcard_permission($user, $perm)
+
+
+% ───────────────────────────────────────────────────────────────
+% Layer 2: Policies
+% ───────────────────────────────────────────────────────────────
+
+% ── Role Hierarchy ──
+
+role(intern)
+role(junior_dev)
+role(mid_senior_dev)
+role(senior_dev)
+role(tech_lead)
+role(eng_manager)
+role(director)
+role(vp_engineering)
+role(cto)
+
+role(helpdesk)
+role(sysadmin)
+role(security_analyst)
+role(security_engineer)
+role(devops_engineer)
+
+role(product_manager)
+role(business_analyst)
+
+inherits(junior_dev, intern)
+inherits(mid_senior_dev, junior_dev)
+inherits(senior_dev, mid_senior_dev)
+inherits(tech_lead, senior_dev)
+inherits(eng_manager, tech_lead)
+inherits(director, eng_manager)
+inherits(vp_engineering, director)
+inherits(cto, vp_engineering)
+
+inherits(sysadmin, helpdesk)
+inherits(security_engineer, security_analyst)
+inherits(devops_engineer, sysadmin)
+
+department_role(engineering, junior_dev)
+department_role(engineering, mid_senior_dev)
+department_role(engineering, senior_dev)
+department_role(engineering, tech_lead)
+department_role(engineering, eng_manager)
+department_role(engineering, director)
+department_role(engineering, vp_engineering)
+department_role(engineering, cto)
+
+department_role(operations, helpdesk)
+department_role(operations, sysadmin)
+department_role(operations, devops_engineer)
+
+department_role(security, security_analyst)
+department_role(security, security_engineer)
+
+department_role(product, product_manager)
+department_role(product, business_analyst)
+
+role_has_permission($role, $perm) IF role_permission($role, $perm)
+role_has_permission($role, $perm) IF inherits($role, $parent) AND role_has_permission($parent, $perm)
+
+user_has_permission($user, $perm) IF user($user) AND has_role($user, $role) AND role_has_permission($role, $perm)
+
+deploy_role_level(intern, 0)
+deploy_role_level(junior_dev, 1)
+deploy_role_level(mid_senior_dev, 2)
+deploy_role_level(senior_dev, 3)
+deploy_role_level(tech_lead, 4)
+deploy_role_level(eng_manager, 5)
+deploy_role_level(director, 6)
+deploy_role_level(vp_engineering, 7)
+deploy_role_level(cto, 8)
+
+role_level($role, $level) IF deploy_role_level($role, $level)
+role_level($role, $level) IF inherits($role, $parent) AND role_level($parent, $parent_level) AND $level = $parent_level + 1
+
+% ── Environment Tiers ──
+
+environment(production, tier_1, highest_security)
+environment(golden, tier_1, highest_security)
+environment(staging, tier_2, high_security)
+environment(development, tier_3, standard_security)
+environment(sandbox, tier_4, minimal_security)
+
+deploy_requires_level(production, 6)
+deploy_requires_level(golden, 6)
+deploy_requires_level(staging, 4)
+deploy_requires_level(development, 2)
+deploy_requires_level(sandbox, 1)
+
+requires_encryption(production)
+requires_encryption(golden)
+requires_encryption(staging)
+
+requires_backup(production)
+requires_backup(golden)
+
+allows_public_access(sandbox)
+allows_public_access(development)
+
+requires_audit_log(production)
+requires_audit_log(golden)
+requires_audit_log(staging)
+
+can_access_tier($user, $env) IF user($user) AND has_role($user, $role) AND deploy_requires_level($env, $min_level) AND deploy_role_level($role, $level) AND $level >= $min_level
+
+can_deploy($user, $env) IF user($user) AND has_role($user, $role) AND deploy_requires_level($env, $min_level) AND deploy_role_level($role, $level) AND $level >= $min_level AND user_has_permission($user, deploy_code)
+
+% ── Data Classification ──
+
+classification(public, 1, no_restrictions)
+classification(internal, 2, need_to_know)
+classification(confidential, 3, nda_required)
+classification(secret, 4, top_secret_clearance)
+
+role_clearance(intern, public)
+role_clearance(junior_dev, internal)
+role_clearance(helpdesk, internal)
+role_clearance(business_analyst, internal)
+role_clearance(product_manager, internal)
+role_clearance(mid_senior_dev, confidential)
+role_clearance(sysadmin, confidential)
+role_clearance(security_analyst, confidential)
+role_clearance(senior_dev, confidential)
+role_clearance(tech_lead, confidential)
+role_clearance(security_engineer, secret)
+role_clearance(devops_engineer, confidential)
+role_clearance(eng_manager, confidential)
+role_clearance(director, secret)
+role_clearance(vp_engineering, secret)
+role_clearance(cto, secret)
+
+user_clearance($user, $level) IF user($user) AND has_role($user, $role) AND role_clearance($role, $cls) AND classification($cls, $level, _)
+
+user_max_clearance($user, $max_level) IF
+    user($user) AND has_role($user, $role) AND role_clearance($role, $cls) AND classification($cls, $max_level, _)
+
+can_access_resource($user, $resource) IF
+    user($user) AND resource($resource, _, _, _, _, $res_class) AND classification($res_class, $res_level, _) AND user_max_clearance($user, $user_level) AND $user_level >= $res_level
+
+clearance_violation($user, $resource) IF
+    user($user) AND resource($resource, _, _, _, _, $res_class) AND classification($res_class, $res_level, _) AND user_max_clearance($user, $user_level) AND $user_level < $res_level
+
+% ── Access Control Rules ──
+
+role_permission(intern, read_code)
+role_permission(junior_dev, read_code)
+role_permission(junior_dev, write_code)
+role_permission(junior_dev, run_tests)
+role_permission(mid_senior_dev, read_code)
+role_permission(mid_senior_dev, write_code)
+role_permission(mid_senior_dev, run_tests)
+role_permission(mid_senior_dev, review_code)
+role_permission(senior_dev, read_code)
+role_permission(senior_dev, write_code)
+role_permission(senior_dev, run_tests)
+role_permission(senior_dev, review_code)
+role_permission(senior_dev, merge_pr)
+role_permission(tech_lead, read_code)
+role_permission(tech_lead, write_code)
+role_permission(tech_lead, run_tests)
+role_permission(tech_lead, review_code)
+role_permission(tech_lead, merge_pr)
+role_permission(tech_lead, deploy_code)
+
+role_permission(helpdesk, read_logs)
+role_permission(helpdesk, reset_password)
+role_permission(helpdesk, view_tickets)
+role_permission(sysadmin, read_logs)
+role_permission(sysadmin, manage_users)
+role_permission(sysadmin, manage_servers)
+role_permission(sysadmin, access_database)
+role_permission(devops_engineer, read_logs)
+role_permission(devops_engineer, manage_servers)
+role_permission(devops_engineer, deploy_code)
+role_permission(devops_engineer, manage_ci_cd)
+role_permission(devops_engineer, manage_infrastructure)
+
+role_permission(security_analyst, read_logs)
+role_permission(security_analyst, view_audit)
+role_permission(security_analyst, scan_vulnerabilities)
+role_permission(security_engineer, read_logs)
+role_permission(security_engineer, view_audit)
+role_permission(security_engineer, scan_vulnerabilities)
+role_permission(security_engineer, manage_firewall)
+role_permission(security_engineer, manage_encryption)
+role_permission(security_engineer, rotate_keys)
+
+role_permission(eng_manager, manage_team)
+role_permission(eng_manager, approve_pto)
+role_permission(eng_manager, view_budget)
+role_permission(director, manage_team)
+role_permission(director, approve_pto)
+role_permission(director, view_budget)
+role_permission(director, approve_budget)
+role_permission(director, manage_department)
+role_permission(vp_engineering, manage_department)
+role_permission(vp_engineering, approve_budget)
+role_permission(vp_engineering, view_financials)
+role_permission(vp_engineering, manage_directors)
+role_permission(cto, manage_all_engineering)
+role_permission(cto, approve_budget)
+role_permission(cto, view_financials)
+role_permission(cto, manage_directors)
+role_permission(cto, set_policy)
+
+role_permission(product_manager, view_analytics)
+role_permission(product_manager, manage_backlog)
+role_permission(product_manager, approve_features)
+role_permission(business_analyst, view_analytics)
+role_permission(business_analyst, create_reports)
+
+critical_operation(delete_data)
+critical_operation(manage_production)
+critical_operation(access_secret_data)
+critical_operation(modify_security_group)
+critical_operation(manage_encryption_keys)
+
+can_perform_critical($user, $op) IF user($user) AND user_has_permission($user, $op) AND has_role($user, $role) AND deploy_role_level($role, $level) AND $level >= 6
+
+can_access_database($user) IF user($user) AND user_has_permission($user, access_database)
+
+production_db_access($user) IF user($user) AND can_access_database($user) AND has_role($user, $role) AND deploy_role_level($role, $level) AND $level >= 5
+
+% ── Approval Workflows ──
+
+requires_approval(deploy_production, director, 7)
+requires_approval(deploy_golden, director, 7)
+requires_approval(manage_production, vp_engineering, 30)
+requires_approval(access_secret_data, security_engineer, 1)
+requires_approval(modify_security_group, security_engineer, 3)
+requires_approval(manage_encryption_keys, security_engineer, 1)
+requires_approval(delete_data, director, 1)
+requires_approval(manage_users, sysadmin, 30)
+
+approval_chain($op, $approver_role) IF requires_approval($op, $approver_role, _)
+
+self_approve_allowed($user, $op) IF
+    user($user) AND has_role($user, $role) AND requires_approval($op, $approver_role, _) AND inherits($role, $approver_role)
+
+has_approver_clearance($role, $approver_role) IF inherits($role, $approver_role)
+has_approver_clearance($role, $approver_role) IF inherits($role, $parent) AND has_approver_clearance($parent, $approver_role)
+
+can_self_approve($user, $op) IF
+    user($user) AND has_role($user, $role) AND requires_approval($op, $approver_role, _) AND has_approver_clearance($role, $approver_role)
+
+requires_mfa(deploy_production)
+requires_mfa(deploy_golden)
+requires_mfa(access_secret_data)
+requires_mfa(manage_encryption_keys)
+requires_mfa(manage_users)
+requires_mfa(modify_security_group)
+
+compliant_deployment($user, $env) IF
+    user($user) AND can_deploy($user, $env) AND has_role($user, $role) AND deploy_requires_level($env, $min_level) AND deploy_role_level($role, $level) AND $level >= $min_level + 1
+
+non_compliant_deployment($user, $env) IF
+    user($user) AND user_has_permission($user, deploy_code) AND has_role($user, $role) AND deploy_requires_level($env, $min_level) AND deploy_role_level($role, $level) AND $level < $min_level
+
+incident_mode(active)
+
+restricted_during_incident($user) IF
+    user($user) AND incident_mode(active) AND has_role($user, $role) AND deploy_role_level($role, $level) AND $level < 5
+
+
+% ───────────────────────────────────────────────────────────────
+% Layer 3: Data
+% ───────────────────────────────────────────────────────────────
+
+user(ops_0001)
+is_active(ops_0001)
+department(ops_0001, operations)
+account_type(ops_0001, human)
+has_console_access(ops_0001)
+last_login_days(ops_0001, 306)
+has_role(ops_0001, helpdesk)
+permission_count(ops_0001, 3)
+has_permission(ops_0001, read_logs)
+has_permission(ops_0001, view_tickets)
+has_permission(ops_0001, reset_password)
+
+user(eng_0002)
+is_active(eng_0002)
+department(eng_0002, engineering)
+account_type(eng_0002, human)
+has_console_access(eng_0002)
+has_access_key(eng_0002)
+last_login_days(eng_0002, 67)
+has_role(eng_0002, intern)
+permission_count(eng_0002, 2)
+has_permission(eng_0002, run_tests)
+has_permission(eng_0002, read_code)
+
+user(dat_0003)
+is_active(dat_0003)
+department(dat_0003, data)
+account_type(dat_0003, human)
+has_console_access(dat_0003)
+has_access_key(dat_0003)
+last_login_days(dat_0003, 36)
+has_role(dat_0003, eng_manager)
+has_role(dat_0003, eng_manager)
+permission_count(dat_0003, 3)
+has_permission(dat_0003, approve_pto)
+has_permission(dat_0003, view_budget)
+has_permission(dat_0003, manage_team)
+
+user(plf_0004)
+is_active(plf_0004)
+department(plf_0004, platform)
+account_type(plf_0004, human)
+has_console_access(plf_0004)
+last_login_days(plf_0004, 26)
+has_role(plf_0004, eng_manager)
+permission_count(plf_0004, 3)
+has_permission(plf_0004, approve_pto)
+has_permission(plf_0004, view_budget)
+has_permission(plf_0004, manage_team)
+
+user(plf_0005)
+is_active(plf_0005)
+department(plf_0005, platform)
+account_type(plf_0005, service)
+mfa_enabled(plf_0005)
+last_login_days(plf_0005, 209)
+has_role(plf_0005, senior_dev)
+permission_count(plf_0005, 5)
+has_permission(plf_0005, write_code)
+has_permission(plf_0005, read_code)
+has_permission(plf_0005, review_code)
+has_permission(plf_0005, merge_pr)
+has_permission(plf_0005, run_tests)
+
+user(ops_0006)
+is_active(ops_0006)
+department(ops_0006, operations)
+account_type(ops_0006, human)
+has_console_access(ops_0006)
+last_login_days(ops_0006, 2)
+has_role(ops_0006, sysadmin)
+permission_count(ops_0006, 4)
+has_permission(ops_0006, manage_users)
+has_permission(ops_0006, read_logs)
+has_permission(ops_0006, access_database)
+has_permission(ops_0006, manage_servers)
+
+user(sec_0007)
+is_active(sec_0007)
+department(sec_0007, security)
+account_type(sec_0007, human)
+has_console_access(sec_0007)
+last_login_days(sec_0007, 24)
+has_role(sec_0007, security_engineer)
+permission_count(sec_0007, 6)
+has_permission(sec_0007, rotate_keys)
+has_permission(sec_0007, read_logs)
+has_permission(sec_0007, manage_firewall)
+has_permission(sec_0007, scan_vulnerabilities)
+has_permission(sec_0007, manage_encryption)
+has_permission(sec_0007, view_audit)
+
+user(eng_0008)
+is_active(eng_0008)
+department(eng_0008, engineering)
+account_type(eng_0008, human)
+mfa_enabled(eng_0008)
+has_console_access(eng_0008)
+last_login_days(eng_0008, 61)
+has_role(eng_0008, junior_dev)
+has_role(eng_0008, sysadmin)
+permission_count(eng_0008, 7)
+has_permission(eng_0008, write_code)
+has_permission(eng_0008, read_logs)
+has_permission(eng_0008, access_database)
+has_permission(eng_0008, read_code)
+has_permission(eng_0008, manage_users)
+has_permission(eng_0008, manage_servers)
+has_permission(eng_0008, run_tests)
+
+user(infra_0009)
+is_active(infra_0009)
+department(infra_0009, infrastructure)
+account_type(infra_0009, human)
+mfa_enabled(infra_0009)
+has_console_access(infra_0009)
+last_login_days(infra_0009, 18)
+has_role(infra_0009, director)
+permission_count(infra_0009, 5)
+has_permission(infra_0009, view_budget)
+has_permission(infra_0009, approve_budget)
+has_permission(infra_0009, approve_pto)
+has_permission(infra_0009, manage_department)
+has_permission(infra_0009, manage_team)
+
+user(infra_0010)
+is_active(infra_0010)
+department(infra_0010, infrastructure)
+account_type(infra_0010, human)
+has_console_access(infra_0010)
+last_login_days(infra_0010, 73)
+has_role(infra_0010, mid_senior_dev)
+permission_count(infra_0010, 4)
+has_permission(infra_0010, review_code)
+has_permission(infra_0010, run_tests)
+has_permission(infra_0010, write_code)
+has_permission(infra_0010, read_code)
+
+user(infra_0011)
+is_active(infra_0011)
+department(infra_0011, infrastructure)
+account_type(infra_0011, human)
+mfa_enabled(infra_0011)
+has_console_access(infra_0011)
+last_login_days(infra_0011, 3)
+has_role(infra_0011, senior_dev)
+permission_count(infra_0011, 5)
+has_permission(infra_0011, write_code)
+has_permission(infra_0011, read_code)
+has_permission(infra_0011, review_code)
+has_permission(infra_0011, merge_pr)
+has_permission(infra_0011, run_tests)
+
+user(dat_0012)
+is_active(dat_0012)
+department(dat_0012, data)
+account_type(dat_0012, human)
+has_console_access(dat_0012)
+has_access_key(dat_0012)
+last_login_days(dat_0012, 24)
+has_role(dat_0012, tech_lead)
+permission_count(dat_0012, 6)
+has_permission(dat_0012, write_code)
+has_permission(dat_0012, deploy_code)
+has_permission(dat_0012, read_code)
+has_permission(dat_0012, review_code)
+has_permission(dat_0012, merge_pr)
+has_permission(dat_0012, run_tests)
+
+user(sec_0013)
+is_active(sec_0013)
+department(sec_0013, security)
+account_type(sec_0013, human)
+mfa_enabled(sec_0013)
+has_console_access(sec_0013)
+has_access_key(sec_0013)
+last_login_days(sec_0013, 29)
+has_role(sec_0013, security_engineer)
+has_role(sec_0013, helpdesk)
+permission_count(sec_0013, 8)
+has_permission(sec_0013, view_tickets)
+has_permission(sec_0013, rotate_keys)
+has_permission(sec_0013, read_logs)
+has_permission(sec_0013, manage_firewall)
+has_permission(sec_0013, scan_vulnerabilities)
+has_permission(sec_0013, manage_encryption)
+has_permission(sec_0013, reset_password)
+has_permission(sec_0013, view_audit)
+
+user(eng_0014)
+is_active(eng_0014)
+department(eng_0014, engineering)
+account_type(eng_0014, human)
+has_console_access(eng_0014)
+last_login_days(eng_0014, 66)
+has_role(eng_0014, senior_dev)
+permission_count(eng_0014, 5)
+has_permission(eng_0014, write_code)
+has_permission(eng_0014, read_code)
+has_permission(eng_0014, review_code)
+has_permission(eng_0014, merge_pr)
+has_permission(eng_0014, run_tests)
+
+user(ops_0015)
+is_active(ops_0015)
+department(ops_0015, operations)
+account_type(ops_0015, human)
+mfa_enabled(ops_0015)
+has_console_access(ops_0015)
+last_login_days(ops_0015, 8)
+has_role(ops_0015, helpdesk)
+permission_count(ops_0015, 3)
+has_permission(ops_0015, read_logs)
+has_permission(ops_0015, view_tickets)
+has_permission(ops_0015, reset_password)
+
+user(infra_0016)
+is_active(infra_0016)
+department(infra_0016, infrastructure)
+account_type(infra_0016, human)
+mfa_enabled(infra_0016)
+has_console_access(infra_0016)
+last_login_days(infra_0016, 28)
+has_role(infra_0016, vp_engineering)
+permission_count(infra_0016, 4)
+has_permission(infra_0016, view_financials)
+has_permission(infra_0016, manage_directors)
+has_permission(infra_0016, manage_department)
+has_permission(infra_0016, approve_budget)
+
+user(sre_0017)
+is_active(sre_0017)
+department(sre_0017, sre)
+account_type(sre_0017, human)
+mfa_enabled(sre_0017)
+has_console_access(sre_0017)
+last_login_days(sre_0017, 120)
+has_role(sre_0017, helpdesk)
+permission_count(sre_0017, 3)
+has_permission(sre_0017, read_logs)
+has_permission(sre_0017, view_tickets)
+has_permission(sre_0017, reset_password)
+
+user(prd_0018)
+is_active(prd_0018)
+department(prd_0018, product)
+account_type(prd_0018, human)
+mfa_enabled(prd_0018)
+has_console_access(prd_0018)
+last_login_days(prd_0018, 18)
+has_role(prd_0018, business_analyst)
+has_role(prd_0018, sysadmin)
+permission_count(prd_0018, 6)
+has_permission(prd_0018, view_analytics)
+has_permission(prd_0018, read_logs)
+has_permission(prd_0018, access_database)
+has_permission(prd_0018, manage_users)
+has_permission(prd_0018, manage_servers)
+has_permission(prd_0018, create_reports)
+
+user(sre_0019)
+is_active(sre_0019)
+department(sre_0019, sre)
+account_type(sre_0019, human)
+mfa_enabled(sre_0019)
+has_console_access(sre_0019)
+last_login_days(sre_0019, 1)
+has_role(sre_0019, sysadmin)
+permission_count(sre_0019, 4)
+has_permission(sre_0019, manage_users)
+has_permission(sre_0019, read_logs)
+has_permission(sre_0019, access_database)
+has_permission(sre_0019, manage_servers)
+
+user(ops_0020)
+is_active(ops_0020)
+department(ops_0020, operations)
+account_type(ops_0020, human)
+mfa_enabled(ops_0020)
+has_console_access(ops_0020)
+has_access_key(ops_0020)
+last_login_days(ops_0020, 59)
+has_role(ops_0020, helpdesk)
+permission_count(ops_0020, 3)
+has_permission(ops_0020, read_logs)
+has_permission(ops_0020, view_tickets)
+has_permission(ops_0020, reset_password)
+
+user(prd_0021)
+is_active(prd_0021)
+department(prd_0021, product)
+account_type(prd_0021, human)
+last_login_days(prd_0021, 5)
+has_role(prd_0021, tech_lead)
+has_role(prd_0021, senior_dev)
+permission_count(prd_0021, 6)
+has_permission(prd_0021, write_code)
+has_permission(prd_0021, deploy_code)
+has_permission(prd_0021, read_code)
+has_permission(prd_0021, review_code)
+has_permission(prd_0021, merge_pr)
+has_permission(prd_0021, run_tests)
+
+user(infra_0022)
+is_active(infra_0022)
+department(infra_0022, infrastructure)
+account_type(infra_0022, human)
+has_console_access(infra_0022)
+last_login_days(infra_0022, 14)
+has_role(infra_0022, mid_senior_dev)
+permission_count(infra_0022, 4)
+has_permission(infra_0022, review_code)
+has_permission(infra_0022, run_tests)
+has_permission(infra_0022, write_code)
+has_permission(infra_0022, read_code)
+
+user(dat_0023)
+is_active(dat_0023)
+department(dat_0023, data)
+account_type(dat_0023, human)
+mfa_enabled(dat_0023)
+has_console_access(dat_0023)
+last_login_days(dat_0023, 18)
+has_role(dat_0023, mid_senior_dev)
+permission_count(dat_0023, 4)
+has_permission(dat_0023, review_code)
+has_permission(dat_0023, run_tests)
+has_permission(dat_0023, write_code)
+has_permission(dat_0023, read_code)
+
+user(eng_0024)
+is_active(eng_0024)
+department(eng_0024, engineering)
+account_type(eng_0024, human)
+has_access_key(eng_0024)
+last_login_days(eng_0024, 185)
+has_role(eng_0024, tech_lead)
+has_role(eng_0024, business_analyst)
+permission_count(eng_0024, 8)
+has_permission(eng_0024, view_analytics)
+has_permission(eng_0024, write_code)
+has_permission(eng_0024, deploy_code)
+has_permission(eng_0024, read_code)
+has_permission(eng_0024, create_reports)
+has_permission(eng_0024, review_code)
+has_permission(eng_0024, merge_pr)
+has_permission(eng_0024, run_tests)
+
+user(ops_0025)
+is_active(ops_0025)
+department(ops_0025, operations)
+account_type(ops_0025, human)
+mfa_enabled(ops_0025)
+has_console_access(ops_0025)
+last_login_days(ops_0025, 13)
+has_role(ops_0025, devops_engineer)
+permission_count(ops_0025, 5)
+has_permission(ops_0025, manage_ci_cd)
+has_permission(ops_0025, manage_infrastructure)
+has_permission(ops_0025, read_logs)
+has_permission(ops_0025, manage_servers)
+has_permission(ops_0025, deploy_code)
+
+user(plf_0026)
+is_active(plf_0026)
+department(plf_0026, platform)
+account_type(plf_0026, human)
+has_console_access(plf_0026)
+last_login_days(plf_0026, 24)
+has_role(plf_0026, vp_engineering)
+permission_count(plf_0026, 4)
+has_permission(plf_0026, view_financials)
+has_permission(plf_0026, manage_directors)
+has_permission(plf_0026, manage_department)
+has_permission(plf_0026, approve_budget)
+
+user(ops_0027)
+is_active(ops_0027)
+department(ops_0027, operations)
+account_type(ops_0027, human)
+mfa_enabled(ops_0027)
+has_console_access(ops_0027)
+last_login_days(ops_0027, 2)
+has_role(ops_0027, helpdesk)
+permission_count(ops_0027, 3)
+has_permission(ops_0027, read_logs)
+has_permission(ops_0027, view_tickets)
+has_permission(ops_0027, reset_password)
+
+user(prd_0028)
+is_active(prd_0028)
+department(prd_0028, product)
+account_type(prd_0028, human)
+has_console_access(prd_0028)
+last_login_days(prd_0028, 82)
+has_role(prd_0028, product_manager)
+permission_count(prd_0028, 3)
+has_permission(prd_0028, view_analytics)
+has_permission(prd_0028, manage_backlog)
+has_permission(prd_0028, approve_features)
+
+user(dat_0029)
+is_active(dat_0029)
+department(dat_0029, data)
+account_type(dat_0029, human)
+mfa_enabled(dat_0029)
+last_login_days(dat_0029, 51)
+has_role(dat_0029, vp_engineering)
+has_role(dat_0029, tech_lead)
+permission_count(dat_0029, 10)
+has_permission(dat_0029, write_code)
+has_permission(dat_0029, deploy_code)
+has_permission(dat_0029, merge_pr)
+has_permission(dat_0029, read_code)
+has_permission(dat_0029, approve_budget)
+has_permission(dat_0029, view_financials)
+has_permission(dat_0029, review_code)
+has_permission(dat_0029, manage_directors)
+has_permission(dat_0029, manage_department)
+has_permission(dat_0029, run_tests)
+
+user(prd_0030)
+is_active(prd_0030)
+department(prd_0030, product)
+account_type(prd_0030, human)
+mfa_enabled(prd_0030)
+has_console_access(prd_0030)
+last_login_days(prd_0030, 1)
+has_role(prd_0030, product_manager)
+permission_count(prd_0030, 3)
+has_permission(prd_0030, view_analytics)
+has_permission(prd_0030, manage_backlog)
+has_permission(prd_0030, approve_features)
+
+% ── Resources ──
+
+resource(i_security_ops_0001, staging, not_encrypted, has_backup, private_access, public)
+resource_type(i_security_ops_0001, ec2)
+owner_team(i_security_ops_0001, security-ops)
+cis_applies_to(i_security_ops_0001, cis_7_1)
+cis_applies_to(i_security_ops_0001, cis_7_2)
+
+resource(topic_mobile_0002, production, not_encrypted, no_backup, private_access, internal)
+resource_type(topic_mobile_0002, sns)
+owner_team(topic_mobile_0002, mobile)
+
+resource(key_web_platform_0003, development, encrypted, has_backup, private_access, internal)
+resource_type(key_web_platform_0003, kms)
+owner_team(key_web_platform_0003, web-platform)
+
+resource(svc_security_ops_0004, staging, encrypted, no_backup, private_access, internal)
+resource_type(svc_security_ops_0004, ecs)
+owner_team(svc_security_ops_0004, security-ops)
+
+resource(key_ml_ops_0005, development, encrypted, has_backup, private_access, confidential)
+resource_type(key_ml_ops_0005, kms)
+owner_team(key_ml_ops_0005, ml-ops)
+
+resource(cluster_infrastructure_0006, production, encrypted, no_backup, private_access, secret)
+resource_type(cluster_infrastructure_0006, eks)
+owner_team(cluster_infrastructure_0006, infrastructure)
+
+resource(fn_infrastructure_0007, staging, encrypted, has_backup, private_access, confidential)
+resource_type(fn_infrastructure_0007, lambda)
+owner_team(fn_infrastructure_0007, infrastructure)
+
+resource(queue_security_ops_0008, staging, not_encrypted, has_backup, private_access, confidential)
+resource_type(queue_security_ops_0008, sqs)
+owner_team(queue_security_ops_0008, security-ops)
+
+resource(svc_mobile_0009, staging, not_encrypted, has_backup, private_access, public)
+resource_type(svc_mobile_0009, ecs)
+owner_team(svc_mobile_0009, mobile)
+
+resource(i_data_platform_0010, production, encrypted, no_backup, private_access, secret)
+resource_type(i_data_platform_0010, ec2)
+owner_team(i_data_platform_0010, data-platform)
+cis_applies_to(i_data_platform_0010, cis_7_1)
+cis_applies_to(i_data_platform_0010, cis_7_2)
+
+resource(key_security_ops_0011, staging, encrypted, no_backup, private_access, confidential)
+resource_type(key_security_ops_0011, kms)
+owner_team(key_security_ops_0011, security-ops)
+
+resource(key_infrastructure_0012, staging, encrypted, no_backup, private_access, public)
+resource_type(key_infrastructure_0012, kms)
+owner_team(key_infrastructure_0012, infrastructure)
+
+resource(svc_data_platform_0013, staging, not_encrypted, no_backup, private_access, secret)
+resource_type(svc_data_platform_0013, ecs)
+owner_team(svc_data_platform_0013, data-platform)
+
+resource(fn_infrastructure_0014, development, not_encrypted, no_backup, private_access, internal)
+resource_type(fn_infrastructure_0014, lambda)
+owner_team(fn_infrastructure_0014, infrastructure)
+
+resource(cluster_security_ops_0015, development, not_encrypted, has_backup, private_access, internal)
+resource_type(cluster_security_ops_0015, eks)
+owner_team(cluster_security_ops_0015, security-ops)
+
+resource(topic_mobile_0016, development, encrypted, no_backup, private_access, internal)
+resource_type(topic_mobile_0016, sns)
+owner_team(topic_mobile_0016, mobile)
+
+resource(queue_ml_ops_0017, staging, encrypted, no_backup, private_access, confidential)
+resource_type(queue_ml_ops_0017, sqs)
+owner_team(queue_ml_ops_0017, ml-ops)
+
+resource(s3_infrastructure_0018, staging, not_encrypted, has_backup, private_access, confidential)
+resource_type(s3_infrastructure_0018, s3)
+owner_team(s3_infrastructure_0018, infrastructure)
+cis_applies_to(s3_infrastructure_0018, cis_2_1)
+cis_applies_to(s3_infrastructure_0018, cis_2_2)
+cis_applies_to(s3_infrastructure_0018, cis_2_3)
+
+resource(fn_data_platform_0019, staging, encrypted, has_backup, private_access, internal)
+resource_type(fn_data_platform_0019, lambda)
+owner_team(fn_data_platform_0019, data-platform)
+
+resource(queue_infrastructure_0020, staging, encrypted, no_backup, private_access, confidential)
+resource_type(queue_infrastructure_0020, sqs)
+owner_team(queue_infrastructure_0020, infrastructure)
+
+resource(db_security_ops_0021, development, not_encrypted, no_backup, public_access, public)
+resource_type(db_security_ops_0021, rds)
+owner_team(db_security_ops_0021, security-ops)
+cis_applies_to(db_security_ops_0021, cis_2_7)
+cis_applies_to(db_security_ops_0021, cis_2_8)
+cis_applies_to(db_security_ops_0021, cis_6_1)
+
+resource(tbl_data_platform_0022, staging, encrypted, has_backup, private_access, secret)
+resource_type(tbl_data_platform_0022, dynamodb)
+owner_team(tbl_data_platform_0022, data-platform)
+
+resource(queue_devops_0023, production, encrypted, has_backup, private_access, confidential)
+resource_type(queue_devops_0023, sqs)
+owner_team(queue_devops_0023, devops)
+
+resource(key_ml_ops_0024, development, not_encrypted, no_backup, private_access, confidential)
+resource_type(key_ml_ops_0024, kms)
+owner_team(key_ml_ops_0024, ml-ops)
+
+resource(queue_devops_0025, staging, not_encrypted, has_backup, private_access, confidential)
+resource_type(queue_devops_0025, sqs)
+owner_team(queue_devops_0025, devops)
+
+resource(tbl_data_platform_0026, staging, encrypted, has_backup, private_access, public)
+resource_type(tbl_data_platform_0026, dynamodb)
+owner_team(tbl_data_platform_0026, data-platform)
+
+resource(db_mobile_0027, staging, encrypted, has_backup, private_access, internal)
+resource_type(db_mobile_0027, rds)
+owner_team(db_mobile_0027, mobile)
+cis_applies_to(db_mobile_0027, cis_2_7)
+cis_applies_to(db_mobile_0027, cis_2_8)
+cis_applies_to(db_mobile_0027, cis_6_1)
+
+resource(topic_web_platform_0028, staging, not_encrypted, has_backup, private_access, public)
+resource_type(topic_web_platform_0028, sns)
+owner_team(topic_web_platform_0028, web-platform)
+
+resource(key_security_ops_0029, staging, encrypted, no_backup, private_access, public)
+resource_type(key_security_ops_0029, kms)
+owner_team(key_security_ops_0029, security-ops)
+
+resource(topic_security_ops_0030, development, not_encrypted, has_backup, private_access, internal)
+resource_type(topic_security_ops_0030, sns)
+owner_team(topic_security_ops_0030, security-ops)
+
+resource(queue_devops_0031, production, encrypted, has_backup, private_access, confidential)
+resource_type(queue_devops_0031, sqs)
+owner_team(queue_devops_0031, devops)
+
+resource(db_data_platform_0032, golden, not_encrypted, has_backup, private_access, confidential)
+resource_type(db_data_platform_0032, rds)
+owner_team(db_data_platform_0032, data-platform)
+cis_applies_to(db_data_platform_0032, cis_2_7)
+cis_applies_to(db_data_platform_0032, cis_2_8)
+cis_applies_to(db_data_platform_0032, cis_6_1)
+
+resource(cluster_mobile_0033, production, encrypted, has_backup, private_access, confidential)
+resource_type(cluster_mobile_0033, eks)
+owner_team(cluster_mobile_0033, mobile)
+
+resource(svc_data_platform_0034, development, not_encrypted, no_backup, private_access, internal)
+resource_type(svc_data_platform_0034, ecs)
+owner_team(svc_data_platform_0034, data-platform)
+
+resource(queue_web_platform_0035, production, not_encrypted, has_backup, private_access, confidential)
+resource_type(queue_web_platform_0035, sqs)
+owner_team(queue_web_platform_0035, web-platform)
+
+resource(i_data_platform_0036, golden, encrypted, has_backup, private_access, internal)
+resource_type(i_data_platform_0036, ec2)
+owner_team(i_data_platform_0036, data-platform)
+cis_applies_to(i_data_platform_0036, cis_7_1)
+cis_applies_to(i_data_platform_0036, cis_7_2)
+
+resource(key_data_platform_0037, golden, encrypted, has_backup, private_access, confidential)
+resource_type(key_data_platform_0037, kms)
+owner_team(key_data_platform_0037, data-platform)
+
+resource(db_security_ops_0038, golden, encrypted, has_backup, private_access, internal)
+resource_type(db_security_ops_0038, rds)
+owner_team(db_security_ops_0038, security-ops)
+cis_applies_to(db_security_ops_0038, cis_2_7)
+cis_applies_to(db_security_ops_0038, cis_2_8)
+cis_applies_to(db_security_ops_0038, cis_6_1)
+
+resource(cluster_backend_0039, golden, encrypted, no_backup, private_access, internal)
+resource_type(cluster_backend_0039, eks)
+owner_team(cluster_backend_0039, backend)
+
+resource(key_mobile_0040, development, not_encrypted, has_backup, private_access, confidential)
+resource_type(key_mobile_0040, kms)
+owner_team(key_mobile_0040, mobile)
+
+resource(s3_mobile_0041, development, not_encrypted, no_backup, public_access, internal)
+resource_type(s3_mobile_0041, s3)
+owner_team(s3_mobile_0041, mobile)
+cis_applies_to(s3_mobile_0041, cis_2_1)
+cis_applies_to(s3_mobile_0041, cis_2_2)
+cis_applies_to(s3_mobile_0041, cis_2_3)
+
+resource(queue_devops_0042, development, not_encrypted, no_backup, private_access, internal)
+resource_type(queue_devops_0042, sqs)
+owner_team(queue_devops_0042, devops)
+
+resource(queue_data_platform_0043, staging, encrypted, no_backup, private_access, confidential)
+resource_type(queue_data_platform_0043, sqs)
+owner_team(queue_data_platform_0043, data-platform)
+
+resource(fn_web_platform_0044, development, not_encrypted, no_backup, private_access, public)
+resource_type(fn_web_platform_0044, lambda)
+owner_team(fn_web_platform_0044, web-platform)
+
+resource(queue_backend_0045, development, encrypted, no_backup, private_access, public)
+resource_type(queue_backend_0045, sqs)
+owner_team(queue_backend_0045, backend)
+
+resource(topic_infrastructure_0046, production, encrypted, has_backup, private_access, secret)
+resource_type(topic_infrastructure_0046, sns)
+owner_team(topic_infrastructure_0046, infrastructure)
+
+resource(queue_infrastructure_0047, development, not_encrypted, has_backup, private_access, internal)
+resource_type(queue_infrastructure_0047, sqs)
+owner_team(queue_infrastructure_0047, infrastructure)
+
+resource(fn_mobile_0048, development, not_encrypted, has_backup, private_access, internal)
+resource_type(fn_mobile_0048, lambda)
+owner_team(fn_mobile_0048, mobile)
+
+resource(svc_data_platform_0049, development, encrypted, has_backup, private_access, public)
+resource_type(svc_data_platform_0049, ecs)
+owner_team(svc_data_platform_0049, data-platform)
+
+resource(topic_backend_0050, golden, encrypted, has_backup, private_access, confidential)
+resource_type(topic_backend_0050, sns)
+owner_team(topic_backend_0050, backend)

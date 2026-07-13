@@ -1,5 +1,7 @@
 # Euclid-MCP
 
+[![Euclid-MCP MCP server](https://glama.ai/mcp/servers/meob/Euclid-MCP/badges/score.svg)](https://glama.ai/mcp/servers/meob/Euclid-MCP)
+
 **MCP server for logical reasoning** — turns facts into formal proofs.
 
 <!-- mcp-name: io.github.meob/euclid-mcp -->

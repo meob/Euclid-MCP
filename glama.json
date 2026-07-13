@@ -1,4 +1,6 @@
 {
   "$schema": "https://glama.ai/mcp/schemas/server.json",
-  "maintainers": ["meob"]
+  "maintainers": ["meob"],
+  "name": "Euclid-MCP",
+  "description": "MCP server for deterministic logical reasoning via Prolog — transforms facts into formal proofs with proof trees"
 }
