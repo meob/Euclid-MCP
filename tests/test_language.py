@@ -90,3 +90,28 @@ def test_not_operator():
     kb = parse("inactive_user($user) IF user($user) AND NOT active($user)")
     assert len(kb.rules) == 1
     assert "NOT active($user)" in kb.rules[0]
+
+
+def test_version_directive():
+    kb = parse("@version 1.0\nparent(tom, bob)\n? parent($x, $y)")
+    assert kb.version == "1.0"
+    assert len(kb.facts) == 1
+    assert kb.query == "parent($x, $y)"
+
+
+def test_version_directive_with_comments():
+    kb = parse("# Header\n@version 1.0\n// Another comment\nparent(tom, bob)\n? parent($x, $y)")
+    assert kb.version == "1.0"
+    assert len(kb.facts) == 1
+
+
+def test_no_version_directive():
+    kb = parse("parent(tom, bob)\n? parent($x, $y)")
+    assert kb.version is None
+    assert len(kb.facts) == 1
+
+
+def test_version_not_treated_as_fact():
+    kb = parse("@version 1.0\nparent(tom, bob)\n? parent($x, $y)")
+    assert len(kb.facts) == 1
+    assert kb.facts[0] == "parent(tom, bob)"

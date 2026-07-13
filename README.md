@@ -2,6 +2,9 @@
 
 **MCP server for logical reasoning** — turns facts into formal proofs.
 
+<!-- mcp-name: io.github.meob/euclid-mcp -->
+
+
 Euclid-MCP is a hybrid cognitive architecture: a lightweight LLM describes the world in facts, and a deterministic engine performs the actual deduction. The LLM never needs to reason — it only needs to describe.
 
 ## How it works
@@ -48,6 +51,9 @@ rules:
 
 query: ancestor(tom, $who)
 ```
+
+Full language reference: [`docs/EUCLID_IR.md`](docs/EUCLID_IR.md)
+
 
 ### Euclid-IR Syntax Reference
 

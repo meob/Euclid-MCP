@@ -1,5 +1,8 @@
 import re
 from .models import KB
+from .sanitizer import sanitize
+
+VERSION_PATTERN = re.compile(r"^@version\s+(\d+\.\d+)")
 
 
 def parse(text: str) -> KB:
@@ -7,13 +10,50 @@ def parse(text: str) -> KB:
     if not text:
         return KB()
 
+    # Security: reject dangerous Prolog patterns before parsing
+    sanitize(text)
+
+    version = _extract_version(text)
     if _is_yaml(text):
-        return _parse_yaml(text)
-    return _parse_text(text)
+        kb = _parse_yaml(text)
+        kb.version = version
+        return kb
+    kb = _parse_text(text)
+    kb.version = version
+    return kb
+
+
+def _extract_version(text: str) -> str | None:
+    """Extract @version directive from the first line(s)."""
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Skip comments
+        if stripped.startswith("#") or stripped.startswith("//"):
+            continue
+        m = VERSION_PATTERN.match(stripped)
+        if m:
+            return m.group(1)
+        # First non-comment, non-empty line is not @version
+        break
+    return None
 
 
 def _is_yaml(text: str) -> bool:
     stripped = text.lstrip()
+    if stripped.startswith("{") or stripped.startswith("---"):
+        return True
+    # Skip @version line for YAML detection
+    lines = text.split("\n")
+    for line in lines:
+        s = line.strip()
+        if not s or s.startswith("#") or s.startswith("//"):
+            continue
+        if VERSION_PATTERN.match(s):
+            continue
+        stripped = s
+        break
     if stripped.startswith("{") or stripped.startswith("---"):
         return True
     try:
@@ -30,7 +70,14 @@ def _is_yaml(text: str) -> bool:
 
 def _parse_yaml(text: str) -> KB:
     import yaml
-    data = yaml.safe_load(text)
+    # Strip @version line before YAML parsing
+    lines = text.split("\n")
+    filtered = []
+    for line in lines:
+        if VERSION_PATTERN.match(line.strip()):
+            continue
+        filtered.append(line)
+    data = yaml.safe_load("\n".join(filtered))
     if not isinstance(data, dict):
         return _parse_text(text)
 
@@ -54,6 +101,9 @@ def _parse_text(text: str) -> KB:
         line = re.sub(r"(?<!\S)\s*(#|//).*$", "", lines[i]).strip()
         i += 1
         if not line:
+            continue
+        # Skip @version directive
+        if VERSION_PATTERN.match(line):
             continue
         line = line.rstrip(".")
 

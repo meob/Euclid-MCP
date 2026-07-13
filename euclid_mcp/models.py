@@ -27,3 +27,4 @@ class KB(BaseModel):
     facts: list[str] = Field(default_factory=list)
     rules: list[str] = Field(default_factory=list)
     query: Optional[str] = None
+    version: Optional[str] = None
