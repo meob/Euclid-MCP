@@ -7,6 +7,11 @@ from euclid_mcp.models import ReasonResult
 from euclid_mcp.prolog_bridge import execute as prolog_execute
 from euclid_mcp.translator import to_prolog
 
+# Security limits
+MAX_KNOWLEDGE_LENGTH = 500_000  # 500 KB
+MAX_DEPTH_LIMIT = 500
+MAX_SOLUTIONS_LIMIT = 1000
+
 mcp = FastMCP(
     "Euclid-MCP",
     instructions="""Euclid-MCP is a deterministic logical reasoning engine.
@@ -39,6 +44,26 @@ def reason(
 ) -> ReasonResult:
     start = time.monotonic()
 
+    # Security: validate limits
+    if not (1 <= max_solutions <= MAX_SOLUTIONS_LIMIT):
+        return ReasonResult(
+            error=f"max_solutions must be between 1 and {MAX_SOLUTIONS_LIMIT}",
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
+    if not (1 <= max_depth <= MAX_DEPTH_LIMIT):
+        return ReasonResult(
+            error=f"max_depth must be between 1 and {MAX_DEPTH_LIMIT}",
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
+
+    # Security: reject oversized input
+    if len(knowledge) > MAX_KNOWLEDGE_LENGTH:
+        return ReasonResult(
+            error=f"Knowledge exceeds maximum allowed size "
+            f"({len(knowledge):,} > {MAX_KNOWLEDGE_LENGTH:,} bytes)",
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
+
     try:
         kb = parse(knowledge)
     except Exception as exc:
@@ -59,7 +84,7 @@ def reason(
         )
 
     try:
-        prolog_code = to_prolog(kb, max_depth=max_depth)
+        prolog_code = to_prolog(kb, max_depth=max_depth, max_solutions=max_solutions)
     except Exception as exc:
         return ReasonResult(
             error=f"Prolog code generation error: {exc}",

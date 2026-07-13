@@ -1,11 +1,23 @@
 import json
+import logging
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 import time
 
 from .models import ProofNode, Solution
+
+logger = logging.getLogger(__name__)
+
+# Pattern to remove temp file paths from error messages
+_TEMP_PATH_PATTERN = re.compile(r"/[^\s:]+\.pl:\d+:?\s*")
+
+
+def _sanitize_error(msg: str) -> str:
+    """Remove internal file paths from Prolog error messages."""
+    return _TEMP_PATH_PATTERN.sub("<input>: ", msg).strip()
 
 
 def _find_swipl() -> str:
@@ -41,7 +53,7 @@ def execute(prolog_code: str, timeout: int = 30) -> list[Solution]:
 
         if proc.returncode != 0 and not proc.stdout.strip():
             msg = proc.stderr.strip() or f"SWI-Prolog exit code {proc.returncode}"
-            raise RuntimeError(msg)
+            raise RuntimeError(_sanitize_error(msg))
 
         warnings = proc.stderr.strip()
         solutions: list[Solution] = []
@@ -65,7 +77,7 @@ def execute(prolog_code: str, timeout: int = 30) -> list[Solution]:
                 continue
 
         if warnings:
-            pass
+            logger.debug("SWI-Prolog warnings: %s", warnings)
 
         return solutions
 
