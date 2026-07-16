@@ -28,6 +28,13 @@ dependencies = [
     "PyYAML>=6.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+]
+
 [project.urls]
 homepage = "https://github.com/meob/Euclid-MCP"
 repository = "https://github.com/meob/Euclid-MCP"
@@ -41,3 +48,10 @@ include = ["euclid_mcp*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 99
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]

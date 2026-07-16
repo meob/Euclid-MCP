@@ -16,7 +16,11 @@ def test_text_fact_rule_query():
 
 
 def test_text_with_and():
-    kb = parse("parent(tom, bob)\nancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)\n? ancestor(tom, $who)")
+    kb = parse(
+        "parent(tom, bob)\n"
+        "ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)\n"
+        "? ancestor(tom, $who)"
+    )
     assert len(kb.rules) == 1
     assert "IF" in kb.rules[0]
 

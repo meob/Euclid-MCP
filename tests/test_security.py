@@ -4,11 +4,11 @@ Tests injection prevention, DoS limits, and error sanitization.
 """
 
 import pytest
-from euclid_mcp.language import parse
-from euclid_mcp.sanitizer import sanitize
-from euclid_mcp.server import reason, MAX_KNOWLEDGE_LENGTH, MAX_DEPTH_LIMIT, MAX_SOLUTIONS_LIMIT
-from euclid_mcp.prolog_bridge import _sanitize_error
 
+from euclid_mcp.language import parse
+from euclid_mcp.prolog_bridge import _sanitize_error
+from euclid_mcp.sanitizer import sanitize
+from euclid_mcp.server import MAX_DEPTH_LIMIT, MAX_KNOWLEDGE_LENGTH, MAX_SOLUTIONS_LIMIT, reason
 
 # =============================================================================
 # Phase 1: Input sanitization tests

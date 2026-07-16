@@ -58,7 +58,10 @@ def test_dynamic_declarations():
 def test_arithmetic_in_rule():
     kb = KB(
         facts=["user(alice)", "last_login_days(alice, 120)"],
-        rules=["stale_access($user) IF user($user) AND last_login_days($user, $days) AND $days > 90"],
+        rules=[
+            "stale_access($user) IF user($user) AND "
+            "last_login_days($user, $days) AND $days > 90"
+        ],
         query="stale_access($who)",
     )
     code = to_prolog(kb)

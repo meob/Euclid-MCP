@@ -1,4 +1,5 @@
 import re
+
 from .models import KB
 
 META_INTERPRETER = """

@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.3] — 2026-07-13
+
+### Added
+- `max_solutions` parameter exposed in MCP tool (passed to translator)
+- Input sanitizer: rejects dangerous Prolog directives (`shell()`, `halt()`, `:-` injection)
+- Hard limits: max 500 KB input, max 500 depth, max 1000 solutions, 30 s timeout
+- Error message sanitization (strips internal file paths from Prolog errors)
+- Glama registry metadata (`glama.json`)
+- EUCLID_IR.md language reference document
+
+### Changed
+- Security hardening across the full pipeline (sanitize → parse → translate → execute)
+
+## [0.1.2] — 2026-07-13
+
+### Added
+- `max_solutions` parameter to translator and server
+- Security hardening: input sanitization, hard limits, error sanitization
+- EUCLID_IR.md language reference
+
+### Fixed
+- Translator passes `max_solutions` through to Prolog query limits
+
 ## [0.1.1] — 2026-07-12
 
 ### Added

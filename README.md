@@ -156,8 +156,8 @@ pip install euclid-mcp
 
 Or from source:
 ```bash
-git clone https://github.com/meo/euclid-mcp
-cd euclid-mcp
+git clone https://github.com/meob/Euclid-MCP
+cd Euclid-MCP
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 ```
@@ -243,27 +243,29 @@ for sol in result.solutions:
 
 ### Real-world examples
 
+After installing (via pip or from source with an active virtualenv):
+
 ```bash
 # Genealogy — recursive family tree reasoning
-python3 examples/01_genealogy.py
+python examples/01_genealogy.py
 
 # RBAC — Role-Based Access Control
-python3 examples/02_rbac.py
+python examples/02_rbac.py
 
 # Classification — biological taxonomy
-python3 examples/03_classification.py
+python examples/03_classification.py
 
 # Business rules — loan eligibility
-python3 examples/04_loan_eligibility.py
+python examples/04_loan_eligibility.py
 
 # Compliance auditor — cloud resource policy enforcement
-python3 examples/05_compliance_auditor/auditor.py
+python examples/05_compliance_auditor/auditor.py
 
 # Loan officer — CSV-driven eligibility with detailed breakdown
-python3 examples/06_loan_eligibility/loan_officer.py
+python examples/06_loan_eligibility/loan_officer.py
 
 # IT Security & Compliance — multi-layer policy reasoning
-python3 examples/07_it_security_compliance/demo.py --small
+python examples/07_it_security_compliance/demo.py --small
 ```
 
 Each example runs a complete reasoning session and prints solutions with proof trees — no LLM required.  

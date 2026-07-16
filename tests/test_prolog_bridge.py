@@ -8,7 +8,7 @@ from euclid_mcp.translator import to_prolog
 
 pytestmark = pytest.mark.skipif(
     shutil.which("swipl") is None,
-    reason="SWI-Prolog (swipl) non installato",
+    reason="SWI-Prolog (swipl) not installed",
 )
 
 

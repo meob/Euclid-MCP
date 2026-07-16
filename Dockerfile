@@ -23,6 +23,4 @@ COPY euclid_mcp/ euclid_mcp/
 RUN pip install --no-cache-dir . && \
     rm -rf /root/.cache
 
-EXPOSE 8000
-
 CMD ["python3", "-m", "euclid_mcp"]

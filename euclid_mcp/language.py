@@ -1,4 +1,5 @@
 import re
+
 from .models import KB
 from .sanitizer import sanitize
 
