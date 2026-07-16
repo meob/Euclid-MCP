@@ -3,9 +3,9 @@
   "name": "io.github.meob/euclid-mcp",
   "description": "Deterministic logical reasoning engine — facts in Euclid IR, solutions with proof trees",
   "title": "Euclid-MCP",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "repository": {
-    "url": "https://github.com/meo/euclid-mcp",
+    "url": "https://github.com/meob/Euclid-MCP",
     "source": "github"
   },
   "license": "Apache-2.0",
@@ -14,7 +14,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "euclid-mcp",
-"version": "0.1.2",
+      "version": "0.1.3",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
