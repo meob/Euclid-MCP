@@ -16,6 +16,8 @@ prove((A, B), D, and(PA, PB)) :- !,
 prove(Goal, _, true) :-
     is_arith_goal(Goal), !,
     Goal.
+prove(\\+ Goal, D, neg(Goal, negated)) :- !,
+    \\+ prove(Goal, D, _).
 prove(Goal, _, fact(Goal)) :-
     clause(Goal, true).
 prove(Goal, D, rule(Goal, Body, BodyProof)) :-
@@ -36,6 +38,8 @@ proof_to_json(rule(G, B, P), _{type:"rule", goal:SG, body:SB, subproof:SP}) :-
 proof_to_json(and(P1, P2), _{type:"and", left:J1, right:J2}) :-
     proof_to_json(P1, J1),
     proof_to_json(P2, J2), !.
+proof_to_json(neg(G, _), _{type:"neg", goal:S, result:"negated"}) :-
+    term_string(G, S), !.
 proof_to_json(true, _{type:"true"}) :- !.
 """
 

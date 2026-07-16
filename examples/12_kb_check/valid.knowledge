@@ -1,0 +1,16 @@
+# Valid Knowledge Base — KB Check Example 12
+# A clean, well-formed knowledge base with no errors.
+
+# Facts
+human(socrates)
+human(plato)
+human(aristotle)
+student(plato)
+student(aristotle)
+teacher(socrates)
+
+# Rules
+mortal($x) IF human($x)
+scholar($x) IF student($x)
+scholar($x) IF teacher($x)
+wise($x) IF scholar($x) AND mortal($x)

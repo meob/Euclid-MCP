@@ -1,0 +1,54 @@
+# Cluedo Deduction Rules
+# ======================
+# Determine what is in the envelope by elimination.
+# The envelope contains exactly 3 cards: 1 suspect, 1 weapon, 1 room.
+#
+# Domain facts (supplied in game state):
+#   suspect(X)          - 6 possible murderers
+#   weapon(X)           - 6 possible weapons
+#   room(X)             - 9 possible rooms
+#   player(X)           - players in this game
+#   hand(player, card)  - cards known to be in a player's hand
+#   showed(from, card, to) - a card was shown during a suggestion
+
+# --- Deduction rules ---
+
+# A suspect is in the envelope if no player holds it and no one showed it
+envelope_suspect($card) IF
+    suspect($card) AND
+    NOT hand(_, $card) AND
+    NOT showed(_, $card, _)
+
+# A weapon is in the envelope if no player holds it and no one showed it
+envelope_weapon($card) IF
+    weapon($card) AND
+    NOT hand(_, $card) AND
+    NOT showed(_, $card, _)
+
+# A room is in the envelope if no player holds it and no one showed it
+envelope_room($card) IF
+    room($card) AND
+    NOT hand(_, $card) AND
+    NOT showed(_, $card, _)
+
+# A player holds a card if someone showed it to them
+holds($player, $card) IF showed($player, $card, _)
+
+# A card is definitely NOT in the envelope if someone holds it
+not_envelope($card) IF holds(_, $card)
+
+# A card is cleared if it is in someone's hand
+cleared($card) IF holds(_, $card)
+
+# Still suspicious: a valid card that is not yet proven held
+still_suspicious($card) IF
+    suspect($card) AND
+    NOT cleared($card)
+
+still_suspicious($card) IF
+    weapon($card) AND
+    NOT cleared($card)
+
+still_suspicious($card) IF
+    room($card) AND
+    NOT cleared($card)

@@ -1,0 +1,21 @@
+# Broken Knowledge Base — KB Check Example 12
+# Intentionally broken KB with various errors for check_kb() to detect.
+
+# Facts
+human(socrates)
+human(plato)
+
+# Error 1: Duplicate facts
+human(socrates)
+human(plato)
+
+# Error 2: Rule references undefined predicate
+mortal($x) IF human($x) AND alive($x)
+
+# Error 3: Circular rule without base case
+ancestor($x, $y) IF ancestor($x, $z) AND ancestor($z, $y)
+
+# Error 4: Another undefined predicate in rule body
+smart($x) IF intelligent($x)
+
+? mortal($who)
