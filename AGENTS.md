@@ -2,9 +2,9 @@
 
 Euclid-MCP is a deterministic logical reasoning engine. Write facts and rules in **Euclid IR** (Intermediate Representation), the engine translates to Prolog, performs deduction, and returns solutions with **proof trees**.
 
-Available tool: `euclid-mcp_reason`
+Available tools: `euclid-mcp_reason`, `euclid-mcp_diagnose`, `euclid-mcp_what_if`, `euclid-mcp_check_kb`
 
-## Parameters
+## `reason` — Main deduction tool
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -12,6 +12,41 @@ Available tool: `euclid-mcp_reason`
 | `query` | `string?` | — | Separate query (optional, overrides the one in knowledge) |
 | `max_solutions` | `int` | `5` | Max solutions to return |
 | `max_depth` | `int` | `30` | Max proof tree depth |
+
+## `diagnose` — Query analysis
+
+Diagnose why a query succeeds or fails. Modes:
+- `why` — explain why a query holds (or that it doesn't)
+- `why_not` — explain why a query fails (missing facts/rules)
+- `what_needs` — suggest what would make a false query true
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `knowledge` | `string` | — | Facts and rules in text or YAML format |
+| `query` | `string` | — | Query to diagnose |
+| `mode` | `string` | `why` | One of: `why`, `why_not`, `what_needs` |
+| `max_solutions` | `int` | `5` | Max solutions to return |
+| `max_depth` | `int` | `30` | Max proof tree depth |
+
+## `what_if` — Scenario analysis
+
+Apply modifications to a knowledge base and see how they affect query results. Use `+` prefix to add facts, `-` prefix to remove facts.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `base_knowledge` | `string` | — | Base facts and rules |
+| `modifications` | `string` | — | Modifications: `+ fact(...)` to add, `- fact(...)` to remove |
+| `query` | `string` | — | Query to evaluate |
+| `max_solutions` | `int` | `5` | Max solutions to return |
+| `max_depth` | `int` | `30` | Max proof tree depth |
+
+## `check_kb` — Knowledge base validator
+
+Check a knowledge base for consistency: syntax errors, undefined predicates, circular rules, duplicates.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `knowledge` | `string` | — | Facts and rules in text or YAML format |
 
 ## Euclid IR Syntax (text format)
 
@@ -101,6 +136,24 @@ grandparent($x, $y) IF parent($x, $z) AND parent($z, $y)
 ? grandparent($x, $y)
 ```
 
+### 7. Diagnose a failing query
+```
+human(socrates)
+mortal($x) IF human($x)
+? mortal($who)
+```
+Use `diagnose` with mode `why_not` on `mortal(plato)` to get suggestions.
+
+### 8. What-if scenario
+```
+human(socrates)
+mortal($x) IF human($x)
+```
+Use `what_if` to add `human(plato)` and check how `mortal($who)` results change.
+
+### 9. Validate a knowledge base
+Use `check_kb` on a knowledge base to detect syntax errors, undefined predicates, circular rules, and duplicates.
+
 ## Proof tree interpretation
 
 Each solution contains `substitutions` (variable bindings) and `proof` (the proof tree):
@@ -124,5 +177,5 @@ Each solution contains `substitutions` (variable bindings) and `proof` (the proo
 - Variables in text must start with `$` + **lowercase letter** (`$x`, `$y`, `$who`)
 - `$` variables are translated to Prolog with an uppercase first letter
 - The engine is **case-sensitive**: `Mortal` ≠ `mortal`
-- Does not support negation, cut, or Prolog side effects
+- Does not support cut or Prolog side effects
 - Supports only Horn-clause logic (no disjunctions)

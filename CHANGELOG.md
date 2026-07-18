@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.1.3] — 2026-07-13
 
 ### Added
+- `diagnose` tool: query analysis with `why`, `why_not`, `what_needs` modes
+- `what_if` tool: scenario analysis with fact additions/removals
+- `check_kb` tool: knowledge base validator (syntax, undefined predicates, circular rules, duplicates)
 - `max_solutions` parameter exposed in MCP tool (passed to translator)
 - Input sanitizer: rejects dangerous Prolog directives (`shell()`, `halt()`, `:-` injection)
 - Hard limits: max 500 KB input, max 500 depth, max 1000 solutions, 30 s timeout

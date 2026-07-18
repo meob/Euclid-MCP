@@ -11,6 +11,9 @@ python3 integrations/euclid_api.py --port 8080
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/reason` | POST | Send facts + rules, get proof-backed solutions |
+| `/diagnose` | POST | Diagnose why a query succeeds or fails |
+| `/what-if` | POST | What-if analysis with fact additions/removals |
+| `/check-kb` | POST | Validate a knowledge base for consistency |
 | `/health` | GET | Health check |
 
 **POST /reason** — Request body:
@@ -28,6 +31,34 @@ python3 integrations/euclid_api.py --port 8080
 2. Method: `POST`, URL: `http://localhost:8080/reason`
 3. Headers: `Content-Type: application/json`
 4. Body (JSON): `{{ $json }}` with `knowledge`, `query`, etc.
+
+**POST /diagnose** — Request body:
+
+```json
+{
+  "knowledge": "human(socrates)\nmortal($x) IF human($x)",
+  "query": "mortal(plato)",
+  "mode": "what_needs"
+}
+```
+
+**POST /what-if** — Request body:
+
+```json
+{
+  "base_knowledge": "human(socrates)\nmortal($x) IF human($x)",
+  "modifications": "+ human(plato)",
+  "query": "mortal($who)"
+}
+```
+
+**POST /check-kb** — Request body:
+
+```json
+{
+  "knowledge": "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
+}
+```
 
 ## CLI (shell pipelines)
 

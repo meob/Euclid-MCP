@@ -144,6 +144,49 @@ Main tool for verifiable deterministic reasoning.
 
 **Returns** `ReasonResult` with `solutions[]` — each containing variable bindings and a proof tree.
 
+### `diagnose`
+
+Query analysis — understand why a query succeeds or fails.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `knowledge` | `string` | — | Facts & rules in text or YAML format |
+| `query` | `string` | — | Query to diagnose |
+| `mode` | `string` | `why` | One of: `why`, `why_not`, `what_needs` |
+| `max_solutions` | `int` | `5` | Max solutions to return |
+| `max_depth` | `int` | `30` | Max proof tree depth |
+
+**Modes:**
+- `why` — explain why a query holds (or that it doesn't)
+- `why_not` — explain why a query fails (missing facts/rules)
+- `what_needs` — suggest what would make a false query true
+
+**Returns** `DiagnosisResult` with `holds`, `findings[]`, `conclusion`, and optionally `proof`.
+
+### `what_if`
+
+Scenario analysis — apply modifications to a knowledge base and compare results.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `base_knowledge` | `string` | — | Base facts & rules |
+| `modifications` | `string` | — | `+ fact(...)` to add, `- fact(...)` to remove |
+| `query` | `string` | — | Query to evaluate |
+| `max_solutions` | `int` | `5` | Max solutions to return |
+| `max_depth` | `int` | `30` | Max proof tree depth |
+
+**Returns** `WhatIfResult` with `before_count`, `after_count`, `delta`, `solutions_before`, `solutions_after`, `conclusion`.
+
+### `check_kb`
+
+Knowledge base validator — check for consistency before running deduction.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `knowledge` | `string` | — | Facts & rules in text or YAML format |
+
+**Returns** `KBCheckResult` with `valid`, `errors[]`, `warnings[]`, `facts_count`, `rules_count`, `predicates_count`.
+
 ## Installation
 
 ```bash
@@ -181,7 +224,7 @@ pip install -e .
 ### Via Python
 
 ```python
-from euclid_mcp.server import reason
+from euclid_mcp.server import reason, diagnose, what_if, check_kb
 
 result = reason(knowledge="""
     human(socrates)
@@ -331,11 +374,14 @@ python3 integrations/euclid_api.py --port 8080
 ```
 
 ```
-POST /reason  →  {"knowledge": "red(apple)\n? red($x)"}
+POST /reason    →  {"knowledge": "red(apple)\n? red($x)"}
+POST /diagnose  →  {"knowledge": "...", "query": "...", "mode": "why"}
+POST /what-if   →  {"base_knowledge": "...", "modifications": "+ ...", "query": "..."}
+POST /check-kb  →  {"knowledge": "..."}
 GET  /health
 ```
 
-Connect an **HTTP Request** node to `http://localhost:8080/reason`.
+Connect an **HTTP Request** node to `http://localhost:8080/reason` (or `/diagnose`, `/what-if`, `/check-kb`).
 
 ### CLI pipeline
 
