@@ -1,24 +1,23 @@
-# Euclid-MCP — Session Checkpoint (Jul 13, 2026)
+# Euclid-MCP — Session Checkpoint (Jul 21, 2026)
 
 ## Completed in this session
-- **Security hardening** (v0.1.3):
-  - `sanitizer.py`: input sanitization (rejects Prolog directive injection)
-  - Hard limits: `max_solutions ≤ 1000`, `max_depth ≤ 500`, knowledge ≤ 500KB
-  - Error sanitization: strips temp file paths from SWI-Prolog errors
-  - 28 security tests (`test_security.py`)
-- **Documentation**:
-  - `docs/EUCLID_IR.md`: comprehensive language reference
-  - `@version` directive: `@version 1.0` in Euclid-IR
-- **Publications**:
-  - PyPI: `euclid-mcp` v0.1.3 → https://pypi.org/project/euclid-mcp/0.1.3/
-  - MCP Registry: `io.github.meob/euclid-mcp` v0.1.3
-  - Awesome MCP Servers: PR [#10007](https://github.com/punkpeye/awesome-mcp-servers/pull/10007)
-- **Tests**: 57/57 passing
+- **Documentation refresh**:
+  - `README.md`: added Tools overview table, updated "Use cases" with diagnose/what_if/check_kb, expanded Python examples for all 4 tools, added JSON output examples for diagnose and what_if, expanded HTTP API section with curl examples
+  - `AGENTS.md`: concrete input/output examples for diagnose, what_if, check_kb (replaced vague descriptions)
+  - `EUCLID_IR.md`: added Quick Reference table, added multi-tool workflow example (Step 1-4)
+  - `IDEAS.md`: added current tool set to "Principles" section
+  - `TODO.md`: added "Documentation refresh" to Done
+
+## Previous session (Jul 13, 2026)
+- Security hardening (v0.1.3)
+- `diagnose`, `what_if`, `check_kb` tools
+- PyPI v0.1.3, MCP Registry, Awesome MCP Servers PR
+- 57/57 tests passing
 
 ## Status
-- GitHub: `main` up to date, 5 commits ahead of v0.1.1
-- PyPI: v0.1.3 live, `pip install euclid-mcp` works
-- Security: input sanitization + limits + error sanitization active
+- GitHub: `main` up to date
+- Documentation: all 4 tools fully documented with examples
+- Tests: 57/57 passing
 
 ## Next priorities
 - [ ] Lint + type checking (ruff, mypy)

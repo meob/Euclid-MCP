@@ -9,6 +9,12 @@
 5. Every answer must be verifiable
 6. Proofs are first-class outputs
 
+## Current tools
+- `reason` — main deduction with proof trees
+- `diagnose` — query analysis (why/why_not/what_needs)
+- `what_if` — scenario testing with fact additions/removals
+- `check_kb` — knowledge base validation
+
 
 ## NON GOALs
 Euclid is not trying to:

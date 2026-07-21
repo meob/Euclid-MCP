@@ -23,6 +23,8 @@ Euclid-MCP is a hybrid cognitive architecture: a lightweight LLM describes the w
 3. Execute via SWI-Prolog subprocess
 4. Return solutions + proof trees as structured JSON
 
+Additional tools (`diagnose`, `what_if`, `check_kb`) extend this core flow with analysis, scenario testing, and validation.
+
 LLMs describe. Euclid MCP proves.  
 
 
@@ -131,6 +133,15 @@ Some internal [benchmarks](benchmarks/BENCHMARKS.md) demonstrate the difference:
 
 ## Tools
 
+Euclid-MCP exposes **4 tools**, each with a specific purpose:
+
+| Tool | Purpose |
+|------|---------|
+| `reason` | Main deduction — get solutions + proof trees |
+| `diagnose` | Understand why a query succeeds or fails |
+| `what_if` | Test modifications before applying them |
+| `check_kb` | Validate KB consistency before reasoning |
+
 ### `reason`
 
 Main tool for verifiable deterministic reasoning.
@@ -226,14 +237,34 @@ pip install -e .
 ```python
 from euclid_mcp.server import reason, diagnose, what_if, check_kb
 
+# Reasoning
 result = reason(knowledge="""
     human(socrates)
     mortal($x) IF human($x)
     ? mortal($who)
 """)
-
 for sol in result.solutions:
     print(sol.substitutions, sol.proof.type)
+
+# Diagnosis — why does a query fail?
+diag = diagnose(
+    knowledge="human(socrates)\nmortal($x) IF human($x)",
+    query="mortal(plato)",
+    mode="why_not"
+)
+print(diag.conclusion)
+
+# What-if — how does adding a fact change results?
+scenario = what_if(
+    base_knowledge="human(socrates)\nmortal($x) IF human($x)",
+    modifications="+ human(plato)",
+    query="mortal($who)"
+)
+print(f"Before: {scenario.before_count}, After: {scenario.after_count}")
+
+# KB validation
+check = check_kb(knowledge="human(socrates)\nmortal($x) IF human($x)")
+print(f"Valid: {check.valid}, Errors: {check.errors}")
 ```
 
 ### Example output
@@ -273,6 +304,35 @@ for sol in result.solutions:
 }
 ```
 
+#### Diagnose output
+
+```json
+{
+  "holds": false,
+  "findings": [
+    "Fact 'mortal(plato)' not found in knowledge base",
+    "No rule with head 'mortal(plato)' found"
+  ],
+  "conclusion": "Query fails: no derivation path for mortal(plato)"
+}
+```
+
+#### What-if output
+
+```json
+{
+  "before_count": 1,
+  "after_count": 2,
+  "delta": 1,
+  "solutions_before": [{"substitutions": {"who": "socrates"}}],
+  "solutions_after": [
+    {"substitutions": {"who": "socrates"}},
+    {"substitutions": {"who": "plato"}}
+  ],
+  "conclusion": "Adding 'human(plato)' adds 1 new solution"
+}
+```
+
 
 ## Use cases
 
@@ -282,6 +342,9 @@ for sol in result.solutions:
 - **Dependency analysis**: Circular dependency detection, topological ordering
 - **Education**: Interactive logic tutoring with visible proof chains
 - **Knowledge preload**: Complex business rules can be loaded in Euclid instead of using a vector database
+- **Query diagnosis**: Understand why queries fail and what facts/rules are missing
+- **Scenario analysis**: Test "what-if" modifications before applying them to production
+- **KB validation**: Check knowledge bases for consistency before reasoning
 
 
 ### Real-world examples
@@ -373,15 +436,35 @@ Run the HTTP API:
 python3 integrations/euclid_api.py --port 8080
 ```
 
-```
-POST /reason    →  {"knowledge": "red(apple)\n? red($x)"}
-POST /diagnose  →  {"knowledge": "...", "query": "...", "mode": "why"}
-POST /what-if   →  {"base_knowledge": "...", "modifications": "+ ...", "query": "..."}
-POST /check-kb  →  {"knowledge": "..."}
-GET  /health
-```
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/reason` | POST | Deduction with proof trees |
+| `/diagnose` | POST | Query failure analysis |
+| `/what-if` | POST | Scenario testing |
+| `/check-kb` | POST | KB validation |
+| `/health` | GET | Health check |
 
-Connect an **HTTP Request** node to `http://localhost:8080/reason` (or `/diagnose`, `/what-if`, `/check-kb`).
+```bash
+# Reasoning
+curl -X POST http://localhost:8080/reason \
+  -H "Content-Type: application/json" \
+  -d '{"knowledge": "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"}'
+
+# Diagnosis
+curl -X POST http://localhost:8080/diagnose \
+  -H "Content-Type: application/json" \
+  -d '{"knowledge": "human(socrates)\nmortal($x) IF human($x)", "query": "mortal(plato)", "mode": "why_not"}'
+
+# What-if
+curl -X POST http://localhost:8080/what-if \
+  -H "Content-Type: application/json" \
+  -d '{"base_knowledge": "human(socrates)\nmortal($x) IF human($x)", "modifications": "+ human(plato)", "query": "mortal($who)"}'
+
+# KB validation
+curl -X POST http://localhost:8080/check-kb \
+  -H "Content-Type: application/json" \
+  -d '{"knowledge": "human(socrates)\nmortal($x) IF human($x)"}'
+```
 
 ### CLI pipeline
 

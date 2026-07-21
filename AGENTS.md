@@ -137,22 +137,72 @@ grandparent($x, $y) IF parent($x, $z) AND parent($z, $y)
 ```
 
 ### 7. Diagnose a failing query
+
+Knowledge base:
 ```
 human(socrates)
 mortal($x) IF human($x)
-? mortal($who)
 ```
-Use `diagnose` with mode `why_not` on `mortal(plato)` to get suggestions.
+
+Call `diagnose` with `query="mortal(plato)"` and `mode="why_not"`:
+
+**Result:**
+```json
+{
+  "holds": false,
+  "findings": [
+    "Fact 'mortal(plato)' not found in knowledge base",
+    "No rule with head 'mortal(plato)' found"
+  ],
+  "conclusion": "Query fails: no derivation path for mortal(plato)"
+}
+```
 
 ### 8. What-if scenario
+
+Knowledge base:
 ```
 human(socrates)
 mortal($x) IF human($x)
 ```
-Use `what_if` to add `human(plato)` and check how `mortal($who)` results change.
+
+Call `what_if` with `modifications="+ human(plato)"` and `query="mortal($who)"`:
+
+**Result:**
+```json
+{
+  "before_count": 1,
+  "after_count": 2,
+  "delta": 1,
+  "solutions_before": [{"substitutions": {"who": "socrates"}}],
+  "solutions_after": [
+    {"substitutions": {"who": "socrates"}},
+    {"substitutions": {"who": "plato"}}
+  ],
+  "conclusion": "Adding 'human(plato)' adds 1 new solution"
+}
+```
 
 ### 9. Validate a knowledge base
-Use `check_kb` on a knowledge base to detect syntax errors, undefined predicates, circular rules, and duplicates.
+
+Call `check_kb` with:
+```
+human(socrates)
+mortal($x) IF unknown_predicate($x)
+? mortal($who)
+```
+
+**Result:**
+```json
+{
+  "valid": false,
+  "errors": ["Undefined predicate: unknown_predicate/1"],
+  "warnings": [],
+  "facts_count": 1,
+  "rules_count": 1,
+  "predicates_count": 3
+}
+```
 
 ## Proof tree interpretation
 

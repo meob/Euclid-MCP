@@ -32,6 +32,22 @@ Output: `$who = bob`, `$who = ann` (with full proof trees).
 
 ---
 
+## Quick Reference
+
+| Syntax | Meaning | Example |
+|--------|---------|---------|
+| `predicate(args)` | Fact | `parent(tom, bob)` |
+| `$name` | Variable | `$x`, `$who` |
+| `head IF body` | Rule | `mortal($x) IF human($x)` |
+| `a AND b` | Conjunction | `p($x) AND q($x)` |
+| `NOT a` | Negation | `NOT active($user)` |
+| `? goal` | Query | `? mortal($who)` |
+| `a > b` | Arithmetic | `$days > 90` |
+| `# comment` | Comment | `# this is ignored` |
+| `_` | Wildcard | `parent($x, _)` |
+
+---
+
 ## Version Directive
 
 The first line of a knowledge base can declare a version:
@@ -348,6 +364,39 @@ sky_is_blue
 ```
 
 **Result:** `{}` if true (no variable bindings)
+
+### 8. Multi-tool workflow
+
+Start with a knowledge base and use different tools to analyze it:
+
+```
+human(socrates)
+human(plato)
+mortal($x) IF human($x)
+```
+
+**Step 1 — Validate** with `check_kb`:
+```json
+{"valid": true, "errors": [], "warnings": [], "facts_count": 2, "rules_count": 1}
+```
+
+**Step 2 — Reason** with `reason` (`? mortal($who)`):
+```json
+{"solutions": [
+  {"substitutions": {"who": "socrates"}, "proof": {...}},
+  {"substitutions": {"who": "plato"}, "proof": {...}}
+]}
+```
+
+**Step 3 — Diagnose** a failing query with `diagnose` (`mortal(aristotle)`, mode `why_not`):
+```json
+{"holds": false, "findings": ["Fact 'mortal(aristotle)' not found"], "conclusion": "No derivation path"}
+```
+
+**Step 4 — What-if** adding a fact with `what_if` (`+ human(aristotle)`):
+```json
+{"before_count": 2, "after_count": 3, "delta": 1}
+```
 
 ---
 

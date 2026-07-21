@@ -31,6 +31,7 @@
   - 28 security tests (injection, DoS, limits, error sanitization)
 - [x] **`docs/EUCLID_IR.md`**: comprehensive language reference (~300 lines)
 - [x] **`@version` directive**: `@version 1.0` in Euclid-IR, parser + model + 4 tests
+- [x] **Documentation refresh**: README (tools overview, all 4 tools with examples), AGENTS (concrete examples), EUCLID_IR (quick reference, multi-tool workflow)
 
 ## Short term (usefulness)
 
