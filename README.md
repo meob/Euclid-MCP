@@ -9,6 +9,8 @@
 
 Euclid-MCP is a hybrid cognitive architecture: a lightweight LLM describes the world in facts, and a deterministic engine performs the actual deduction. The LLM never needs to reason — it only needs to describe.
 
+With Euclid-MCP, an 8B model can solve reasoning tasks that stump even 400B+ cloud models — because the engine handles deduction deterministically. Every answer comes with a proof tree, so you can trace *why* a conclusion holds, not just *what* it is. Use it to enforce RBAC policies, audit cloud compliance, validate loan eligibility rules, or reason over any domain where answers must be explainable and verifiable.
+
 ## How it works
 
 ```

@@ -2,6 +2,8 @@
 
 Euclid-MCP is a deterministic logical reasoning engine. Write facts and rules in **Euclid IR** (Intermediate Representation), the engine translates to Prolog, performs deduction, and returns solutions with **proof trees**.
 
+With Euclid-MCP, an 8B model can solve reasoning tasks that stump even 400B+ cloud models — because the engine handles deduction deterministically. Every answer comes with a proof tree, so you can trace *why* a conclusion holds, not just *what* it is.
+
 Available tools: `euclid-mcp_reason`, `euclid-mcp_diagnose`, `euclid-mcp_what_if`, `euclid-mcp_check_kb`
 
 ## `reason` — Main deduction tool
