@@ -49,6 +49,7 @@
 ## Long term
 
 - [ ] **Prolog-free mode**: Implement a naive deduction engine in Python for users without SWI-Prolog
+- [ ] **Full Prolog features**: Implement all Prolog features in Euclid-IR
 - [ ] **Answer Set Programming**: Add ASP backend (via Clingo) for constraint-heavy problems
 - [ ] **Performance**: Daemon mode, optimizations
 - [ ] **Long Term Memory**: For huge rule sets
@@ -56,4 +57,4 @@
 - [ ] **Web UI**: Simple playground for experimenting with the fact language
 - [ ] **Benchmark suite**: Compare LLM-only vs LLM+Euclid reasoning accuracy
 - [ ] **Multi-language client SDK**: TypeScript, Rust bindings alongside Python
-- [ ] **Bibliography**: List of publications cited
+- [ ] **Bibliography**: List of publications cited (done but in some articles)

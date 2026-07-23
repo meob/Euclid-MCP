@@ -40,6 +40,7 @@ Euclid is not trying to:
 
 ### Knowledge
 
+- Huge rule size: daemon mode, knowledge preload, Databases
 - Knowledge compiler
 - RAG compiler
 
