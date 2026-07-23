@@ -260,7 +260,10 @@ def _analyze_query(kb, query: str, holds: bool) -> list[DiagnosisFinding]:
                     findings.append(DiagnosisFinding(
                         type="satisfied",
                         predicate=goal_name,
-                        detail=f"Facts exist for '{goal_name}' ({len(defined_facts[goal_name])} facts)",
+                        detail=(
+                            f"Facts exist for '{goal_name}' "
+                            f"({len(defined_facts[goal_name])} facts)"
+                        ),
                     ))
 
     # Check for circular rules
@@ -375,8 +378,14 @@ def what_if(
     modified_knowledge = "\n".join(modified_lines)
 
     # Run before (base only) and after (modified)
-    base_result = reason(base_knowledge, query=query, max_solutions=max_solutions, max_depth=max_depth)
-    mod_result = reason(modified_knowledge, query=query, max_solutions=max_solutions, max_depth=max_depth)
+    base_result = reason(
+        base_knowledge, query=query,
+        max_solutions=max_solutions, max_depth=max_depth,
+    )
+    mod_result = reason(
+        modified_knowledge, query=query,
+        max_solutions=max_solutions, max_depth=max_depth,
+    )
 
     if base_result.error:
         return WhatIfResult(
@@ -522,7 +531,10 @@ def check_kb(knowledge: str) -> KBCheckResult:
                 if goal_name not in defined:
                     errors.append(KBError(
                         type="undefined_predicate",
-                        message=f"Rule body references undefined predicate '{goal_name}/{goal_arity}'",
+                        message=(
+                            "Rule body references undefined predicate "
+                            f"'{goal_name}/{goal_arity}'"
+                        ),
                         predicate=f"{goal_name}/{goal_arity}",
                     ))
 
@@ -540,7 +552,10 @@ def check_kb(knowledge: str) -> KBCheckResult:
             body = rule.split(" IF ", 1)[1] if " IF " in rule else ""
             if pred_name in body:
                 # Recursive rule — check if there's also a non-recursive base case
-                has_base = any(pred_name not in (r.split(" IF ", 1)[1] if " IF " in r else "") for r in rules)
+                has_base = any(
+                    pred_name not in (r.split(" IF ", 1)[1] if " IF " in r else "")
+                    for r in rules
+                )
                 if not has_base:
                     errors.append(KBError(
                         type="circular_rule",

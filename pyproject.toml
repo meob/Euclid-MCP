@@ -33,6 +33,8 @@ dev = [
     "pytest",
     "pytest-cov",
     "ruff",
+    "mypy",
+    "types-PyYAML",
 ]
 
 [project.urls]
@@ -55,3 +57,9 @@ line-length = 99
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_return_any = true
+warn_unused_configs = true

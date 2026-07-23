@@ -6,10 +6,12 @@
 
 <!-- mcp-name: io.github.meob/euclid-mcp -->
 
-
 Euclid-MCP is a hybrid cognitive architecture: a lightweight LLM describes the world in facts, and a deterministic engine performs the actual deduction. The LLM never needs to reason — it only needs to describe.
 
 With Euclid-MCP, an 8B model can solve reasoning tasks that stump even 400B+ cloud models — because the engine handles deduction deterministically. Every answer comes with a proof tree, so you can trace *why* a conclusion holds, not just *what* it is. Use it to enforce RBAC policies, audit cloud compliance, validate loan eligibility rules, or reason over any domain where answers must be explainable and verifiable.
+
+Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable intermediate language designed for both AI agents and humans. It currently uses **SWI-Prolog** as its inference engine and can be consumed in multiple ways: via **MCP** by AI agents (OpenCode, Claude, Cursor), via **HTTP** by tools and automation platforms (n8n, Zapier, Make), and via **Python API** for direct integration. Euclid-IR rules can also be used to **augment RAG** pipelines with deterministic policy enforcement.
+
 
 ## How it works
 
@@ -202,6 +204,8 @@ Knowledge base validator — check for consistency before running deduction.
 
 ## Installation
 
+### pip
+
 ```bash
 # Prerequisites: Python ≥ 3.10, SWI-Prolog
 brew install swi-prolog
@@ -210,13 +214,32 @@ brew install swi-prolog
 pip install euclid-mcp
 ```
 
-Or from source:
+### From source
+
 ```bash
 git clone https://github.com/meob/Euclid-MCP
 cd Euclid-MCP
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 ```
+
+### Docker
+
+No local SWI-Prolog installation needed — the image bundles everything.
+
+```bash
+# Build
+docker build -t euclid-mcp .
+
+# MCP stdio mode (for local MCP clients)
+docker compose run --rm euclid-mcp
+
+# HTTP API mode (for n8n, Zapier, remote access)
+docker compose up euclid-api
+# API available at http://localhost:8080
+```
+
+See [Docker in Integrations](#docker) for full details.
 
 ## Usage
 
@@ -467,6 +490,44 @@ curl -X POST http://localhost:8080/check-kb \
   -H "Content-Type: application/json" \
   -d '{"knowledge": "human(socrates)\nmortal($x) IF human($x)"}'
 ```
+
+### Docker
+
+The Docker image bundles SWI-Prolog + Python, so no local prerequisites are needed.
+Base image: [`swipl:stable`](https://hub.docker.com/_/swipl) (Debian Bookworm).
+
+**Two modes via docker-compose:**
+
+```bash
+# MCP stdio — pipe to a local MCP client
+docker compose run --rm euclid-mcp
+
+# HTTP API — expose REST endpoints on port 8080
+docker compose up euclid-api
+```
+
+**Standalone usage:**
+
+```bash
+# Build
+docker build -t euclid-mcp .
+
+# Run HTTP API
+docker run --rm -p 8080:8080 euclid-mcp \
+  python3 integrations/euclid_api.py --port 8080
+
+# Run MCP stdio (interactive)
+docker run --rm -i euclid-mcp
+
+# Quick test — reason directly from CLI
+docker run --rm euclid-mcp python3 -c "
+from euclid_mcp.server import reason
+r = reason(knowledge='human(socrates)\nmortal(\$x) IF human(\$x)\n? mortal(\$who)')
+print(r.solutions[0].substitutions)
+"
+```
+
+**Docker image size:** ~370 MB (SWI-Prolog + Python 3.11 + dependencies).
 
 ### CLI pipeline
 

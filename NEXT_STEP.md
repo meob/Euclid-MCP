@@ -1,26 +1,29 @@
-# Euclid-MCP — Session Checkpoint (Jul 21, 2026)
+# Euclid-MCP — Session Checkpoint (Jul 22, 2026)
 
 ## Completed in this session
-- **Documentation refresh**:
-  - `README.md`: added Tools overview table, updated "Use cases" with diagnose/what_if/check_kb, expanded Python examples for all 4 tools, added JSON output examples for diagnose and what_if, expanded HTTP API section with curl examples
-  - `AGENTS.md`: concrete input/output examples for diagnose, what_if, check_kb (replaced vague descriptions)
-  - `EUCLID_IR.md`: added Quick Reference table, added multi-tool workflow example (Step 1-4)
-  - `IDEAS.md`: added current tool set to "Principles" section
-  - `TODO.md`: added "Documentation refresh" to Done
+- **Docker container** for MCP server + SWI-Prolog:
+  - `Dockerfile`: based on `swipl:stable`, Python 3.11, non-root user, both MCP stdio and HTTP API modes
+  - `.dockerignore`: excludes tests, docs, .git, venv
+  - `docker-compose.yml`: two services (`euclid-mcp` for stdio, `euclid-api` for HTTP on port 8080)
+  - Verified: build succeeds (~370 MB), both modes tested and working
+  - `README.md`: added Docker to Installation and Integrations sections
+- **Lint + type checking**:
+  - ruff: fixed 1 unused import (`Literal`) + 5 long lines in `server.py` → 0 errors
+  - mypy: added `types-PyYAML`, config in `pyproject.toml` → 0 errors
+  - Added `mypy` + `types-PyYAML` to dev dependencies
+  - 89/89 tests passing
 
-## Previous session (Jul 13, 2026)
-- Security hardening (v0.1.3)
-- `diagnose`, `what_if`, `check_kb` tools
-- PyPI v0.1.3, MCP Registry, Awesome MCP Servers PR
-- 57/57 tests passing
+## Previous sessions
+- **Jul 21**: Documentation refresh (tools, examples, EUCLID_IR quick reference)
+- **Jul 13**: Security hardening, `diagnose`/`what_if`/`check_kb` tools, PyPI v0.1.3, MCP Registry
 
 ## Status
 - GitHub: `main` up to date
-- Documentation: all 4 tools fully documented with examples
-- Tests: 57/57 passing
+- Tests: 89/89 passing
+- Lint: ruff + mypy clean
+- Docker: image built and verified
 
 ## Next priorities
-- [ ] Lint + type checking (ruff, mypy)
-- [ ] Docker image with bundled SWI-Prolog
 - [ ] `explain` tool: proof tree → natural language
 - [ ] Named knowledge bases: save/load for reuse
+- [ ] README examples with Ollama (Llama 3B, Qwen 2.5 7B)

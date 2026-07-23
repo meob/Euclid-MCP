@@ -26,3 +26,6 @@ Thumbs.db
 coverage/
 staff/
 .coverage
+
+# ArXiv paper & articles (not for public repo)
+paper/

@@ -1,0 +1,24 @@
+services:
+  # MCP stdio mode — for local MCP clients (OpenCode, Claude, etc.)
+  # Usage: docker compose run --rm euclid-mcp
+  euclid-mcp:
+    build: .
+    image: euclid-mcp:latest
+    stdin_open: true
+    restart: "no"
+
+  # HTTP API mode — for n8n, Zapier, remote clients
+  # Usage: docker compose up euclid-api
+  euclid-api:
+    build: .
+    image: euclid-mcp:latest
+    command: ["python3", "integrations/euclid_api.py", "--port", "8080"]
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

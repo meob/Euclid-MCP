@@ -32,6 +32,8 @@
 - [x] **`docs/EUCLID_IR.md`**: comprehensive language reference (~300 lines)
 - [x] **`@version` directive**: `@version 1.0` in Euclid-IR, parser + model + 4 tests
 - [x] **Documentation refresh**: README (tools overview, all 4 tools with examples), AGENTS (concrete examples), EUCLID_IR (quick reference, multi-tool workflow)
+- [x] **Docker image**: `swipl:stable` base, non-root user, MCP stdio + HTTP API modes, docker-compose, .dockerignore
+- [x] **Lint + type checking**: ruff (0 errors) + mypy (0 errors), `types-PyYAML`, config in `pyproject.toml`
 
 ## Short term (usefulness)
 
@@ -40,9 +42,7 @@
 
 ## Medium term (quality)
 
-- [ ] Lint + type checking (ruff, mypy)
 - [ ] Test coverage su server.py (error paths)
-- [ ] Docker image with bundled SWI-Prolog
 - [ ] **Named knowledge bases**: Save/load KBs for reuse across sessions
 - [ ] **`explain` tool**: Convert proof tree to natural language via LLM
 

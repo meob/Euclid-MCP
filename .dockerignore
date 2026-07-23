@@ -1,0 +1,53 @@
+# Version control
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.egg
+.pytest_cache/
+.ruff_cache/
+.coverage
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prolog temp
+/tmp/
+
+# Test & docs
+tests/
+benchmarks/
+staff/
+docs/
+examples/
+CHANGELOG.md
+TODO.md
+NEXT_STEP.md
+IDEAS.md
+AGENTS.md
+.opencode.json
+.opencodeignore
+opencode.json
+glama.json
+server.json
+uv.lock
+
+# Docker (prevent recursive copy)
+Dockerfile
+docker-compose.yml
+.dockerignore

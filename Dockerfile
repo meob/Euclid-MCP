@@ -1,26 +1,39 @@
-FROM python:3.12-slim
+FROM swipl:stable
 
-# Install SWI-Prolog
+# Install Python 3.12 and pip
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        software-properties-common \
-        gnupg2 \
+        python3 \
+        python3-pip \
+        python3-venv \
         curl && \
-    curl -fsSL https://swi-prolog.org/swipl-apt.key | gpg --dearmor -o /usr/share/keyrings/swi-prolog.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/swi-prolog.gpg] https://swi-prolog.org/debian stable main" > /etc/apt/sources.list.d/swi-prolog.list && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends swi-prolog && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Verify both runtimes
+RUN swipl --version && python3 --version
+
+# Create non-root user
+RUN groupadd -r euclid && useradd -r -g euclid -d /app -s /sbin/nologin euclid
+
 WORKDIR /app
 
-# Copy project files
+# Copy dependency files first (layer caching)
 COPY pyproject.toml README.md LICENSE ./
 COPY euclid_mcp/ euclid_mcp/
 
-# Install Python dependencies and package
-RUN pip install --no-cache-dir . && \
+# Install Python package
+RUN pip install --no-cache-dir --break-system-packages . && \
     rm -rf /root/.cache
 
+# Copy integrations (HTTP API)
+COPY integrations/ integrations/
+
+# Set ownership
+RUN chown -R euclid:euclid /app
+
+USER euclid
+
+# Default: MCP stdio mode
+# Override with: docker run euclid-mcp python3 integrations/euclid_api.py
 CMD ["python3", "-m", "euclid_mcp"]

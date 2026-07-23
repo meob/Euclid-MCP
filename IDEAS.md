@@ -15,6 +15,9 @@
 - `what_if` — scenario testing with fact additions/removals
 - `check_kb` — knowledge base validation
 
+## Deployment
+- Docker image (`swipl:stable` base) — MCP stdio + HTTP API modes
+
 
 ## NON GOALs
 Euclid is not trying to:
