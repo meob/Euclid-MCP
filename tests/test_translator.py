@@ -109,3 +109,23 @@ def test_query_conjunction_dedup_vars():
     assert "'who': Who" in code
     assert "'x': X" in code
     assert "'who': Who, 'who': Who" not in code
+
+
+def test_not_equal_operator():
+    kb = KB(
+        facts=["count(alice, 5)"],
+        rules=["not_zero($user) IF count($user, $n) AND $n != 0"],
+        query="not_zero($who)",
+    )
+    code = to_prolog(kb)
+    assert "=\\= " in code
+
+
+def test_less_equal_operator():
+    kb = KB(
+        facts=["level(alice, 6)"],
+        rules=["in_range($user) IF level($user, $l) AND $l <= 10"],
+        query="in_range($who)",
+    )
+    code = to_prolog(kb)
+    assert "=< " in code

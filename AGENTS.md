@@ -81,9 +81,9 @@ stale($user) IF user($user) AND last_login($user, $days) AND $days > 90
 
 ### Rules
 - Variables: `$name` (lowercase after `$`)
-- Implication: `IF` (uppercase)
-- Conjunction: `AND` (uppercase)
-- Negation: `NOT` (uppercase)
+- Implication: `IF`
+- Conjunction: `AND`
+- Negation: `NOT`
 - Query prefix: `?` on a separate line
 - Predicates: lowercase with args in `()`
 - Wildcards: `_` (anonymous variable)
@@ -91,7 +91,14 @@ stale($user) IF user($user) AND last_login($user, $days) AND $days > 90
 - Multi-line rules: continuation implied after `IF` or `AND`
 
 ### Supported operators
-`>`, `>=`, `<`, `=<`, `=:=`, `=\=`, `is`
+`>`, `>=`, `<`, `<=`, `=:=`, `is`, `!=`
+
+### String literals
+UTF-8 strings for real-world data (emails, URLs, addresses):
+```
+user(alice, "alice@example.com")
+address(bob, 'Via Roma, 15')
+```
 
 ## Proof Tree Nodes
 
@@ -119,8 +126,7 @@ can_deploy($user, $env) IF
 
 ## Limitations
 
-- Predicate/fact names: **lowercase only**
+- Predicate/fact names: **lowercase only** (case-insensitive: `Human(ALICE)` → `human(alice)`)
 - Variables: `$` + lowercase (`$x`, `$who`)
-- Case-sensitive: `Mortal` ≠ `mortal`
 - No disjunction, cut, list syntax, findall/bagof, dynamic assert/retract, modules
 - Horn-clause logic only

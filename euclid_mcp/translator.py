@@ -1,5 +1,6 @@
 import re
 
+from .language import _extract_strings
 from .models import KB
 
 META_INTERPRETER = """
@@ -65,7 +66,7 @@ def to_prolog(kb: KB, max_depth: int = 30, max_solutions: int = 1000) -> str:
     for r in kb.rules:
         s = _translate_rule(r)
         all_statements.append(s)
-        head = r.split(" IF ")[0].strip()
+        head = re.split(r"\s+[Ii][Ff]\s+", r, maxsplit=1)[0].strip()
         sig = _extract_pred_sig(head)
         if sig:
             pred_sigs.add(sig)
@@ -100,20 +101,39 @@ def to_prolog(kb: KB, max_depth: int = 30, max_solutions: int = 1000) -> str:
 
 
 def _translate_vars(s: str) -> str:
-    return re.sub(r"\$([a-z][a-zA-Z0-9_]*)", lambda m: m.group(1).capitalize(), s)
+    """Translate $vars to Prolog vars, preserving quoted strings."""
+    cleaned, strings = _extract_strings(s)
+    result = re.sub(
+        r"\$([a-z][a-zA-Z0-9_]*)", lambda m: m.group(1).capitalize(), cleaned
+    )
+    for i, str_literal in enumerate(strings):
+        result = result.replace(f"__STR_{i}__", str_literal)
+    return result
+
+
+def _translate_operators(s: str) -> str:
+    """Translate Euclid-IR operators to Prolog operators.
+
+    != -> =\\=   (arithmetic inequality)
+    <=  -> =<    (less or equal, Prolog style)
+    """
+    s = re.sub(r"!=", "=\\= ", s)
+    s = re.sub(r"<=", "=< ", s)
+    return s
 
 
 def _translate_statement(fact: str) -> str:
-    return _translate_vars(fact.strip().rstrip(".")) + "."
+    return _translate_operators(_translate_vars(fact.strip().rstrip("."))) + "."
 
 
 def _translate_rule(rule: str) -> str:
-    head, body = rule.split(" IF ", 1)
+    head, body = re.split(r"\s+[Ii][Ff]\s+", rule, maxsplit=1)
     head_pl = _translate_vars(head.strip())
-    body = re.sub(r"\s+AND\s+", ", ", body.strip())
+    body = re.sub(r"\s+[Aa][Nn][Dd]\s+", ", ", body.strip())
     body_pl = _translate_vars(body)
     # Convert NOT to Prolog negation
-    body_pl = re.sub(r"\bNOT\s+", "\\+ ", body_pl)
+    body_pl = re.sub(r"\b[Nn][Oo][Tt]\s+", "\\+ ", body_pl)
+    body_pl = _translate_operators(body_pl)
     return f"{head_pl} :- {body_pl}."
 
 
@@ -143,7 +163,7 @@ def _generate_output(kb: KB, max_depth: int, max_solutions: int) -> list[str]:
         return ["output :- true."]
 
     # Convert AND to Prolog conjunction before translating vars
-    query_body = re.sub(r"\s+AND\s+", ", ", query.strip().rstrip("."))
+    query_body = re.sub(r"\s+[Aa][Nn][Dd]\s+", ", ", query.strip().rstrip("."))
     # Wrap in parentheses if it's a conjunction (contains commas at top level)
     if ", " in query_body:
         query_body = f"({query_body})"

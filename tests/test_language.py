@@ -22,7 +22,7 @@ def test_text_with_and():
         "? ancestor(tom, $who)"
     )
     assert len(kb.rules) == 1
-    assert "IF" in kb.rules[0]
+    assert "if" in kb.rules[0]
 
 
 def test_text_comments():
@@ -93,7 +93,7 @@ can_deploy($user, $env) IF
 def test_not_operator():
     kb = parse("inactive_user($user) IF user($user) AND NOT active($user)")
     assert len(kb.rules) == 1
-    assert "NOT active($user)" in kb.rules[0]
+    assert "not active($user)" in kb.rules[0]
 
 
 def test_version_directive():
@@ -119,3 +119,70 @@ def test_version_not_treated_as_fact():
     kb = parse("@version 1.0\nparent(tom, bob)\n? parent($x, $y)")
     assert len(kb.facts) == 1
     assert kb.facts[0] == "parent(tom, bob)"
+
+
+def test_case_insensitive_identifiers():
+    kb = parse("Human(ALICE)\nhasRole(ALICE, Admin)\n? hasRole($who, Admin)")
+    assert kb.facts[0] == "human(alice)"
+    assert kb.facts[1] == "hasrole(alice, admin)"
+    assert kb.query == "hasrole($who, admin)"
+
+
+def test_case_insensitive_rule():
+    kb = parse("Human(Socrates)\nMortal($X) IF Human($X)\n? Mortal($Who)")
+    assert kb.facts[0] == "human(socrates)"
+    assert kb.rules[0] == "mortal($x) if human($x)"
+    assert kb.query == "mortal($who)"
+
+
+def test_case_insensitive_variables_normalized():
+    kb = parse("parent(tom, bob)\n? parent($X, $Y)")
+    assert kb.query == "parent($x, $y)"
+
+
+def test_reserved_keyword_as_predicate():
+    import pytest
+    with pytest.raises(ValueError, match="Reserved keyword"):
+        parse("if($x) IF human($x)")
+
+
+def test_percent_comment():
+    kb = parse("% comment\nparent(tom, bob)\n% another\n? parent($x, $y)")
+    assert len(kb.facts) == 1
+    assert kb.facts[0] == "parent(tom, bob)"
+
+
+def test_string_literal_double_quotes():
+    kb = parse('user(alice, "alice@example.com")\n? user($who, $email)')
+    assert kb.facts[0] == 'user(alice, "alice@example.com")'
+    assert kb.query == 'user($who, $email)'
+
+
+def test_string_literal_single_quotes():
+    kb = parse("user(alice, 'alice@example.com')\n? user($who, $email)")
+    assert kb.facts[0] == "user(alice, 'alice@example.com')"
+
+
+def test_string_with_comma():
+    kb = parse('address(alice, "Via Roma, 15")\n? address($who, $addr)')
+    assert kb.facts[0] == 'address(alice, "Via Roma, 15")'
+
+
+def test_string_with_if_inside():
+    kb = parse('note(alice, "data IF more")\n? note($who, $text)')
+    assert kb.facts[0] == 'note(alice, "data IF more")'
+
+
+def test_string_with_and_inside():
+    kb = parse('note(alice, "x AND y")\n? note($who, $text)')
+    assert kb.facts[0] == 'note(alice, "x AND y")'
+
+
+def test_string_preserves_case():
+    kb = parse('user("Alice Smith")\n? user($name)')
+    assert kb.facts[0] == 'user("Alice Smith")'
+
+
+def test_string_in_rule():
+    kb = parse('greet($x) IF name($x, "World")\n? greet($who)')
+    assert kb.rules[0] == 'greet($x) if name($x, "World")'

@@ -4,6 +4,7 @@ import time
 from mcp.server.fastmcp import FastMCP
 
 from euclid_mcp.language import parse
+from euclid_mcp.linter import lint_rule
 from euclid_mcp.models import (
     DiagnosisFinding,
     DiagnosisResult,
@@ -14,6 +15,19 @@ from euclid_mcp.models import (
 )
 from euclid_mcp.prolog_bridge import execute as prolog_execute
 from euclid_mcp.translator import to_prolog
+
+_IF_SPLIT = re.compile(r"\s+IF\s+", re.IGNORECASE)
+
+
+def _split_rule(rule: str) -> tuple[str, str]:
+    """Split a rule into head and body on 'IF' (case-insensitive)."""
+    parts = _IF_SPLIT.split(rule, maxsplit=1)
+    return (parts[0], parts[1]) if len(parts) == 2 else (parts[0], "")
+
+
+def _is_not_goal(goal: str) -> bool:
+    """Check if a goal is a NOT-prefixed negation (case-insensitive)."""
+    return goal.strip().upper().startswith("NOT ")
 
 # Security limits
 MAX_KNOWLEDGE_LENGTH = 500_000  # 500 KB
@@ -221,8 +235,8 @@ def _analyze_query(kb, query: str, holds: bool) -> list[DiagnosisFinding]:
             defined_facts.setdefault(name, []).append(fact)
 
     for rule in kb.rules:
-        head = rule.split(" IF ")[0].strip()
-        parsed = _extract_predicate(head)
+        head, _ = _split_rule(rule)
+        parsed = _extract_predicate(head.strip())
         if parsed:
             name, _ = parsed
             defined_rules.setdefault(name, []).append(rule)
@@ -238,12 +252,12 @@ def _analyze_query(kb, query: str, holds: bool) -> list[DiagnosisFinding]:
 
     # Analyze each rule that could match the query
     for rule in defined_rules.get(pred_name, []):
-        body = rule.split(" IF ", 1)[1] if " IF " in rule else ""
+        _, body = _split_rule(rule)
         body_goals = _split_conjunction(body)
 
         for goal in body_goals:
             goal = goal.strip()
-            if not goal or goal.startswith("NOT "):
+            if not goal or _is_not_goal(goal):
                 continue
 
             # Check if goal references a defined predicate
@@ -269,7 +283,7 @@ def _analyze_query(kb, query: str, holds: bool) -> list[DiagnosisFinding]:
     # Check for circular rules
     if holds:
         for rule in defined_rules.get(pred_name, []):
-            body = rule.split(" IF ", 1)[1] if " IF " in rule else ""
+            _, body = _split_rule(rule)
             if pred_name in body:
                 findings.append(DiagnosisFinding(
                     type="blocking_condition",
@@ -490,8 +504,8 @@ def check_kb(knowledge: str) -> KBCheckResult:
             defined.setdefault(name, set()).add(arity)
 
     for rule in kb.rules:
-        head = rule.split(" IF ")[0].strip()
-        parsed = _extract_predicate(head)
+        head, _ = _split_rule(rule)
+        parsed = _extract_predicate(head.strip())
         if parsed:
             name, args = parsed
             arity = args.count(",") + 1 if args else 0
@@ -511,12 +525,12 @@ def check_kb(knowledge: str) -> KBCheckResult:
 
     # Check 2: undefined predicates in rule bodies
     for rule in kb.rules:
-        body = rule.split(" IF ", 1)[1] if " IF " in rule else ""
+        _, body = _split_rule(rule)
         body_goals = _split_conjunction(body)
 
         for goal in body_goals:
             goal = goal.strip()
-            if goal.startswith("NOT "):
+            if _is_not_goal(goal):
                 goal = goal[4:].strip()
 
             goal_pred = _extract_predicate(goal)
@@ -524,7 +538,7 @@ def check_kb(knowledge: str) -> KBCheckResult:
                 goal_name, goal_args = goal_pred
                 # Skip variables, arithmetic, and wildcards
                 if goal_name.startswith("$") or goal_name in (
-                    "true", "false", "is", ">", ">=", "<", "=<", "=:=", "=\\="
+                    "true", "false", "is", ">", ">=", "<", "<=", "=<", "=:=", "=\\=", "!="
                 ):
                     continue
                 goal_arity = goal_args.count(",") + 1 if goal_args else 0
@@ -541,19 +555,19 @@ def check_kb(knowledge: str) -> KBCheckResult:
     # Check 3: circular rules (simple detection)
     rule_heads: dict[str, list[str]] = {}
     for rule in kb.rules:
-        head = rule.split(" IF ")[0].strip()
-        parsed = _extract_predicate(head)
+        head, _ = _split_rule(rule)
+        parsed = _extract_predicate(head.strip())
         if parsed:
             name, _ = parsed
             rule_heads.setdefault(name, []).append(rule)
 
     for pred_name, rules in rule_heads.items():
         for rule in rules:
-            body = rule.split(" IF ", 1)[1] if " IF " in rule else ""
+            _, body = _split_rule(rule)
             if pred_name in body:
                 # Recursive rule — check if there's also a non-recursive base case
                 has_base = any(
-                    pred_name not in (r.split(" IF ", 1)[1] if " IF " in r else "")
+                    pred_name not in _split_rule(r)[1]
                     for r in rules
                 )
                 if not has_base:
@@ -574,6 +588,12 @@ def check_kb(knowledge: str) -> KBCheckResult:
                     message=f"Query references undefined predicate '{name}'",
                     predicate=name,
                 ))
+
+    # Check 5: unsafe negation (lint)
+    for rule in kb.rules:
+        lint_warnings = lint_rule(rule)
+        for w in lint_warnings:
+            warnings.append(KBError(type="unsafe_negation", message=w))
 
     valid = len(errors) == 0
 

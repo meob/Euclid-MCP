@@ -43,7 +43,7 @@ def sanitize(text: str) -> None:
         if not stripped:
             continue
         # Skip comments
-        if stripped.startswith("#") or stripped.startswith("//"):
+        if stripped.startswith(("#", "//", "%")):
             continue
         # Skip @version directive
         if stripped.startswith("@version"):

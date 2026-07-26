@@ -32,6 +32,15 @@ Additional tools (`diagnose`, `what_if`, `check_kb`) extend this core flow with 
 LLMs describe. Euclid MCP proves.  
 
 
+### Knowledge Base
+
+In the current implementation, facts and rules are provided with each request.
+
+The long-term architecture also supports persistent **Knowledge Bases**, where stable business rules are loaded once into the inference engine, while agents provide only the session-specific facts required for the current query.
+
+This minimizes token usage, improves performance, and allows small LLMs to reason over large rule sets without reconstructing the entire knowledge base for every request.
+
+
 ## Intermediate Language
 
 Even if currently Euclid-MCP uses a Prolog Engine, no Prolog syntax is required.  
@@ -68,10 +77,11 @@ Full language reference: [`docs/EUCLID_IR.md`](docs/EUCLID_IR.md)
 |---------|--------|---------|
 | Facts | `predicate(args)` | `parent(tom, bob)` |
 | Variables | `$name` (lowercase) | `$who`, `$x`, `$count` |
-| Implication | `IF` (uppercase) | `mortal($x) IF human($x)` |
-| Conjunction | `AND` (uppercase) | `p($x) AND q($x)` |
-| Negation | `NOT` (uppercase) | `NOT active($user)` |
+| Implication | `IF` | `mortal($x) IF human($x)` |
+| Conjunction | `AND` | `p($x) AND q($x)` |
+| Negation | `NOT` | `NOT active($user)` |
 | Query | `? predicate` | `? ancestor(tom, $who)` |
+| String literals | `"..."` or `'...'` | `"alice@example.com"` |
 | Multi-line rules | Body on next line | `rule($x) IF\n    body($x)` |
 
 ### Arithmetic Comparisons
@@ -94,7 +104,7 @@ can_access($user, $resource) IF
     user_clearance($user, $user_level) AND $user_level >= $cls_level
 ```
 
-**Supported operators:** `>`, `>=`, `<`, `=<`, `=:=`, `=\=`, `is`
+**Supported operators:** `>`, `>=`, `<`, `<=`, `=:=`, `is`, `!=`
 
 ### Multi-line Rules
 

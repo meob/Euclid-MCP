@@ -1,25 +1,23 @@
-# Euclid-MCP — Session Checkpoint (Jul 22, 2026)
+# Euclid-MCP — Session Checkpoint (Jul 26, 2026)
 
 ## Completed in this session
-- **Docker container** for MCP server + SWI-Prolog:
-  - `Dockerfile`: based on `swipl:stable`, Python 3.11, non-root user, both MCP stdio and HTTP API modes
-  - `.dockerignore`: excludes tests, docs, .git, venv
-  - `docker-compose.yml`: two services (`euclid-mcp` for stdio, `euclid-api` for HTTP on port 8080)
-  - Verified: build succeeds (~370 MB), both modes tested and working
-  - `README.md`: added Docker to Installation and Integrations sections
-- **Lint + type checking**:
-  - ruff: fixed 1 unused import (`Literal`) + 5 long lines in `server.py` → 0 errors
-  - mypy: added `types-PyYAML`, config in `pyproject.toml` → 0 errors
-  - Added `mypy` + `types-PyYAML` to dev dependencies
-  - 89/89 tests passing
+- **Euclid-IR v1.0 stabilization**:
+  - Case-insensitive identifiers: `Human(ALICE)` → `human(alice)`
+  - String literals: UTF-8 `"..."` / `'...'` with proper extraction/restoration
+  - Generic inequality: `!=` → `=\=`, `<=` → `=<`
+  - Safe negation linting: `linter.py` detects unbound variables in `NOT`
+  - Comments: `%` accepted alongside `#` and `//`
+  - 21 new tests, 110 total, ruff + mypy clean
+- **Documentation**: updated EUCLID_IR.md, README.md, AGENTS.md
 
 ## Previous sessions
+- **Jul 22**: Docker container, lint + type checking (89 tests)
 - **Jul 21**: Documentation refresh (tools, examples, EUCLID_IR quick reference)
 - **Jul 13**: Security hardening, `diagnose`/`what_if`/`check_kb` tools, PyPI v0.1.3, MCP Registry
 
 ## Status
 - GitHub: `main` up to date
-- Tests: 89/89 passing
+- Tests: 110/110 passing
 - Lint: ruff + mypy clean
 - Docker: image built and verified
 

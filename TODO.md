@@ -34,6 +34,13 @@
 - [x] **Documentation refresh**: README (tools overview, all 4 tools with examples), AGENTS (concrete examples), EUCLID_IR (quick reference, multi-tool workflow)
 - [x] **Docker image**: `swipl:stable` base, non-root user, MCP stdio + HTTP API modes, docker-compose, .dockerignore
 - [x] **Lint + type checking**: ruff (0 errors) + mypy (0 errors), `types-PyYAML`, config in `pyproject.toml`
+- [x] **Euclid-IR v1.0 stabilization**:
+  - [x] **Case-insensitive identifiers**: `Human(ALICE)` → `human(alice)`, reserved keyword check
+  - [x] **String literals**: UTF-8 `"..."` / `'...'`, preserves case/whitespace, safe with `IF`/`AND` inside
+  - [x] **Generic inequality**: `!=` → `=\=`, `<=` → `=<`
+  - [x] **Safe negation linting**: detects unbound variables in `NOT` (warning in `check_kb`)
+  - [x] **Comments**: `%` accepted alongside `#` and `//`
+  - [x] New module: `linter.py`, 21 new tests (110 total)
 
 ## Short term (usefulness)
 
@@ -49,7 +56,7 @@
 ## Long term
 
 - [ ] **Prolog-free mode**: Implement a naive deduction engine in Python for users without SWI-Prolog
-- [ ] **Full Prolog features**: Implement all Prolog features in Euclid-IR
+- [ ] **Full Prolog features**: Implement all Prolog features in Euclid-IR: no! Implement all useful features
 - [ ] **Answer Set Programming**: Add ASP backend (via Clingo) for constraint-heavy problems
 - [ ] **Performance**: Daemon mode, optimizations
 - [ ] **Long Term Memory**: For huge rule sets

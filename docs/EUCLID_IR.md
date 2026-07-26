@@ -42,8 +42,11 @@ Output: `$who = bob`, `$who = ann` (with full proof trees).
 | `a AND b` | Conjunction | `p($x) AND q($x)` |
 | `NOT a` | Negation | `NOT active($user)` |
 | `? goal` | Query | `? mortal($who)` |
+| `a != b` | Inequality | `$x != 0` |
 | `a > b` | Arithmetic | `$days > 90` |
+| `"text"` | String literal | `"alice@example.com"` |
 | `# comment` | Comment | `# this is ignored` |
+| `% comment` | Comment (Prolog style) | `% also ignored` |
 | `_` | Wildcard | `parent($x, _)` |
 
 ---
@@ -69,11 +72,12 @@ parent(tom, bob)
 
 | Rule | Detail |
 |------|--------|
-| **Case sensitivity** | Keywords are uppercase (`IF`, `AND`, `NOT`). Predicate and atom names are lowercase. |
+| **Case sensitivity** | Case-insensitive. `Human(ALICE)` normalizes to `human(alice)`. Keywords (`IF`, `AND`, `NOT`) are recognized in any case. |
 | **Variables** | Start with `$` followed by a lowercase letter: `$x`, `$who`, `$user_name` |
 | **Atoms** | Lowercase identifiers: `tom`, `admin_role`, `us_east_1` |
+| **String literals** | UTF-8 strings in double or single quotes: `"Alice Smith"`, `'http://example.com'` |
 | **Integers** | Digits only: `42`, `0`, `999` |
-| **Comments** | `#` or `//` at line start or inline |
+| **Comments** | `#`, `//`, or `%` at line start or inline |
 | **Trailing dots** | Optional, ignored (for Prolog familiarity) |
 | **Whitespace** | Newlines separate statements; spaces separate tokens |
 
@@ -116,6 +120,25 @@ $level
 - Convention: use descriptive names for LLM readability (`$user`, `$count`)
 
 **Translation to Prolog:** `$varname` → `Varname` (capitalized)
+
+### String Literals
+
+UTF-8 strings for real-world data (emails, URLs, addresses):
+
+```
+user(alice, "alice@example.com")
+address(bob, 'Via Roma, 15')
+url(charlie, "https://example.com/path?q=1 AND foo")
+```
+
+**Rules:**
+- Both `"..."` and `'...'` syntax supported
+- Choose whichever minimizes escaping
+- Strings preserve whitespace and case (not normalized to lowercase)
+- Strings containing `IF`, `AND`, or `NOT` are handled correctly
+- Escape characters: `\"`, `\'`, `\\`, `\n`, `\t`
+
+**Translation to Prolog:** Passed through as Prolog strings.
 
 ### Rules (Implication)
 
@@ -189,21 +212,22 @@ Compare numeric values in rule bodies:
 ```
 stale($user) IF last_login($user, $days) AND $days > 90
 adult($person) IF age($person, $age) AND $age >= 18
+active($user) IF status($user, $s) AND $s != "inactive"
 ```
 
 **Supported operators:**
 
-| Operator | Meaning | Example |
-|----------|---------|---------|
-| `>` | Greater than | `$x > 0` |
-| `>=` | Greater or equal | `$x >= 18` |
-| `<` | Less than | `$x < 100` |
-| `=<` | Less or equal (Prolog style) | `$x =< 50` |
-| `=:=` | Arithmetic equal | `$x =:= 42` |
-| `=\=` | Arithmetic not equal | `$x =\= 0` |
-| `is` | Assignment/evaluation | `$x is $y + 1` |
+| Operator | Prolog equivalent | Meaning | Example |
+|----------|-------------------|---------|---------|
+| `!=` | `=\=` | Not equal | `$x != 0` |
+| `<=` | `=<` | Less or equal | `$x <= 50` |
+| `>` | `>` | Greater than | `$x > 0` |
+| `>=` | `>=` | Greater or equal | `$x >= 18` |
+| `<` | `<` | Less than | `$x < 100` |
+| `=:=` | `=:=` | Arithmetic equal | `$x =:= 42` |
+| `is` | `is` | Assignment/evaluation | `$x is $y + 1` |
 
-**Note:** These are Prolog arithmetic operators, passed through verbatim. They are evaluated at deduction time.
+**Note:** `!=` and `<=` are Euclid-IR convenience operators. The translator maps them to the Prolog equivalents `=\=` and `=<`.
 
 ### Multi-line Rules
 
@@ -242,6 +266,7 @@ Two styles, both supported:
 ```
 # This is a comment
 // This is also a comment
+% Prolog-style comment
 
 parent(tom, bob)  # inline comment
 active(user_42)   // inline comment
@@ -410,7 +435,10 @@ mortal($x) IF human($x)
 | `a($x) AND b($x)` | `a(X), b(X)` |
 | `NOT active($x)` | `\+ active(X)` |
 | `? ancestor(tom, $who)` | `?- ancestor(tom, Who).` |
+| `$x != 0` | `X =\= 0` |
+| `$x <= 10` | `X =< 10` |
 | `$days > 90` | `Days > 90` |
+| `"Alice Smith"` | `"Alice Smith"` |
 
 **Key differences:**
 - `$` prefix for variables (vs. uppercase first letter in Prolog)
@@ -418,6 +446,7 @@ mortal($x) IF human($x)
 - `AND` instead of `,`
 - `NOT` instead of `\+`
 - `?` prefix for queries
+- `!=` instead of `=\=`, `<=` instead of `=<`
 - No cut (`!`), no disjunction (`;`), no list syntax
 
 ---
@@ -430,16 +459,17 @@ Euclid-IR targets **Horn-clause logic** — the core of Prolog without advanced 
 |---------|--------|-------|
 | Horn clauses | ✅ Supported | Facts + rules with conjunction |
 | Negation (NOT) | ✅ Supported | Closed-world assumption |
-| Arithmetic | ✅ Supported | Via Prolog pass-through |
+| Arithmetic | ✅ Supported | `!=`, `<=`, `>`, `>=`, `<`, `=:=`, `is` |
 | Multi-line rules | ✅ Supported | Body spans multiple lines |
 | Conjunction queries | ✅ Supported | `AND` in query |
+| String literals | ✅ Supported | UTF-8 strings in `"..."` or `'...'` |
+| Case-insensitive | ✅ Supported | `Human(ALICE)` → `human(alice)` |
 | Disjunction (OR) | ❌ Not supported | Use multiple rules instead |
 | Cut (!) | ❌ Not supported | No backtracking control |
 | Lists `[H\|T]` | ❌ Not supported | No pattern matching on lists |
 | findall/bagof | ❌ Not supported | No collection of solutions |
 | Assert/retract | ❌ Not supported | No dynamic facts at runtime |
 | Modules | ❌ Not supported | Single knowledge base |
-| Strings | ❌ Not supported | Atoms only (lowercase identifiers) |
 
 **Workarounds:**
 
