@@ -82,4 +82,4 @@ deploy_role_level(vp_engineering, 7)
 deploy_role_level(cto, 8)
 
 role_level($role, $level) IF deploy_role_level($role, $level)
-role_level($role, $level) IF inherits($role, $parent) AND role_level($parent, $parent_level) AND $level = $parent_level + 1
+role_level($role, $level) IF inherits($role, $parent) AND role_level($parent, $parent_level) AND $level is $parent_level + 1

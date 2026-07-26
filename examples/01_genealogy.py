@@ -37,6 +37,14 @@ parent(bob, pat)
 parent(tom, liz)
 parent(liz, mia)
 
+# Person data (string literals — UTF-8 preserved as-is)
+person(tom, "tom@example.com")
+person(bob, "bob@example.com")
+person(ann, "ann@example.com")
+person(pat, "pat@example.com")
+person(liz, "liz@example.com")
+person(mia, "mia@example.com")
+
 # Ancestor: direct or through chain
 ancestor($x, $y) IF parent($x, $y)
 ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)
@@ -70,4 +78,14 @@ print("  manually trace each chain. Euclid-MCP does it deterministically")
 print("  and provides a verifiable proof for each answer.")
 print("  → A small LLM can delegate reasoning to Euclid and just")
 print("    describe the facts. No step-by-step CoT needed.")
+print("─" * 55)
+
+# ── Bonus: string literals ──
+# String values (emails, URLs, etc.) pass through to Prolog unchanged.
+# Use this to attach metadata to entities without losing them in translation.
+result2 = reason(knowledge=knowledge, query="person($who, $email)")
+print("\n── BONUS: String Literals ──")
+print("  Emails preserved as UTF-8 strings:")
+for sol in result2.solutions:
+    print(f"   {sol.substitutions['who']:6s} → {sol.substitutions['email']}")
 print("─" * 55)
