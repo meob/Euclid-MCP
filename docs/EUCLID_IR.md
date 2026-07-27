@@ -171,7 +171,7 @@ rule($x) IF condition1($x) AND condition2($x) AND condition3($x)
 **In queries:**
 
 ```
-? can_access($who, $res) AND resource($res, _, _, _, _, secret)
+? can_access_resource($who, $res) AND resource($res, _, _, _, _, secret)
 ```
 
 Both conditions must be satisfied simultaneously.
@@ -196,7 +196,7 @@ The `?` prefix marks a query — what you want to prove:
 ```
 ? mortal(socrates)
 ? ancestor(tom, $who)
-? can_access($user, $resource) AND resource($resource, _, _, _, _, secret)
+? can_access_resource($user, $resource) AND resource($resource, _, _, _, _, secret)
 ```
 
 **Rules:**
