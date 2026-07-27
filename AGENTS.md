@@ -76,7 +76,7 @@ stale($user) IF user($user) AND last_login($user, $days) AND $days > 90
 
 # Query (? prefix required)
 ? mortal($who)
-? can_access($user, $res) AND resource($res, _, _, _, _, secret)
+? can_access_resource($user, $res) AND resource($res, _, _, _, _, secret)
 ```
 
 ### Rules
