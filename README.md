@@ -575,6 +575,16 @@ pytest --cov=euclid_mcp --cov=integrations
 The CI workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs these
 same checks on push and pull request, across Python 3.10–3.12.
 
+### Logging & tracing
+
+Every tool call is logged with its name, elapsed time, and outcome. Enable
+structured logs by setting `EUCLID_LOG_LEVEL` (one of `DEBUG`, `INFO`,
+`WARNING`, `ERROR`, `CRITICAL`) — e.g. `EUCLID_LOG_LEVEL=INFO`. Without the
+variable, only warnings and errors are emitted.
+
+The HTTP API also supports request tracing: send an `X-Request-Id` header and
+it is echoed back on the response and included in the access logs.
+
 
 ## How is Euclid?
 

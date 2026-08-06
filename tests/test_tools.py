@@ -1,5 +1,6 @@
 """Unit tests for all 4 MCP tools: reason, diagnose, what_if, check_kb."""
 
+import logging
 
 from euclid_mcp.server import check_kb, diagnose, reason, what_if
 
@@ -15,6 +16,12 @@ class TestReason:
         assert len(r.solutions) == 1
         assert r.solutions[0].substitutions["who"] == "socrates"
         assert r.solutions[0].proof.type in ("rule", "fact")
+
+    def test_logs_call(self, caplog):
+        with caplog.at_level(logging.INFO, logger="euclid_mcp.server"):
+            reason("human(socrates)\n? human($who)")
+        messages = [rec.getMessage() for rec in caplog.records]
+        assert any("tool=reason" in m and "solutions=1" in m for m in messages)
 
     def test_multiple_solutions(self):
         r = reason(

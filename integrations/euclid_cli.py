@@ -33,7 +33,7 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 os.chdir(_project_root)
 
-from euclid_mcp.server import check_kb, diagnose, reason, what_if  # noqa: E402
+from euclid_mcp.server import _setup_logging, check_kb, diagnose, reason, what_if  # noqa: E402
 
 
 def _parse_args() -> dict[str, object]:
@@ -77,6 +77,7 @@ def _parse_args() -> dict[str, object]:
 
 
 def main():
+    _setup_logging()
     data = _parse_args()
 
     data.setdefault("max_solutions", 5)

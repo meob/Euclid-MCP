@@ -57,6 +57,24 @@ class TestApi:
             assert status == 200
             assert data["status"] == "ok"
 
+    def test_request_id_echo(self):
+        with _TestServer() as s:
+            conn = http.client.HTTPConnection("127.0.0.1", s.port, timeout=10)
+            headers = {
+                "Content-Type": "application/json",
+                "X-Request-Id": "req-123",
+            }
+            conn.request(
+                "POST",
+                "/reason",
+                body=json.dumps({"knowledge": KB}).encode(),
+                headers=headers,
+            )
+            resp = conn.getresponse()
+            resp.read()
+            assert resp.getheader("X-Request-Id") == "req-123"
+            conn.close()
+
     def test_reason(self):
         with _TestServer() as s:
             status, data = _request(s.port, "POST", "/reason", {"knowledge": KB})

@@ -16,18 +16,25 @@ n8n usage: HTTP Request node → POST http://localhost:8080/reason
 """
 
 import json
+import logging
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from euclid_mcp.server import check_kb, diagnose, reason, what_if
+from euclid_mcp.server import _setup_logging, check_kb, diagnose, reason, what_if
+
+logger = logging.getLogger("euclid_api")
 
 
 class ReasonHandler(BaseHTTPRequestHandler):
 
+    def _extract_request_id(self):
+        self._request_id = self.headers.get("X-Request-Id") or None
+
     def do_POST(self):
+        self._extract_request_id()
         if self.path == "/reason":
             self._handle_reason()
         elif self.path == "/diagnose":
@@ -174,6 +181,7 @@ class ReasonHandler(BaseHTTPRequestHandler):
             return None
 
     def do_GET(self):
+        self._extract_request_id()
         if self.path == "/health":
             self._send(200, {"status": "ok", "service": "euclid-mcp"})
         else:
@@ -184,16 +192,21 @@ class ReasonHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
+        if getattr(self, "_request_id", None):
+            self.send_header("X-Request-Id", self._request_id)
         self.end_headers()
         self.wfile.write(body)
 
     def log_message(self, fmt, *args):
-        print(f"[euclid-api] {args[0]} {args[1]} {args[2]}", file=sys.stderr)
+        request_id = getattr(self, "_request_id", None) or "-"
+        logger.info("request_id=%s %s", request_id, fmt % args)
 
 
 def main():
+    _setup_logging()
     port = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[1] == "--port" else 8080
     server = HTTPServer(("0.0.0.0", port), ReasonHandler)
+    logger.info("Euclid-MCP API running on http://0.0.0.0:%d", port)
     print(f"Euclid-MCP API running on http://0.0.0.0:{port}")
     print("  POST /reason    —  deduct from facts and rules")
     print("  POST /diagnose  —  diagnose why a query succeeds or fails")

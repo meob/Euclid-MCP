@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `mypy` coverage extended to `integrations/`
 - CI workflow on push/PR: Python 3.10-3.12 matrix, ruff, mypy, pytest with coverage,
   Codecov upload (`.github/workflows/ci.yml`)
+- Structured logging: every tool call logs name, elapsed time, and outcome;
+  controllable via the `EUCLID_LOG_LEVEL` env var
+- Request tracing in the HTTP API: `X-Request-Id` header is echoed on the response
+  and included in access logs
 
 ### Changed
 - Fixed lint issues across examples, benchmarks, and integrations (ruff clean)

@@ -1,5 +1,9 @@
+import functools
+import logging
+import os
 import re
 import time
+from typing import Any, Callable, TypeVar, cast
 
 from mcp.server.fastmcp import FastMCP
 
@@ -16,7 +20,54 @@ from euclid_mcp.models import (
 from euclid_mcp.prolog_bridge import execute as prolog_execute
 from euclid_mcp.translator import to_prolog
 
+logger = logging.getLogger(__name__)
+
 _IF_SPLIT = re.compile(r"\s+IF\s+", re.IGNORECASE)
+
+_Fn = TypeVar("_Fn", bound=Callable[..., Any])
+
+
+def _log_call(tool_name: str) -> Callable[[_Fn], _Fn]:
+    """Wrap a tool to log per-call timing and outcome."""
+
+    def decorator(fn: _Fn) -> _Fn:
+        @functools.wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            start = time.monotonic()
+            result = fn(*args, **kwargs)
+            elapsed_ms = (time.monotonic() - start) * 1000
+            error = getattr(result, "error", None)
+            solutions = getattr(result, "solutions", None)
+            count = len(solutions) if isinstance(solutions, list) else None
+            if error:
+                logger.warning(
+                    "tool=%s elapsed_ms=%.1f error=%s",
+                    tool_name,
+                    elapsed_ms,
+                    error,
+                )
+            else:
+                logger.info(
+                    "tool=%s elapsed_ms=%.1f solutions=%s",
+                    tool_name,
+                    elapsed_ms,
+                    count if count is not None else "-",
+                )
+            return result
+
+        return cast(_Fn, wrapper)
+
+    return decorator
+
+
+def _setup_logging() -> None:
+    """Configure root logging from the EUCLID_LOG_LEVEL env var (optional)."""
+    level = os.environ.get("EUCLID_LOG_LEVEL", "").upper()
+    if level in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+        logging.basicConfig(
+            level=getattr(logging, level),
+            format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        )
 
 
 def _split_rule(rule: str) -> tuple[str, str]:
@@ -58,6 +109,7 @@ Use when: logical rules, compliance checks, RBAC, proof trees, deterministic ans
     description="Perform logical deduction on a knowledge base "
     "and return solutions with proof trees for each result",
 )
+@_log_call("reason")
 def reason(
     knowledge: str,
     query: str | None = None,
@@ -137,6 +189,7 @@ def reason(
     "Modes: 'why' (explain success), 'why_not' (explain failure), "
     "'what_needs' (what would make it succeed)",
 )
+@_log_call("diagnose")
 def diagnose(
     knowledge: str,
     query: str,
@@ -337,6 +390,7 @@ def _split_conjunction(body: str) -> list[str]:
     "and see how they affect query results. "
     "Use + prefix to add facts, - prefix to remove facts.",
 )
+@_log_call("what_if")
 def what_if(
     base_knowledge: str,
     modifications: str,
@@ -478,6 +532,7 @@ def _facts_match(line: str, pattern: str) -> bool:
     description="Check a knowledge base for consistency: "
     "syntax errors, undefined predicates, circular rules, duplicates.",
 )
+@_log_call("check_kb")
 def check_kb(knowledge: str) -> KBCheckResult:
     start = time.monotonic()
     errors: list[KBError] = []
@@ -610,6 +665,7 @@ def check_kb(knowledge: str) -> KBCheckResult:
 
 
 def main() -> None:
+    _setup_logging()
     mcp.run()
 
 
