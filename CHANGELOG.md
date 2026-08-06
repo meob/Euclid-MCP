@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Pin `mcp>=1.27,<2`: MCP Python SDK 2.0 (2026-07-28) removed the
+  `mcp.server.fastmcp` module, breaking the server import and all CI tests.
+  Migration to `MCPServer`/standalone `fastmcp` is tracked in TODO
+- CI: bump `actions/checkout@v4`→`v5`, `actions/setup-python@v5`→`v6`,
+  `codecov/codecov-action@v5`→`v6` (Node 20 runtime is deprecated on runners)
+
 ### Added
 - Test coverage for HTTP API (`tests/test_api.py`) and CLI (`tests/test_cli.py`)
 - `per-file-ignores` in ruff config for demo scripts (`examples/`, `benchmarks/`)

@@ -53,6 +53,9 @@
 ## Short term (usefulness)
 
 - [ ] README examples with Ollama (test with Llama 3B, Qwen 2.5 7B)
+- [ ] **Migrate to MCP SDK v2** (`mcp.server.mcpserver.MCPServer` or standalone
+      `fastmcp`): v2.0.0 (2026-07-28) removed `mcp.server.fastmcp`; currently
+      pinned `mcp>=1.27,<2`
 - [ ] Policy Compiler
 
 ## Medium term (quality)
