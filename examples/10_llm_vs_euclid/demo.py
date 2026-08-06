@@ -129,9 +129,9 @@ RULES:
 SCRIPTED_QUESTIONS = [
     "Who can deploy to production?",
     "Which users have stale access?",
-    "Can intern_01 write code?",
+    "Can eng_0002 (an intern) write code?",
     "Which production resources are not encrypted?",
-    "What if alice gets the sysadmin role?",
+    "What if eng_0002 (an intern) gets the sysadmin role?",
     "Why can't a helpdesk user access secret data?",
 ]
 
@@ -366,9 +366,9 @@ def print_help():
 {C.BOLD}Try these questions:{C.RESET}
   - Who can deploy to production?
   - Which users have stale access?
-  - Can intern_01 write code?
+  - Can eng_0002 (an intern) write code?
   - Which production resources are not encrypted?
-  - What if alice gets the sysadmin role?
+  - What if eng_0002 (an intern) gets the sysadmin role?
   - Why can't a helpdesk user access secret data?
 """)
 
