@@ -38,6 +38,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - README: shields.io badges (PyPI, Python versions, license, CI, coverage) and
   a Development section with the standard check commands
 
+## [0.1.4] — 2026-08-06
+
+### Fixed
+- Arithmetic comparisons (`>`, `>=`, `<`, `<=`, `=:=`, `=\=`) silently returned 0
+  solutions because the generated Prolog used `member/2` in the meta-interpreter's
+  `is_arith_goal/1` without importing `library(lists)`. Thanks to @eddyscanlan for
+  the report with root-cause analysis and fix suggestion.
+
 ## [0.1.3] — 2026-07-13
 
 ### Added
