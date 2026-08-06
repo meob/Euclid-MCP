@@ -3,7 +3,7 @@
 [![Euclid-MCP MCP server](https://glama.ai/mcp/servers/meob/Euclid-MCP/badges/score.svg)](https://glama.ai/mcp/servers/meob/Euclid-MCP)
 [![PyPI version](https://img.shields.io/pypi/v/euclid-mcp?color=blue)](https://pypi.org/project/euclid-mcp/)
 [![Python versions](https://img.shields.io/pypi/pyversions/euclid-mcp)](https://pypi.org/project/euclid-mcp/)
-[![License](https://img.shields.io/github/license/meob/Euclid-MCP)](LICENSE)
+[![License](https://img.shields.io/github/license/meob/Euclid-MCP?cacheSeconds=86400)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/meob/Euclid-MCP/ci.yml?branch=main&label=CI)](https://github.com/meob/Euclid-MCP/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/codecov/c/github/meob/Euclid-MCP)](https://codecov.io/gh/meob/Euclid-MCP)
 
