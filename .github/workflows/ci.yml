@@ -15,7 +15,7 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Install SWI-Prolog
         run: sudo apt-get update && sudo apt-get install -y swi-prolog
