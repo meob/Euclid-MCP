@@ -57,7 +57,7 @@ EUCLID_TOOLS = [
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "The query to diagnose, e.g. user_has_permission(intern_01, deploy_code)",
+                        "description": "The query to diagnose, e.g. user_has_permission(eng_0002, deploy_code)",
                     },
                     "mode": {
                         "type": "string",
@@ -89,7 +89,7 @@ EUCLID_TOOLS = [
                         "description": (
                             "Facts to add or remove. One per line. "
                             "Prefix with + to add, - to remove. "
-                            "Example: '+ has_role(alice, sysadmin)' or '- has_role(bob, intern)'"
+                            "Example: '+ has_role(eng_0002, sysadmin)' or '- has_role(eng_0002, intern)'"
                         ),
                     },
                     "query": {
