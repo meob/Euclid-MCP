@@ -2,6 +2,14 @@
 
 ## Done
 
+- [x] **Dev tooling upgrade**:
+  - CI on push/PR (`.github/workflows/ci.yml`): Python 3.10-3.12 matrix, SWI-Prolog, ruff → mypy → pytest+cov, Codecov upload
+  - Ruff clean across the whole repo (per-file-ignores for demo scripts), mypy on core + integrations
+  - Coverage gate: `fail_under = 80` enforced by pytest-cov
+  - Pre-commit hooks: ruff, mypy, pytest (`.pre-commit-config.yaml`)
+  - Structured logging per tool call (`EUCLID_LOG_LEVEL` env var) + `X-Request-Id` tracing in the HTTP API
+  - README badges (PyPI, Python versions, license, CI, coverage) + Development section
+  - Integration tests for HTTP API and CLI (131 total, 82% coverage)
 - [x] Publish on GitHub
 - [x] MCP inspector testing (`mcp dev`)
 - [x] 57/57 tests: parsing, translation, Prolog execution, security
