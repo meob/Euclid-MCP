@@ -40,9 +40,60 @@ Euclid is not trying to:
 
 ### Knowledge
 
-- Huge rule size: daemon mode, knowledge preload, Databases
 - Knowledge compiler
 - RAG compiler
+
+#### Persistent Prolog Engine (game-changer — needs enterprise project to validate)
+
+**Status**: Planned
+
+**Motivation**: Each `reason()` call spawns a new SWI-Prolog process, loads the entire KB, and exits. For large KBs or repeated queries, this overhead is prohibitive.
+
+**Goal**: A persistent Prolog process that:
+- Loads the KB once at startup
+- Accepts queries via stdin (JSON lines protocol)
+- Supports incremental updates (assert/retract)
+- Auto-restarts on crash with KB reload
+- Falls back to stateless mode if unavailable
+
+**Architecture**:
+```
+Python (PrologServer) ←── stdin/stdout (JSON lines) ──→ SWI-Prolog (persistent)
+  assert(Fact)                                               |
+  retract(Fact)                                              |
+  query(Goal) ──────────────────────────────────────────────▶| findall
+  load(KB) ─────────────────────────────────────────────────▶| parse + assert
+```
+
+**Protocol** (JSON lines on stdin/stdout):
+| Command | Input | Output |
+|---------|-------|--------|
+| `load` | `{"command":"load","kb":"user(alice)...."}` | `{"status":"ok","facts":30,"rules":12,"predicates":8}` |
+| `query` | `{"command":"query","goal":"has_role($who,admin)","max":50}` | `{"status":"ok","solutions":[{"who":"alice"}],"ms":3}` |
+| `assert` | `{"command":"assert","fact":"user(bob)"}` | `{"status":"ok"}` |
+| `retract` | `{"command":"retract","fact":"user(bob)"}` | `{"status":"ok"}` |
+| `stats` | `{"command":"stats"}` | `{"status":"ok","facts":31,"rules":12}` |
+| `halt` | `{"command":"halt"}` | (process exits) |
+
+**Files**:
+- `euclid_mcp/prolog_engine.pl` — Prolog server (~120 lines)
+- `euclid_mcp/prolog_server.py` — Python wrapper with lifecycle management (~150 lines)
+- `euclid_mcp/prolog_bridge.py` — Modified: add `persistent` mode + fallback
+- `euclid_mcp/server.py` — Initialize engine at MCP startup
+
+**Performance**:
+
+| Scenario | Stateless (today) | Persistent | Improvement |
+|----------|-------------------|------------|-------------|
+| KB 44KB, 10 queries | 2s × 10 = 20s | 2s load + 5ms × 10 = 2.05s | ~10× |
+| KB 1MB, 100 queries | 5s × 100 = 500s | 5s + 5ms × 100 = 5.5s | ~90× |
+| What-if (assert/retract) | 2 subprocess | 2ms | ~500× |
+
+**Implementation phases**:
+1. `prolog_engine.pl` + `prolog_server.py` (persistent engine core)
+2. Integrate into `prolog_bridge.py` (auto-detect + fallback)
+3. Integrate into `server.py` (MCP lifecycle)
+4. Tests + demo metrics
 
 ### Explainability
 
@@ -115,7 +166,7 @@ user(alice)
 has_role(alice, admin)
 ```
 
-## Future evolution
+## Language future evolution
 
 Future features should satisfy at least one of these goals:
 
@@ -125,9 +176,30 @@ Future features should satisfy at least one of these goals:
 - remain backend-independent
 
 Features that mainly expose backend-specific behavior should generally be avoided.
+Backward compatibility should be maintaned when possible.
 
 **"Euclid-IR should remain as simple as possible, but no simpler for reliable logical reasoning."**
 
 **"Everything should be made as simple as possible, but not simpler"**
 
 **"Entia non sunt moltiplicanda praeter necessitatem"**
+
+
+## Demo (examples/10_llm_vs_euclid/)
+
+Side-by-side comparison: plain LLM vs LLM + Euclid-MCP, same model, same KB.
+
+### Completed
+- Interactive CLI with Ollama tool calling (llama3.1:8b)
+- IT Security KB (30 users, 50 resources, recursive role hierarchy)
+- Language-agnostic: works in any language without hardcoded mappings
+- Text-based tool call fallback for models with inconsistent tool calling
+- Query syntax auto-correction (`$who=value` → `value`)
+
+### Improvements backlog
+- Token tracking (per-call and progressive)
+- JSON-lines log for post-session analysis
+- Proof tree ASCII visualization
+- What-if interactive mode
+- Multiple model comparison (llama3.1 vs qwen vs mistral)
+- Additional KB scenarios (Oracle EMP table, RPG game, startup)

@@ -412,6 +412,9 @@ python examples/06_loan_eligibility/loan_officer.py
 
 # IT Security & Compliance — multi-layer policy reasoning
 python examples/07_it_security_compliance/demo.py --small
+
+# LLM vs Euclid-MCP — interactive side-by-side comparison
+python examples/10_llm_vs_euclid/demo.py
 ```
 
 Each example runs a complete reasoning session and prints solutions with proof trees — no LLM required.  
@@ -442,6 +445,33 @@ python3 examples/07_it_security_compliance/demo.py --small
 # Full dataset (200 users, 300 resources, ~3,872 facts)
 python3 examples/07_it_security_compliance/demo.py
 ```
+
+### Example 10: LLM vs Euclid-MCP
+
+Interactive side-by-side comparison: a plain LLM vs the same LLM augmented with Euclid-MCP's reasoning engine. Same model, same knowledge base, dramatically different results.
+
+```bash
+# Requires: Ollama running with llama3.1:8b pulled
+ollama pull llama3.1:8b
+
+# Run the interactive demo
+python3 examples/10_llm_vs_euclid/demo.py
+
+# Options
+python3 examples/10_llm_vs_euclid/demo.py --model llama3.1:8b   # Explicit model
+python3 examples/10_llm_vs_euclid/demo.py --bot-a-only           # Plain LLM only
+python3 examples/10_llm_vs_euclid/demo.py --bot-b-only           # Euclid bot only
+
+# Scripted mode — run preset questions in sequence, then exit (ideal for demos)
+python3 examples/10_llm_vs_euclid/demo.py --scripted
+python3 examples/10_llm_vs_euclid/demo.py --scripted --pause     # Enter between questions
+python3 examples/10_llm_vs_euclid/demo.py --scripted --delay 2   # 2s pause between questions
+```
+
+- **Bot A** (plain): entire KB injected as markdown context — like RAG, grows with history
+- **Bot B** (Euclid): short system prompt + tool calling via `reason`, `diagnose`, `what_if`, `check_kb`
+- Language-agnostic: speak in any language, the engine translates to Euclid-IR automatically
+- Demonstrates proof trees, deterministic answers, and query diagnosis vs LLM hallucination
 
 ## Integrations
 
