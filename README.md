@@ -1,6 +1,11 @@
 # Euclid-MCP
 
 [![Euclid-MCP MCP server](https://glama.ai/mcp/servers/meob/Euclid-MCP/badges/score.svg)](https://glama.ai/mcp/servers/meob/Euclid-MCP)
+[![PyPI version](https://img.shields.io/pypi/v/euclid-mcp?color=blue)](https://pypi.org/project/euclid-mcp/)
+[![Python versions](https://img.shields.io/pypi/pyversions/euclid-mcp)](https://pypi.org/project/euclid-mcp/)
+[![License](https://img.shields.io/github/license/meob/Euclid-MCP)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/meob/Euclid-MCP/ci.yml?branch=main&label=CI)](https://github.com/meob/Euclid-MCP/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/meob/Euclid-MCP)](https://codecov.io/gh/meob/Euclid-MCP)
 
 **MCP server for logical reasoning** — turns facts into formal proofs.
 
@@ -546,6 +551,29 @@ echo '{"knowledge": "red(apple)\\n? red($x)"}' | python3 integrations/euclid_cli
 ```
 
 See `integrations/README.md` for full details.
+
+
+## Development
+
+Requirements: Python ≥ 3.10, SWI-Prolog.
+
+```bash
+# Install in editable mode with dev dependencies
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+
+# Lint
+ruff check .
+
+# Type check
+mypy euclid_mcp integrations
+
+# Tests with coverage
+pytest --cov=euclid_mcp --cov=integrations
+```
+
+The CI workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs these
+same checks on push and pull request, across Python 3.10–3.12.
 
 
 ## How is Euclid?

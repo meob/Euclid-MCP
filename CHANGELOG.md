@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Fixed lint issues across examples, benchmarks, and integrations (ruff clean)
 - Fixed `mypy` type errors in HTTP API and CLI wrappers
+- README: shields.io badges (PyPI, Python versions, license, CI, coverage) and
+  a Development section with the standard check commands
 
 ## [0.1.3] — 2026-07-13
 
