@@ -24,8 +24,8 @@ Thumbs.db
 # Test output
 .pytest_cache/
 coverage/
-staff/
 .coverage
+coverage.xml
 
 # ArXiv paper & articles (not for public repo)
 paper/

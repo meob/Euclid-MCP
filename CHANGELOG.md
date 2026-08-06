@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Test coverage for HTTP API (`tests/test_api.py`) and CLI (`tests/test_cli.py`)
 - `per-file-ignores` in ruff config for demo scripts (`examples/`, `benchmarks/`)
 - `mypy` coverage extended to `integrations/`
+- CI workflow on push/PR: Python 3.10-3.12 matrix, ruff, mypy, pytest with coverage,
+  Codecov upload (`.github/workflows/ci.yml`)
 
 ### Changed
 - Fixed lint issues across examples, benchmarks, and integrations (ruff clean)
