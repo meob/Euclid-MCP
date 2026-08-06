@@ -24,7 +24,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from euclid_mcp.server import diagnose, reason, what_if
 
-
 # ── Knowledge base files (loaded in order) ──
 
 BASE_DIR = Path(__file__).parent
@@ -390,7 +389,7 @@ def main():
 
     # Summary
     print(f"\n{'='*70}")
-    print(f"  SUMMARY")
+    print("  SUMMARY")
     print(f"{'='*70}")
     print(f"  Questions: {len(results)} | Mode: {args.mode}")
     print(f"  Total time: {total_time}ms")

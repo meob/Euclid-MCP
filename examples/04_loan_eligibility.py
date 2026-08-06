@@ -7,8 +7,8 @@ Real-world financial decision-making. Demonstrates:
   • The proof tree as a compliance / explainability artifact
   • How Euclid replaces opaque RAG lookups with deterministic logic
 """
-from euclid_mcp.server import reason
 from euclid_mcp.models import ProofNode
+from euclid_mcp.server import reason
 
 
 def show_proof(node: ProofNode, indent: int = 0) -> None:
@@ -92,7 +92,7 @@ for i, sol in enumerate(result.solutions, 1):
     print(f"── Solution #{i} ──")
     for var, val in sol.substitutions.items():
         print(f"   {var} = {val}")
-    print(f"   Proof tree (compliance trail):")
+    print("   Proof tree (compliance trail):")
     show_proof(sol.proof)
     print()
 
@@ -113,7 +113,7 @@ for person in ["alice", "bob", "carl", "diana", "thomas"]:
         # Check conditional
         cond_r = reason(knowledge=knowledge, query=f"conditional({person})")
         if cond_r.solutions:
-            print(f"     → Could be approved if employed")
+            print("     → Could be approved if employed")
     else:
         show_proof(r.solutions[0].proof)
 

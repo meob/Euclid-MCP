@@ -8,8 +8,8 @@ Demonstrates:
   • Proof trees that explain each step of the chain
   • How Euclid replaces the need for an LLM to "reason" step-by-step
 """
-from euclid_mcp.server import reason
 from euclid_mcp.models import ProofNode
+from euclid_mcp.server import reason
 
 
 def show_proof(node: ProofNode, indent: int = 0) -> None:
@@ -67,7 +67,7 @@ for i, sol in enumerate(result.solutions, 1):
     print(f"── Solution #{i} ──")
     for var, val in sol.substitutions.items():
         print(f"   {var} = {val}")
-    print(f"   Proof tree:")
+    print("   Proof tree:")
     show_proof(sol.proof)
     print()
 

@@ -83,7 +83,7 @@ def main():
 
     # Summary
     print(f"\n{'='*60}")
-    print(f"  SUMMARY")
+    print("  SUMMARY")
     print(f"{'='*60}")
     print("  check_kb() detects: undefined predicates, circular rules,")
     print("  duplicate facts, syntax errors, undefined query predicates.")

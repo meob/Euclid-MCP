@@ -16,8 +16,8 @@ import csv
 import sys
 from pathlib import Path
 
-from euclid_mcp.server import reason
 from euclid_mcp.models import ProofNode
+from euclid_mcp.server import reason
 
 
 def categorize_applicant(row: dict) -> list[str]:

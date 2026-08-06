@@ -2,13 +2,12 @@
 RBAC Benchmark at scale: 1,000 users, ~1,000 facts, 200+ permissions.
 Tests whether LLMs hallucinate when data is too large to track.
 """
-import json
 import re
 import time
-import requests
-from euclid_mcp.server import reason
-from euclid_mcp.models import ReasonResult
 
+import requests
+
+from euclid_mcp.server import reason
 
 OLLAMA = "http://localhost:11434/api/chat"
 SMALL_MODEL = "llama3.1:8b"
@@ -117,9 +116,6 @@ def build_kb() -> tuple[str, str, dict]:
         perm_list = ", ".join(perms)
         sc.append(f"  {role}: {perm_list}")
     sc.append("")
-    grp_list = ", ".join(
-        role_hierarchy[0] + tuple(r for r, _ in role_hierarchy)
-    )
     sc.append(
         "A role gets all permissions assigned directly to it, "
         "plus all permissions of roles it inherits from."

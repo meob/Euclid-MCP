@@ -20,7 +20,6 @@ Usage:
 
 import argparse
 import random
-import string
 from pathlib import Path
 
 random.seed(42)

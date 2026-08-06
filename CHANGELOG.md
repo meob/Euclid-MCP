@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- Test coverage for HTTP API (`tests/test_api.py`) and CLI (`tests/test_cli.py`)
+- `per-file-ignores` in ruff config for demo scripts (`examples/`, `benchmarks/`)
+- `mypy` coverage extended to `integrations/`
+
+### Changed
+- Fixed lint issues across examples, benchmarks, and integrations (ruff clean)
+- Fixed `mypy` type errors in HTTP API and CLI wrappers
+
 ## [0.1.3] — 2026-07-13
 
 ### Added

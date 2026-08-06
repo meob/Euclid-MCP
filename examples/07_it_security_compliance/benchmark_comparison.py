@@ -17,7 +17,6 @@ Requires: euclid-mcp, ollama with llama3.1:8b pulled
 """
 
 import argparse
-import json
 import sys
 import time
 from pathlib import Path
@@ -153,7 +152,6 @@ Think step by step and provide your answer. Be concise."""
             print(f" ERROR: {resp['error']}")
             results.append({"id": q["id"], "answer": None, "error": resp["error"], **resp})
         else:
-            answer = resp["response"][:200]
             print(f" {resp['elapsed_ms']}ms, {resp['eval_count']} tokens")
             results.append({
                 "id": q["id"],
@@ -205,7 +203,7 @@ def run_condition_b(knowledge: str) -> list[dict]:
 def print_comparison(cond_a: list[dict], cond_b: list[dict]):
     """Print comparison table."""
     print(f"\n{'='*90}")
-    print(f"  BENCHMARK: Edge LLM alone (A) vs Edge LLM + Euclid-MCP (B)")
+    print("  BENCHMARK: Edge LLM alone (A) vs Edge LLM + Euclid-MCP (B)")
     print(f"{'='*90}")
 
     print(f"\n  {'Q':<4} {'Question':<40} {'A (ms)':<10} {'B (ms)':<10} {'Speedup':<10} {'B sols':<8}")
@@ -230,13 +228,13 @@ def print_comparison(cond_a: list[dict], cond_b: list[dict]):
     a_tokens = sum(a.get("eval_count", 0) for a in cond_a)
     b_sols_total = sum(b.get("num_solutions", 0) for b in cond_b)
 
-    print(f"\n  TOTALS")
+    print("\n  TOTALS")
     print(f"  Condition A (LLM only):    {a_total}ms total, {a_tokens} output tokens")
     print(f"  Condition B (LLM + Euclid): {b_total}ms total, {b_sols_total} total solutions")
     if b_total > 0:
         print(f"  Speed ratio: A is {a_total / b_total:.1f}x {'slower' if a_total > b_total else 'faster'}")
-    print(f"\n  KEY INSIGHT: Euclid-MCP returns exact answers with proof trees,")
-    print(f"  while the LLM must reason through complex logic it often gets wrong at scale.\n")
+    print("\n  KEY INSIGHT: Euclid-MCP returns exact answers with proof trees,")
+    print("  while the LLM must reason through complex logic it often gets wrong at scale.\n")
 
 
 def main():

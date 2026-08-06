@@ -3,13 +3,13 @@ Reasoning Benchmark: Small LLM vs Cloud LLM vs Small LLM + Euclid-MCP
 
 Compares accuracy, speed, and cost across 3 conditions on 5 reasoning tasks.
 """
-import json
 import re
 import time
-import requests
-from euclid_mcp.server import reason
-from euclid_mcp.models import ReasonResult
 
+import requests
+
+from euclid_mcp.models import ReasonResult
+from euclid_mcp.server import reason
 
 OLLAMA = "http://localhost:11434/api/chat"
 SMALL_MODEL = "llama3.1:8b"
@@ -348,7 +348,7 @@ def run_with_euclid(q: dict, model: str) -> dict:
         }
 
     # Strip out any rules the LLM might still generate
-    clean_lines = [l for l in generated.strip().split("\n") if " IF " not in l]
+    clean_lines = [line for line in generated.strip().split("\n") if " IF " not in line]
     generated_facts = "\n".join(clean_lines)
 
     full_knowledge = q["preset_rules"] + "\n" + generated_facts
@@ -411,7 +411,6 @@ def print_report(all_results: list):
     print("=" * 80)
 
     # Header
-    header = f"{'':<6}" + "".join(f"│ {c:<22}" for c in cond_labels)
     print(f"{'':<6}" + "┌" + "┬".join(["─" * 24] * cols) + "┐")
     print(f"{'Condition':<6}" + f"{'':4}{'':>0}" + "".join(f"│ {c:^22}" for c in cond_labels))
     print(f"{'':<6}" + "├" + "┼".join(["─" * 24] * cols) + "┤")
@@ -520,10 +519,10 @@ def main():
         detail = r.get("error") or f"{r['answer']}"
         print(f"  {mark} ({r['elapsed_ms']:.0f}ms) — {detail}")
         if r.get("generated_euclid"):
-            print(f"    ── Generated Euclid ──")
+            print("    ── Generated Euclid ──")
             for line in r["generated_euclid"].split("\n"):
                 print(f"      {line}")
-            print(f"    ──────────────────────")
+            print("    ──────────────────────")
         if r.get("euclid_ms"):
             print(f"    Euclid execution: {r['euclid_ms']:.0f}ms")
 

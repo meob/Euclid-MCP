@@ -9,10 +9,12 @@ Usage:
     python3 cluedo.py --scenario late          # Late game only
     python3 cluedo.py --custom <file>          # Custom game state file
 """
-from euclid_mcp.server import reason, what_if
-from game_states import EARLY_GAME, LATE_GAME
-from pathlib import Path
 import argparse
+from pathlib import Path
+
+from game_states import EARLY_GAME, LATE_GAME
+
+from euclid_mcp.server import reason, what_if
 
 RULES_FILE = Path(__file__).parent / "cluedo_rules.euclid"
 

@@ -16,7 +16,8 @@ Usage:
 
   # Using other tools
   python3 euclid_cli.py --tool diagnose --knowledge "..." --query "red($x)" --mode why
-  python3 euclid_cli.py --tool what-if --knowledge "..." --modifications "+ red(blue)" --query "red($x)"
+  python3 euclid_cli.py --tool what-if --knowledge "..." --modifications "+ red(blue)"
+                        --query "red($x)"
   python3 euclid_cli.py --tool check-kb --knowledge "..."
 
 Output: JSON to stdout, errors to stderr.
@@ -32,16 +33,15 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 os.chdir(_project_root)
 
-from euclid_mcp.server import check_kb, diagnose, reason, what_if
+from euclid_mcp.server import check_kb, diagnose, reason, what_if  # noqa: E402
 
 
-
-def _parse_args() -> dict:
+def _parse_args() -> dict[str, object]:
     """Parse CLI arguments into a data dict."""
     if len(sys.argv) >= 3 and sys.argv[1] == "--tool":
         tool = sys.argv[2]
         # Parse remaining --key value pairs
-        data = {"_tool": tool}
+        data: dict[str, object] = {"_tool": tool}
         i = 3
         while i < len(sys.argv):
             if sys.argv[i] == "--knowledge" and i + 1 < len(sys.argv):
@@ -70,10 +70,10 @@ def _parse_args() -> dict:
         query = sys.argv[4] if len(sys.argv) >= 5 and sys.argv[3] == "--query" else None
         return {"knowledge": knowledge, "query": query}
     elif len(sys.argv) >= 2:
-        return json.loads(sys.argv[1])
+        return dict(json.loads(sys.argv[1]))
     else:
         raw = sys.stdin.read()
-        return json.loads(raw)
+        return dict(json.loads(raw))
 
 
 def main():

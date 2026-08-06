@@ -8,8 +8,8 @@ Real-world security example. Demonstrates:
   • Proof tree as an AUDIT TRAIL — every access decision is explainable
   • Business rules that are safe, demonstrable, and hallucination-free
 """
-from euclid_mcp.server import reason
 from euclid_mcp.models import ProofNode
+from euclid_mcp.server import reason
 
 
 def show_proof(node: ProofNode, indent: int = 0) -> None:
@@ -84,7 +84,7 @@ for i, sol in enumerate(result.solutions, 1):
     print(f"── Solution #{i} ──")
     for var, val in sol.substitutions.items():
         print(f"   {var} = {val}")
-    print(f"   Proof tree (audit trail):")
+    print("   Proof tree (audit trail):")
     show_proof(sol.proof)
     print()
 

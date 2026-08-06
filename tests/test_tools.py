@@ -1,6 +1,5 @@
 """Unit tests for all 4 MCP tools: reason, diagnose, what_if, check_kb."""
 
-import pytest
 
 from euclid_mcp.server import check_kb, diagnose, reason, what_if
 
