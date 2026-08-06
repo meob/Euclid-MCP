@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Pin `mcp>=1.27,<2`: MCP Python SDK 2.0 (2026-07-28) removed the
   `mcp.server.fastmcp` module, breaking the server import and all CI tests.
   Migration to `MCPServer`/standalone `fastmcp` is tracked in TODO
+- License detection: replaced the short header-only `LICENSE` with the full
+  Apache-2.0 text so GitHub resolves the license (badge + repo metadata)
 - CI: bump `actions/checkout@v4`→`v5`, `actions/setup-python@v5`→`v6`,
   `codecov/codecov-action@v5`→`v6` (Node 20 runtime is deprecated on runners)
 
