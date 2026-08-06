@@ -14,6 +14,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `codecov/codecov-action@v5`→`v6` (Node 20 runtime is deprecated on runners)
 
 ### Added
+- Dependabot (`.github/dependabot.yml`): weekly update PRs for pip and GitHub Actions
+- Reproducible CI install: `uv sync --frozen --extra dev` from `uv.lock` instead of
+  floating `pip install` (prevents unpinned upgrades like `mcp` 1.x → 2.x breaking CI)
 - Test coverage for HTTP API (`tests/test_api.py`) and CLI (`tests/test_cli.py`)
 - `per-file-ignores` in ruff config for demo scripts (`examples/`, `benchmarks/`)
 - `mypy` coverage extended to `integrations/`

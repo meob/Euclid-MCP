@@ -10,6 +10,7 @@
   - Structured logging per tool call (`EUCLID_LOG_LEVEL` env var) + `X-Request-Id` tracing in the HTTP API
   - README badges (PyPI, Python versions, license, CI, coverage) + Development section
   - Integration tests for HTTP API and CLI (131 total, 82% coverage)
+  - Dependabot (pip + GitHub Actions) and reproducible CI install via `uv sync --frozen --extra dev`
 - [x] Publish on GitHub
 - [x] MCP inspector testing (`mcp dev`)
 - [x] 57/57 tests: parsing, translation, Prolog execution, security
