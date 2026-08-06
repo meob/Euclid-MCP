@@ -1,0 +1,23 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff (linter)
+        entry: ruff check .
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: mypy
+        name: mypy (type checker)
+        entry: mypy euclid_mcp integrations
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: pytest
+        name: pytest (test suite)
+        entry: pytest tests/ -q
+        language: system
+        types: [python]
+        pass_filenames: false

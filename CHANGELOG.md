@@ -16,6 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   controllable via the `EUCLID_LOG_LEVEL` env var
 - Request tracing in the HTTP API: `X-Request-Id` header is echoed on the response
   and included in access logs
+- Pre-commit hooks (`.pre-commit-config.yaml`): ruff, mypy, pytest
+- Coverage gate: `fail_under = 80` enforced by pytest-cov
+- `pre-commit` added to dev dependencies
 
 ### Changed
 - Fixed lint issues across examples, benchmarks, and integrations (ruff clean)

@@ -124,6 +124,20 @@ can_deploy($user, $env) IF
 1. `reason` returns unexpected → `diagnose(mode="why_not")` → find missing facts
 2. `diagnose(mode="what_needs")` → suggest what to add
 
+## Development
+
+Standard verification commands (run before committing changes):
+
+```bash
+ruff check .                       # lint
+mypy euclid_mcp integrations       # type check
+pytest --cov=euclid_mcp --cov=integrations   # tests + coverage (fail_under 80)
+```
+
+The CI workflow (`.github/workflows/ci.yml`) runs these on every push/PR.
+Optional local hooks are provided via `.pre-commit-config.yaml`
+(`pre-commit install`).
+
 ## Limitations
 
 - Predicate/fact names: **lowercase only** (case-insensitive: `Human(ALICE)` → `human(alice)`)
