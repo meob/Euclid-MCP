@@ -2,13 +2,13 @@
 % IT Security & Compliance — Full Knowledge Base (Small)
 % ═══════════════════════════════════════════════════════════════════
 %
-% 30 users, 50 resources, ~578 facts
+% 30 users, 50 resources, ~577 facts
 % Combined from policies/ + standards/ + data/
 %
 % For interactive evaluation with Euclid-MCP + Ollama.
 % Usage: paste this entire file as the "knowledge" parameter in reason()
 %
-% For the full dataset (200 users, 300 resources, ~3872 facts),
+% For the full dataset (200 users, 300 resources, ~3869 facts),
 % use: examples/07_it_security_compliance/demo.py
 % ═══════════════════════════════════════════════════════════════════
 
@@ -94,11 +94,15 @@ excessive_permissions($user, $count) IF
 stale_access($user) IF
     user($user) AND is_active($user) AND last_login_days($user, $days) AND $days > 90
 
-unused_permission($user, $perm) IF
-    user($user) AND has_permission($user, $perm) AND last_used_days($perm, $days) AND $days > 30
+% ── Unused Permissions ──
+% Permissions granted but never used in the last 30 days.
+% NOTE: requires a last_used_days/2 data source not present in the example
+% dataset, so this pattern is not enabled in the example KB.
 
-cross_account_risk($user) IF
-    user($user) AND has_role($user, $role) AND cross_account_role($role) AND NOT mfa_enabled($user)
+% ── Cross-Account Access ──
+% Cross-account roles should require MFA.
+% NOTE: requires a cross_account_role/1 data source not present in the
+% example dataset, so this pattern is not enabled in the example KB.
 
 privilege_escalation_risk($user) IF
     user($user) AND has_permission($user, attach_user_policy) AND has_permission($user, create_access_key)
@@ -106,17 +110,13 @@ privilege_escalation_risk($user) IF
 privilege_escalation_risk($user) IF
     user($user) AND has_permission($user, put_role_policy) AND has_permission($user, assume_role)
 
-root_violation(root_account, has_access_keys) IF
-    iam_user(root_account) AND role(root_account, root) AND has_access_key(root_account)
-
-root_violation(root_account, no_mfa) IF
-    iam_user(root_account) AND role(root_account, root) AND NOT mfa_enabled(root_account)
+% ── Root Account Protection ──
+% Root account should have no access keys, no MFA bypass.
+% NOTE: requires iam_user/1 root-account facts not present in the example
+% dataset, so this pattern is not enabled in the example KB.
 
 service_account_risk($user) IF
     user($user) AND account_type($user, service) AND has_console_access($user)
-
-service_account_risk($user) IF
-    user($user) AND account_type($user, service) AND NOT rotate_keys_90d($user)
 
 admin_boundary_violation($user) IF
     user($user) AND has_permission($user, manage_users) AND has_permission($user, manage_billing)
@@ -124,8 +124,10 @@ admin_boundary_violation($user) IF
 admin_boundary_violation($user) IF
     user($user) AND has_permission($user, manage_users) AND has_permission($user, create_invoice)
 
-wildcard_risk($user) IF
-    user($user) AND has_wildcard_permission($user, $perm)
+% ── Resource-Level Permissions ──
+% Permissions should be scoped to specific resources, not wildcards.
+% NOTE: requires a has_wildcard_permission/2 data source not present in the
+% example dataset, so this pattern is not enabled in the example KB.
 
 
 % ───────────────────────────────────────────────────────────────
@@ -427,7 +429,6 @@ account_type(dat_0003, human)
 has_console_access(dat_0003)
 has_access_key(dat_0003)
 last_login_days(dat_0003, 36)
-has_role(dat_0003, eng_manager)
 has_role(dat_0003, eng_manager)
 permission_count(dat_0003, 3)
 has_permission(dat_0003, approve_pto)
