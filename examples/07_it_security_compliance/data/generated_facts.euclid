@@ -1,6 +1,6 @@
 # Generated RBAC data — Euclid IR
 # 200 users, 300 resources
-# Total facts: 3872
+# Total facts: 3869
 
 user(ops_0001)
 is_active(ops_0001)
@@ -31,7 +31,6 @@ account_type(dat_0003, human)
 has_console_access(dat_0003)
 has_access_key(dat_0003)
 last_login_days(dat_0003, 36)
-has_role(dat_0003, eng_manager)
 has_role(dat_0003, eng_manager)
 permission_count(dat_0003, 3)
 has_permission(dat_0003, approve_pto)
@@ -892,7 +891,6 @@ mfa_enabled(sre_0067)
 has_console_access(sre_0067)
 has_access_key(sre_0067)
 last_login_days(sre_0067, 26)
-has_role(sre_0067, helpdesk)
 has_role(sre_0067, helpdesk)
 permission_count(sre_0067, 3)
 has_permission(sre_0067, view_tickets)
@@ -1902,7 +1900,6 @@ department(plf_0142, platform)
 account_type(plf_0142, human)
 has_console_access(plf_0142)
 last_login_days(plf_0142, 30)
-has_role(plf_0142, senior_dev)
 has_role(plf_0142, senior_dev)
 permission_count(plf_0142, 5)
 has_permission(plf_0142, write_code)

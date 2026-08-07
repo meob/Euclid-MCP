@@ -294,7 +294,7 @@ def to_euclid_facts(users: list[dict], resources: list[dict]) -> list[str]:
             facts.append(f"has_access_key({u['username']})")
         facts.append(f"last_login_days({u['username']}, {u['last_login_days']})")
         facts.append(f"has_role({u['username']}, {u['primary_role']})")
-        if u["secondary_role"]:
+        if u["secondary_role"] and u["secondary_role"] != u["primary_role"]:
             facts.append(f"has_role({u['username']}, {u['secondary_role']})")
 
         # Permission count (derived)

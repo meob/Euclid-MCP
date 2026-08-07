@@ -439,10 +439,10 @@ The most advanced example demonstrating:
 - **Negative tests**: Verifying empty results for invalid access patterns
 
 ```bash
-# Quick test (30 users, 50 resources, ~578 facts)
+# Quick test (30 users, 50 resources, ~577 facts)
 python3 examples/07_it_security_compliance/demo.py --small
 
-# Full dataset (200 users, 300 resources, ~3,872 facts)
+# Full dataset (200 users, 300 resources, ~3,869 facts)
 python3 examples/07_it_security_compliance/demo.py
 ```
 
@@ -466,6 +466,10 @@ python3 examples/10_llm_vs_euclid/demo.py --bot-b-only           # Euclid bot on
 python3 examples/10_llm_vs_euclid/demo.py --scripted
 python3 examples/10_llm_vs_euclid/demo.py --scripted --pause     # Enter between questions
 python3 examples/10_llm_vs_euclid/demo.py --scripted --delay 2   # 2s pause between questions
+
+# Regenerate the condensed markdown digest of the KB (Bot A's context), persisted
+# in kb_markdown.md so the same digest can be reviewed/versioned
+python3 examples/10_llm_vs_euclid/generate_kb_markdown.py
 ```
 
 - **Bot A** (plain): entire KB injected as markdown context — like RAG, grows with history

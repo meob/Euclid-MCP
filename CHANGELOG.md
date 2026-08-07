@@ -38,6 +38,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - README: shields.io badges (PyPI, Python versions, license, CI, coverage) and
   a Development section with the standard check commands
 
+## [0.1.5] — 2026-08-07
+
+### Fixed
+- `check_kb` reported spurious "recursive rule without base case" errors when a
+  rule body referenced a predicate whose name contains another predicate as a
+  substring (e.g. `role_level(...) IF deploy_role_level(...)`). Recursive-rule
+  detection now matches exact predicate names.
+- Example 07 KB: removed six rules in `aws_iam_patterns.euclid` that referenced
+  undefined predicates (`last_used_days/2`, `cross_account_role/1`, `iam_user/1`,
+  `rotate_keys_90d/1`, `has_wildcard_permission/2`), keeping the KB `check_kb`
+  clean (`valid: True`, no errors or warnings).
+- Example 07 generated data: duplicate `has_role/2` facts removed
+  (`dat_0003`, `sre_0067`, `plf_0142`); `generate_rbac_data.py` now guards
+  `secondary_role != primary_role`.
+- Example 10 demo readability: darker cyan/gray colors for light terminals,
+  "Tools called:" in magenta, aligned banner, scripted mode asks for Enter
+  before questions 2..n instead of after the first.
+
+### Added
+- `examples/10_llm_vs_euclid/generate_kb_markdown.py` + committed
+  `kb_markdown.md`: the condensed markdown digest of the IT Security KB used by
+  Bot A in example 10 is now persisted for review instead of being built only
+  in memory at startup.
+
 ## [0.1.4] — 2026-08-06
 
 ### Fixed

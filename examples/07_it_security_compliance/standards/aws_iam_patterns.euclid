@@ -27,15 +27,13 @@ stale_access($user) IF
 
 # ── Pattern 4: Unused Permissions ──
 # Permissions granted but never used in the last 30 days.
-
-unused_permission($user, $perm) IF
-    user($user) AND has_permission($user, $perm) AND last_used_days($perm, $days) AND $days > 30
+# NOTE: requires a last_used_days/2 data source not present in the example
+# dataset, so this pattern is not enabled in the example KB.
 
 # ── Pattern 5: Cross-Account Access ──
 # Cross-account roles should require MFA.
-
-cross_account_risk($user) IF
-    user($user) AND has_role($user, $role) AND cross_account_role($role) AND NOT mfa_enabled($user)
+# NOTE: requires a cross_account_role/1 data source not present in the
+# example dataset, so this pattern is not enabled in the example KB.
 
 # ── Pattern 6: Privilege Escalation Paths ──
 # Users who can modify IAM policies can escalate their own privileges.
@@ -48,21 +46,14 @@ privilege_escalation_risk($user) IF
 
 # ── Pattern 7: Root Account Protection ──
 # Root account should have no access keys, no MFA bypass.
-
-root_violation(root_account, has_access_keys) IF
-    iam_user(root_account) AND role(root_account, root) AND has_access_key(root_account)
-
-root_violation(root_account, no_mfa) IF
-    iam_user(root_account) AND role(root_account, root) AND NOT mfa_enabled(root_account)
+# NOTE: requires iam_user/1 root-account facts not present in the example
+# dataset, so this pattern is not enabled in the example KB.
 
 # ── Pattern 8: Service Account Hygiene ──
 # Service accounts should not have interactive console access.
 
 service_account_risk($user) IF
     user($user) AND account_type($user, service) AND has_console_access($user)
-
-service_account_risk($user) IF
-    user($user) AND account_type($user, service) AND NOT rotate_keys_90d($user)
 
 # ── Pattern 9: Administrative Boundary ──
 # No single user should have both user management AND billing access.
@@ -75,6 +66,5 @@ admin_boundary_violation($user) IF
 
 # ── Pattern 10: Resource-Level Permissions ──
 # Permissions should be scoped to specific resources, not wildcards.
-
-wildcard_risk($user) IF
-    user($user) AND has_wildcard_permission($user, $perm)
+# NOTE: requires a has_wildcard_permission/2 data source not present in the
+# example dataset, so this pattern is not enabled in the example KB.
