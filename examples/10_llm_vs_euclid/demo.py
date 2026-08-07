@@ -43,13 +43,13 @@ class C:
     BOLD = "\033[1m"
     DIM = "\033[2m"
     RESET = "\033[0m"
-    CYAN = "\033[96m"
+    CYAN = "\033[36m"
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
     RED = "\033[91m"
     MAGENTA = "\033[95m"
     BLUE = "\033[94m"
-    WHITE = "\033[97m"
+    GRAY = "\033[90m"
     BG_BLUE = "\033[44m"
     BG_GREEN = "\033[42m"
     BG_YELLOW = "\033[43m"
@@ -164,7 +164,7 @@ def print_separator(char="━", width=70):
 
 def print_header(text: str):
     print_separator()
-    print(f"{C.BOLD}{C.WHITE}  {text}{C.RESET}")
+    print(f"{C.BOLD}{C.GRAY}  {text}{C.RESET}")
     print_separator()
 
 
@@ -342,7 +342,7 @@ def display_results(
         print(f"  {C.BOLD}{C.CYAN}EUCLID-MCP{C.RESET} {C.DIM}(llama3.1:8b + Prolog engine){C.RESET}")
         print(f"  {C.DIM}Time: {time_b:.0f}ms{C.RESET}")
         if tool_calls:
-            print(f"  {C.YELLOW}Tools called:{C.RESET}")
+            print(f"  {C.MAGENTA}Tools called:{C.RESET}")
             for name, args in tool_calls:
                 args_str = ", ".join(f"{k}={v}" for k, v in args.items())
                 print(f"    {C.MAGENTA}→ {name}({args_str}){C.RESET}")
@@ -441,17 +441,21 @@ def main():
     show_a = not args.bot_b_only
     show_b = not args.bot_a_only
 
-    print(f"""
-{C.BOLD}{C.CYAN}╔══════════════════════════════════════════════════════════════╗
-║           LLM vs Euclid-MCP — Interactive Demo              ║
-║                                                              ║
-║  Same model ({model:20s})         ║
-║  Same knowledge base (IT Security: 30 users, 50 resources)  ║
-║  Bot A: plain LLM          Bot B: LLM + reasoning engine    ║
-║                                                              ║
-║  Speak freely in any language. Type 'help' for commands.     ║
-╚══════════════════════════════════════════════════════════════╝{C.RESET}
-""")
+    banner_inner = 61
+    banner_text_width = banner_inner - 4
+    banner_lines = [
+        "╔" + "═" * banner_inner + "╗",
+        "║" + "LLM vs Euclid-MCP — Interactive Demo".center(banner_inner) + "║",
+        "║" + " " * banner_inner + "║",
+        "║  " + f"Same model ({model})".ljust(banner_text_width) + "  ║",
+        "║  " + "Same knowledge base (IT Security: 30 users, 50 resources)".ljust(banner_text_width) + "  ║",
+        "║  " + "Bot A: plain LLM          Bot B: LLM + reasoning engine".ljust(banner_text_width) + "  ║",
+        "║" + " " * banner_inner + "║",
+        "║  " + "Speak freely in any language. Type 'help' for commands.".ljust(banner_text_width) + "  ║",
+        "╚" + "═" * banner_inner + "╝",
+    ]
+    print(f"{C.BOLD}{C.CYAN}" + "\n".join(banner_lines) + f"{C.RESET}")
+    print()
 
     # Check Ollama
     print(f"{C.DIM}Checking Ollama...{C.RESET}")
@@ -474,19 +478,19 @@ def main():
     if args.scripted:
         n = len(SCRIPTED_QUESTIONS)
         pace = "press Enter" if args.pause else f"{args.delay:.1f}s pause"
-        print(f"{C.YELLOW}Scripted mode: {n} preset questions, {pace} between them.{C.RESET}\n")
+        print(f"{C.GRAY}Scripted mode: {n} preset questions, {pace} between them.{C.RESET}\n")
         for i, question in enumerate(SCRIPTED_QUESTIONS, start=1):
+            if i > 1 and args.pause:
+                try:
+                    input(f"{C.DIM}Press Enter for the next question...{C.RESET}\n")
+                except (KeyboardInterrupt, EOFError):
+                    break
             print(f"{C.BOLD}{C.BLUE}▸ Question {i}/{n}:{C.RESET}")
             run_question(
                 question, kb_markdown, kb_euclid, model,
                 history_a, history_b, show_a, show_b,
             )
-            if i < n and args.pause:
-                try:
-                    input(f"{C.DIM}Press Enter for the next question...{C.RESET}")
-                except (KeyboardInterrupt, EOFError):
-                    break
-            elif i < n:
+            if i < n and not args.pause:
                 time.sleep(args.delay)
         print(f"{C.GREEN}Demo complete.{C.RESET}")
         return
@@ -494,7 +498,7 @@ def main():
     # Interactive loop
     while True:
         try:
-            question = input(f"{C.BOLD}{C.WHITE}You: {C.RESET}").strip()
+            question = input(f"{C.BOLD}{C.GRAY}You: {C.RESET}").strip()
         except (KeyboardInterrupt, EOFError):
             print(f"\n{C.DIM}Goodbye!{C.RESET}")
             break
