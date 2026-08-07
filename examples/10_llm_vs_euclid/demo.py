@@ -16,6 +16,7 @@ Usage:
     python demo.py --scripted               # Run preset questions, then exit
     python demo.py --scripted --pause       # Press Enter between questions
     python demo.py --scripted --delay 2     # 2s pause between questions
+    python demo.py --verbose                # Show full tool responses (Prolog proof chains)
 
 Requires: pip install ollama + euclid-mcp installed
 """
@@ -112,8 +113,19 @@ AVAILABLE PREDICATES (use in reason tool):
 
 VARIABLE SYNTAX: Use $name for variables (e.g. $who, $role, $perm). Do NOT use ? or * as wildcards.
 To query all permissions for user dat_0003: user_has_permission(dat_0003, $perm)
+To check if eng_0002 can write code: user_has_permission(eng_0002, write_code)
 To query all sysadmins: has_role($who, sysadmin)
 To query all users and roles: has_role($who, $role)
+
+KNOWN VALUES (never invent these — always query or use the exact values below):
+- department values: data, engineering, infrastructure, operations, platform, product, security, sre
+- resource access values: private_access
+- resource classification values: internal, confidential, secret
+- resource names look like cluster_infrastructure_0006 — always use a $variable, never guess a name
+
+COMPOUND QUERIES: join conditions with AND and reuse a $variable across goals.
+Example: users in the data department who can access secret production resources:
+  can_access_resource($who, $res) AND resource($res, production, _, _, _, secret) AND department($who, data)
 
 RULES:
 1. For ANY question about the knowledge base, you MUST call the reason tool. Do NOT guess.
@@ -127,12 +139,13 @@ RULES:
 # ── Preset questions for --scripted mode ──
 
 SCRIPTED_QUESTIONS = [
-    "Who can deploy to production?",
-    "Which users have stale access?",
     "Can eng_0002 (an intern) write code?",
     "Which production resources are not encrypted?",
     "What if eng_0002 (an intern) gets the sysadmin role?",
-    "Why can't a helpdesk user access secret data?",
+    "Why can't ops_0001 (a helpdesk user) access secret data?",
+    "Which users have stale access?",
+    "Who can deploy to production?",
+    "Which users in the data department can access secret production resources?",
 ]
 
 
@@ -257,7 +270,11 @@ def ask_bot_b(
     model: str,
     history: list[dict],
 ) -> tuple[str, list, float]:
-    """Send question to LLM with tool calling. Returns response, new history, elapsed."""
+    """Send question to LLM with tool calling. Returns response, tool calls, elapsed.
+
+    Each entry in the tool-calls list is (name, args, verbose_result) where
+    verbose_result is the full tool response including the Prolog proof chain.
+    """
     messages = [{"role": "system", "content": SYSTEM_PROMPT_EUCLID}]
     messages.extend(history)
     messages.append({"role": "user", "content": question})
@@ -303,10 +320,10 @@ def ask_bot_b(
                 func_args["query"] = _fix_query_syntax(func_args["query"])
             if "modifications" in func_args:
                 func_args["modifications"] = _fix_query_syntax(func_args["modifications"])
-            tool_calls_used.append((func_name, func_args))
 
-            result = execute_tool(func_name, func_args, kb_euclid)
-            messages.append({"role": "tool", "content": result})
+            result_concise, result_verbose = execute_tool(func_name, func_args, kb_euclid)
+            tool_calls_used.append((func_name, func_args, result_verbose))
+            messages.append({"role": "tool", "content": result_concise})
 
         # Second call — model interprets results
         response = ollama_lib.chat(model=model, messages=messages, tools=EUCLID_TOOLS)
@@ -322,6 +339,7 @@ def display_results(
     question: str,
     resp_a: tuple[str, float] | None,
     resp_b: tuple[str, list, float] | None,
+    verbose: bool = False,
 ):
     """Display side-by-side results."""
     print()
@@ -343,9 +361,15 @@ def display_results(
         print(f"  {C.DIM}Time: {time_b:.0f}ms{C.RESET}")
         if tool_calls:
             print(f"  {C.MAGENTA}Tools called:{C.RESET}")
-            for name, args in tool_calls:
+            for entry in tool_calls:
+                name, args, verbose_result = entry
                 args_str = ", ".join(f"{k}={v}" for k, v in args.items())
                 print(f"    {C.MAGENTA}→ {name}({args_str}){C.RESET}")
+                if verbose and verbose_result:
+                    print(f"    {C.DIM}{C.MAGENTA}┌─ {name} response{C.RESET}")
+                    for line in verbose_result.splitlines():
+                        print(f"    {C.MAGENTA}{line}{C.RESET}")
+                    print(f"    {C.DIM}{C.MAGENTA}└─ end {name} response{C.RESET}")
         print()
         for line in format_plain_response(text_b).splitlines():
             print(f"  {C.CYAN}{line}{C.RESET}")
@@ -369,7 +393,11 @@ def print_help():
   - Can eng_0002 (an intern) write code?
   - Which production resources are not encrypted?
   - What if eng_0002 (an intern) gets the sysadmin role?
-  - Why can't a helpdesk user access secret data?
+  - Why can't ops_0001 (a helpdesk user) access secret data?
+  - Which users in the data department can access secret production resources?
+
+{C.BOLD}Tip:{C.RESET} run with {C.CYAN}--verbose{C.RESET} to see the full Prolog
+  proof chains returned by the reasoning engine after each tool call.
 """)
 
 
@@ -385,6 +413,7 @@ def run_question(
     history_b: list[dict],
     show_a: bool,
     show_b: bool,
+    verbose: bool = False,
 ) -> None:
     """Ask both bots a question and display the side-by-side results."""
     resp_a = None
@@ -408,7 +437,7 @@ def run_question(
             resp_b = (f"Error: {e}", [], 0)
             print(f"{C.RED}Bot B error: {e}{C.RESET}")
 
-    display_results(question, resp_a, resp_b)
+    display_results(question, resp_a, resp_b, verbose)
 
 
 # ── Main Loop ──
@@ -435,11 +464,17 @@ def main():
         default=1.5,
         help="With --scripted: seconds to wait between questions (default: 1.5)",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show the full tool responses (Prolog proof chains) after each Bot B tool call",
+    )
     args = parser.parse_args()
 
     model = args.model
     show_a = not args.bot_b_only
     show_b = not args.bot_a_only
+    verbose = args.verbose
 
     banner_inner = 61
     banner_text_width = banner_inner - 4
@@ -488,7 +523,7 @@ def main():
             print(f"{C.BOLD}{C.BLUE}▸ Question {i}/{n}:{C.RESET}")
             run_question(
                 question, kb_markdown, kb_euclid, model,
-                history_a, history_b, show_a, show_b,
+                history_a, history_b, show_a, show_b, verbose,
             )
             if i < n and not args.pause:
                 time.sleep(args.delay)
@@ -542,7 +577,7 @@ def main():
 
         run_question(
             question, kb_markdown, kb_euclid, model,
-            history_a, history_b, show_a, show_b,
+            history_a, history_b, show_a, show_b, verbose,
         )
 
 
