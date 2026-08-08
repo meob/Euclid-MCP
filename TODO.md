@@ -54,9 +54,17 @@
 ## Short term (usefulness)
 
 - [ ] README examples with Ollama (test with Llama 3B, Qwen 2.5 7B)
-- [ ] **Migrate to MCP SDK v2** (`mcp.server.mcpserver.MCPServer` or standalone
-      `fastmcp`): v2.0.0 (2026-07-28) removed `mcp.server.fastmcp`; currently
-      pinned `mcp>=1.27,<2`
+- [ ] **Migrate to MCP SDK v2** (`mcp.server.mcpserver.MCPServer`): v2.0.0
+      (2026-07-28) removed `mcp.server.fastmcp`; currently pinned `mcp>=1.27,<2`.
+      Impact is minimal (2 lines in `server.py` + tests). Benefits to exploit:
+      - In-memory testing: `Client(target)` → deterministic API tests without HTTP/ports
+      - One server for both protocol eras (2025-era clients + 2026-07-28) — no version mismatch
+      - Hardened stdio: stray output (e.g. from the SWI-Prolog subprocess) diverted off the wire
+      - OpenTelemetry tracing built in (complements existing structured logging)
+      - Official tool error semantics (`ToolError`, `result.is_error`)
+      - Future: human-in-the-loop via `Resolve(fn)` / elicitation
+      Decision (Aug 8): wait a few days for 2.0.x to stabilize before migrating;
+      keep the `mcp>=1.27,<2` pin until then. No negative feedback found on 2.0.0.
 - [ ] Policy Compiler
 
 ## Medium term (quality)
