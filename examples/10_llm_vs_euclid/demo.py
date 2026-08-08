@@ -16,6 +16,7 @@ Usage:
     python demo.py --scripted               # Run preset questions, then exit
     python demo.py --scripted --pause       # Press Enter between questions
     python demo.py --scripted --delay 2     # 2s pause between questions
+    python demo.py --verbose                # Show full tool responses (Prolog proof chains)
 
 Requires: pip install ollama + euclid-mcp installed
 """
@@ -43,13 +44,13 @@ class C:
     BOLD = "\033[1m"
     DIM = "\033[2m"
     RESET = "\033[0m"
-    CYAN = "\033[96m"
+    CYAN = "\033[36m"
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
     RED = "\033[91m"
     MAGENTA = "\033[95m"
     BLUE = "\033[94m"
-    WHITE = "\033[97m"
+    GRAY = "\033[90m"
     BG_BLUE = "\033[44m"
     BG_GREEN = "\033[42m"
     BG_YELLOW = "\033[43m"
@@ -112,8 +113,19 @@ AVAILABLE PREDICATES (use in reason tool):
 
 VARIABLE SYNTAX: Use $name for variables (e.g. $who, $role, $perm). Do NOT use ? or * as wildcards.
 To query all permissions for user dat_0003: user_has_permission(dat_0003, $perm)
+To check if eng_0002 can write code: user_has_permission(eng_0002, write_code)
 To query all sysadmins: has_role($who, sysadmin)
 To query all users and roles: has_role($who, $role)
+
+KNOWN VALUES (never invent these — always query or use the exact values below):
+- department values: data, engineering, infrastructure, operations, platform, product, security, sre
+- resource access values: private_access
+- resource classification values: internal, confidential, secret
+- resource names look like cluster_infrastructure_0006 — always use a $variable, never guess a name
+
+COMPOUND QUERIES: join conditions with AND and reuse a $variable across goals.
+Example: users in the data department who can access secret production resources:
+  can_access_resource($who, $res) AND resource($res, production, _, _, _, secret) AND department($who, data)
 
 RULES:
 1. For ANY question about the knowledge base, you MUST call the reason tool. Do NOT guess.
@@ -127,12 +139,13 @@ RULES:
 # ── Preset questions for --scripted mode ──
 
 SCRIPTED_QUESTIONS = [
-    "Who can deploy to production?",
-    "Which users have stale access?",
     "Can eng_0002 (an intern) write code?",
     "Which production resources are not encrypted?",
     "What if eng_0002 (an intern) gets the sysadmin role?",
-    "Why can't a helpdesk user access secret data?",
+    "Why can't ops_0001 (a helpdesk user) access secret data?",
+    "Which users have stale access?",
+    "Who can deploy to production?",
+    "Which users in the data department can access secret production resources?",
 ]
 
 
@@ -164,7 +177,7 @@ def print_separator(char="━", width=70):
 
 def print_header(text: str):
     print_separator()
-    print(f"{C.BOLD}{C.WHITE}  {text}{C.RESET}")
+    print(f"{C.BOLD}{C.GRAY}  {text}{C.RESET}")
     print_separator()
 
 
@@ -257,7 +270,11 @@ def ask_bot_b(
     model: str,
     history: list[dict],
 ) -> tuple[str, list, float]:
-    """Send question to LLM with tool calling. Returns response, new history, elapsed."""
+    """Send question to LLM with tool calling. Returns response, tool calls, elapsed.
+
+    Each entry in the tool-calls list is (name, args, verbose_result) where
+    verbose_result is the full tool response including the Prolog proof chain.
+    """
     messages = [{"role": "system", "content": SYSTEM_PROMPT_EUCLID}]
     messages.extend(history)
     messages.append({"role": "user", "content": question})
@@ -303,10 +320,10 @@ def ask_bot_b(
                 func_args["query"] = _fix_query_syntax(func_args["query"])
             if "modifications" in func_args:
                 func_args["modifications"] = _fix_query_syntax(func_args["modifications"])
-            tool_calls_used.append((func_name, func_args))
 
-            result = execute_tool(func_name, func_args, kb_euclid)
-            messages.append({"role": "tool", "content": result})
+            result_concise, result_verbose = execute_tool(func_name, func_args, kb_euclid)
+            tool_calls_used.append((func_name, func_args, result_verbose))
+            messages.append({"role": "tool", "content": result_concise})
 
         # Second call — model interprets results
         response = ollama_lib.chat(model=model, messages=messages, tools=EUCLID_TOOLS)
@@ -322,6 +339,7 @@ def display_results(
     question: str,
     resp_a: tuple[str, float] | None,
     resp_b: tuple[str, list, float] | None,
+    verbose: bool = False,
 ):
     """Display side-by-side results."""
     print()
@@ -342,10 +360,16 @@ def display_results(
         print(f"  {C.BOLD}{C.CYAN}EUCLID-MCP{C.RESET} {C.DIM}(llama3.1:8b + Prolog engine){C.RESET}")
         print(f"  {C.DIM}Time: {time_b:.0f}ms{C.RESET}")
         if tool_calls:
-            print(f"  {C.YELLOW}Tools called:{C.RESET}")
-            for name, args in tool_calls:
+            print(f"  {C.MAGENTA}Tools called:{C.RESET}")
+            for entry in tool_calls:
+                name, args, verbose_result = entry
                 args_str = ", ".join(f"{k}={v}" for k, v in args.items())
                 print(f"    {C.MAGENTA}→ {name}({args_str}){C.RESET}")
+                if verbose and verbose_result:
+                    print(f"    {C.DIM}{C.MAGENTA}┌─ {name} response{C.RESET}")
+                    for line in verbose_result.splitlines():
+                        print(f"    {C.MAGENTA}{line}{C.RESET}")
+                    print(f"    {C.DIM}{C.MAGENTA}└─ end {name} response{C.RESET}")
         print()
         for line in format_plain_response(text_b).splitlines():
             print(f"  {C.CYAN}{line}{C.RESET}")
@@ -369,7 +393,11 @@ def print_help():
   - Can eng_0002 (an intern) write code?
   - Which production resources are not encrypted?
   - What if eng_0002 (an intern) gets the sysadmin role?
-  - Why can't a helpdesk user access secret data?
+  - Why can't ops_0001 (a helpdesk user) access secret data?
+  - Which users in the data department can access secret production resources?
+
+{C.BOLD}Tip:{C.RESET} run with {C.CYAN}--verbose{C.RESET} to see the full Prolog
+  proof chains returned by the reasoning engine after each tool call.
 """)
 
 
@@ -385,6 +413,7 @@ def run_question(
     history_b: list[dict],
     show_a: bool,
     show_b: bool,
+    verbose: bool = False,
 ) -> None:
     """Ask both bots a question and display the side-by-side results."""
     resp_a = None
@@ -408,7 +437,7 @@ def run_question(
             resp_b = (f"Error: {e}", [], 0)
             print(f"{C.RED}Bot B error: {e}{C.RESET}")
 
-    display_results(question, resp_a, resp_b)
+    display_results(question, resp_a, resp_b, verbose)
 
 
 # ── Main Loop ──
@@ -435,23 +464,33 @@ def main():
         default=1.5,
         help="With --scripted: seconds to wait between questions (default: 1.5)",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show the full tool responses (Prolog proof chains) after each Bot B tool call",
+    )
     args = parser.parse_args()
 
     model = args.model
     show_a = not args.bot_b_only
     show_b = not args.bot_a_only
+    verbose = args.verbose
 
-    print(f"""
-{C.BOLD}{C.CYAN}╔══════════════════════════════════════════════════════════════╗
-║           LLM vs Euclid-MCP — Interactive Demo              ║
-║                                                              ║
-║  Same model ({model:20s})         ║
-║  Same knowledge base (IT Security: 30 users, 50 resources)  ║
-║  Bot A: plain LLM          Bot B: LLM + reasoning engine    ║
-║                                                              ║
-║  Speak freely in any language. Type 'help' for commands.     ║
-╚══════════════════════════════════════════════════════════════╝{C.RESET}
-""")
+    banner_inner = 61
+    banner_text_width = banner_inner - 4
+    banner_lines = [
+        "╔" + "═" * banner_inner + "╗",
+        "║" + "LLM vs Euclid-MCP — Interactive Demo".center(banner_inner) + "║",
+        "║" + " " * banner_inner + "║",
+        "║  " + f"Same model ({model})".ljust(banner_text_width) + "  ║",
+        "║  " + "Same knowledge base (IT Security: 30 users, 50 resources)".ljust(banner_text_width) + "  ║",
+        "║  " + "Bot A: plain LLM          Bot B: LLM + reasoning engine".ljust(banner_text_width) + "  ║",
+        "║" + " " * banner_inner + "║",
+        "║  " + "Speak freely in any language. Type 'help' for commands.".ljust(banner_text_width) + "  ║",
+        "╚" + "═" * banner_inner + "╝",
+    ]
+    print(f"{C.BOLD}{C.CYAN}" + "\n".join(banner_lines) + f"{C.RESET}")
+    print()
 
     # Check Ollama
     print(f"{C.DIM}Checking Ollama...{C.RESET}")
@@ -474,19 +513,19 @@ def main():
     if args.scripted:
         n = len(SCRIPTED_QUESTIONS)
         pace = "press Enter" if args.pause else f"{args.delay:.1f}s pause"
-        print(f"{C.YELLOW}Scripted mode: {n} preset questions, {pace} between them.{C.RESET}\n")
+        print(f"{C.GRAY}Scripted mode: {n} preset questions, {pace} between them.{C.RESET}\n")
         for i, question in enumerate(SCRIPTED_QUESTIONS, start=1):
+            if i > 1 and args.pause:
+                try:
+                    input(f"{C.DIM}Press Enter for the next question...{C.RESET}\n")
+                except (KeyboardInterrupt, EOFError):
+                    break
             print(f"{C.BOLD}{C.BLUE}▸ Question {i}/{n}:{C.RESET}")
             run_question(
                 question, kb_markdown, kb_euclid, model,
-                history_a, history_b, show_a, show_b,
+                history_a, history_b, show_a, show_b, verbose,
             )
-            if i < n and args.pause:
-                try:
-                    input(f"{C.DIM}Press Enter for the next question...{C.RESET}")
-                except (KeyboardInterrupt, EOFError):
-                    break
-            elif i < n:
+            if i < n and not args.pause:
                 time.sleep(args.delay)
         print(f"{C.GREEN}Demo complete.{C.RESET}")
         return
@@ -494,7 +533,7 @@ def main():
     # Interactive loop
     while True:
         try:
-            question = input(f"{C.BOLD}{C.WHITE}You: {C.RESET}").strip()
+            question = input(f"{C.BOLD}{C.GRAY}You: {C.RESET}").strip()
         except (KeyboardInterrupt, EOFError):
             print(f"\n{C.DIM}Goodbye!{C.RESET}")
             break
@@ -538,7 +577,7 @@ def main():
 
         run_question(
             question, kb_markdown, kb_euclid, model,
-            history_a, history_b, show_a, show_b,
+            history_a, history_b, show_a, show_b, verbose,
         )
 
 

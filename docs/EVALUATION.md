@@ -147,7 +147,7 @@ For large knowledge bases (100+ facts), the KB is pre-loaded from a file. The LL
 ### IT Security & Compliance
 
 **KB file:** `examples/07_it_security_compliance/data/it_security_small.euclid`
-(30 users, 50 resources, ~578 facts)
+(30 users, 50 resources, ~577 facts)
 
 **System prompt:**
 

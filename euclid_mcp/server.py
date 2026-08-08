@@ -382,6 +382,24 @@ def _split_conjunction(body: str) -> list[str]:
     return parts
 
 
+def _body_predicates(body: str) -> set[str]:
+    """Extract predicate names referenced in a rule body.
+
+    Handles negation (NOT ...) and skips arithmetic goals and variables.
+    Used by check_kb for exact recursive-rule detection (avoids substring
+    false positives such as 'deploy_role_level' matching 'role_level').
+    """
+    preds: set[str] = set()
+    for goal in _split_conjunction(body):
+        goal = goal.strip()
+        if _is_not_goal(goal):
+            goal = goal[4:].strip()
+        parsed = _extract_predicate(goal)
+        if parsed:
+            preds.add(parsed[0])
+    return preds
+
+
 # ── what_if() ───────────────────────────────────────────────────────────────
 
 
@@ -619,10 +637,10 @@ def check_kb(knowledge: str) -> KBCheckResult:
     for pred_name, rules in rule_heads.items():
         for rule in rules:
             _, body = _split_rule(rule)
-            if pred_name in body:
+            if pred_name in _body_predicates(body):
                 # Recursive rule — check if there's also a non-recursive base case
                 has_base = any(
-                    pred_name not in _split_rule(r)[1]
+                    pred_name not in _body_predicates(_split_rule(r)[1])
                     for r in rules
                 )
                 if not has_base:

@@ -238,7 +238,7 @@ def generate_kb_markdown() -> str:
     lines.append("- stale_access(user): active user who hasn't logged in for >90 days")
     lines.append("- excessive_permissions(user, count): user with >15 direct permissions")
     lines.append("- violates_separation_of_duties(user): user has both deploy + approve, or create + assign")
-    lines.append("- service_account_risk(user): service account with console access or old keys")
+    lines.append("- service_account_risk(user): service account with interactive console access")
     lines.append("- compliant_deployment: deploy_code + role level >= env level + 1")
     lines.append("")
     lines.append("## Allowed Queries (Euclid-IR examples)")
