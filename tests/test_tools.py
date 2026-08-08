@@ -197,6 +197,12 @@ class TestWhatIf:
         assert r.error is None
         assert r.after_count == 3
 
+    def test_and_separated_facts_lowercase(self):
+        base = "human(socrates)\nmortal($x) IF human($x)"
+        r = what_if(base, "+ human(plato) and human(alcibiades)", "mortal($who)")
+        assert r.error is None
+        assert r.after_count == 3
+
     def test_no_modifications(self):
         r = what_if("human(socrates)", "", "human(socrates)")
         assert r.error is not None

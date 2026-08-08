@@ -92,7 +92,7 @@ Write facts and rules in Euclid IR, the engine returns solutions with proof tree
 
 Syntax:
   Variables: $name  |  Implication: IF  |  Conjunction: AND  |  Query prefix: ?
-  Negation: NOT  |  Arithmetic: >, >=, <, <=, =:=, =\\=  |  Multi-line rules supported
+  Negation: NOT  |  Arithmetic: >, >=, <, <=, ==, =\\=  |  Multi-line rules supported
 
 Examples:
     human(socrates)
@@ -417,12 +417,12 @@ def what_if(
         if line.startswith("+ "):
             content = line[2:].strip()
             # Handle AND-separated facts: "fact1 AND fact2"
-            for part in content.split(" AND "):
+            for part in re.split(r"\s+and\s+", content, flags=re.IGNORECASE):
                 add_facts.append(part.strip())
         elif line.startswith("- "):
             content = line[2:].strip()
             # Handle AND-separated facts
-            for part in content.split(" AND "):
+            for part in re.split(r"\s+and\s+", content, flags=re.IGNORECASE):
                 remove_facts.append(part.strip())
         else:
             return WhatIfResult(
@@ -593,7 +593,7 @@ def check_kb(knowledge: str) -> KBCheckResult:
                 goal_name, goal_args = goal_pred
                 # Skip variables, arithmetic, and wildcards
                 if goal_name.startswith("$") or goal_name in (
-                    "true", "false", "is", ">", ">=", "<", "<=", "=<", "=:=", "=\\=", "!="
+                    "true", "false", "is", ">", ">=", "<", "<=", "=<", "==", "=\\=", "!="
                 ):
                     continue
                 goal_arity = goal_args.count(",") + 1 if goal_args else 0

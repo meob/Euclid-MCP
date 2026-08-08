@@ -140,10 +140,56 @@ def test_case_insensitive_variables_normalized():
     assert kb.query == "parent($x, $y)"
 
 
+def test_keywords_case_insensitive():
+    kb = parse("human(socrates)\nmortal($x) if human($x) and alive($x)")
+    assert len(kb.rules) == 1
+    assert kb.rules[0] == "mortal($x) if human($x), alive($x)"
+
+
+def test_keywords_mixed_case():
+    kb = parse("human(socrates)\nmortal($x) iF human($x) AnD alive($x)")
+    assert len(kb.rules) == 1
+    assert kb.rules[0] == "mortal($x) if human($x), alive($x)"
+
+
+def test_multiline_rule_lowercase_and():
+    kb = parse("""
+can_deploy($user, $env) if
+    user($user) and
+    has_role($user, $role) and
+    deploy_requires_level($env, $min) and
+    deploy_role_level($role, $level) and
+    $level >= $min
+""")
+    assert len(kb.rules) == 1
+    assert "can_deploy" in kb.rules[0]
+    assert "has_role" in kb.rules[0]
+    assert "deploy_requires_level" in kb.rules[0]
+
+
+def test_not_operator_case_insensitive():
+    kb = parse("inactive_user($user) IF user($user) and not active($user)")
+    assert len(kb.rules) == 1
+    assert "not active($user)" in kb.rules[0]
+
+
+def test_version_case_insensitive():
+    kb = parse("@VERSION 2.0\nparent(tom, bob)\n? parent($x, $y)")
+    assert kb.version == "2.0"
+    assert len(kb.facts) == 1
+    assert kb.facts[0] == "parent(tom, bob)"
+
+
 def test_reserved_keyword_as_predicate():
     import pytest
     with pytest.raises(ValueError, match="Reserved keyword"):
         parse("if($x) IF human($x)")
+
+
+def test_is_reserved_keyword():
+    import pytest
+    with pytest.raises(ValueError, match="Reserved keyword"):
+        parse("is(1, 2)")
 
 
 def test_percent_comment():

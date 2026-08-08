@@ -129,3 +129,31 @@ def test_less_equal_operator():
     )
     code = to_prolog(kb)
     assert "=< " in code
+
+
+def test_equal_operator():
+    kb = KB(
+        facts=["answer(alice, 42)"],
+        rules=["correct($user) IF answer($user, $n) AND $n == 42"],
+        query="correct($who)",
+    )
+    code = to_prolog(kb)
+    assert "=:= " in code
+
+
+def test_equal_operator_in_query():
+    kb = KB(
+        facts=["answer(alice, 42)"],
+        query="answer($who, $n) AND $n == 42",
+    )
+    code = to_prolog(kb)
+    assert "=:= " in code
+
+
+def test_operators_inside_string_preserved():
+    kb = KB(
+        facts=['note(alice, "a <= b != c == d")'],
+        query="note($who, $text)",
+    )
+    code = to_prolog(kb)
+    assert '"a <= b != c == d"' in code
