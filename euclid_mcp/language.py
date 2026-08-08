@@ -3,9 +3,9 @@ import re
 from .models import KB
 from .sanitizer import sanitize
 
-VERSION_PATTERN = re.compile(r"^@version\s+(\d+\.\d+)")
+VERSION_PATTERN = re.compile(r"^@version\s+(\d+\.\d+)", re.IGNORECASE)
 
-_RESERVED_KEYWORDS = {"if", "and", "not"}
+_RESERVED_KEYWORDS = {"if", "and", "not", "is"}
 
 # Regex for quoted strings (double or single quote, with escape support)
 _STRING_RE = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'')
@@ -154,18 +154,21 @@ def _parse_text(text: str) -> KB:
         if VERSION_PATTERN.match(line):
             continue
         line = line.rstrip(".")
+        # Keywords are case-insensitive: normalize to lowercase while
+        # preserving quoted-string placeholders for later restoration.
+        line = line.lower().replace("__str_", "__STR_")
 
         if line.startswith("?"):
             query = _restore_strings(line.lstrip("? ").strip(), line_strings)
-        elif " IF " in line or line.endswith(" IF"):
-            if " IF " in line:
-                head, body_str = line.split(" IF ", 1)
+        elif " if " in line or line.endswith(" if"):
+            if " if " in line:
+                head, body_str = line.split(" if ", 1)
             else:
-                head = line[:-3]  # Remove trailing " IF"
+                head = line[:-3]  # Remove trailing " if"
                 body_str = ""
             body_str = body_str.strip()
-            # Multi-line rule: if body is empty or ends with AND, keep reading
-            while body_str == "" or body_str.endswith("AND"):
+            # Multi-line rule: if body is empty or ends with and, keep reading
+            while body_str == "" or body_str.endswith("and"):
                 if i >= len(lines):
                     break
                 next_raw = lines[i]
@@ -175,16 +178,16 @@ def _parse_text(text: str) -> KB:
                 i += 1
                 if not next_line:
                     continue
-                next_line = next_line.rstrip(".")
+                next_line = next_line.rstrip(".").lower().replace("__str_", "__STR_")
                 if body_str == "":
                     body_str = next_line
-                elif body_str.endswith("AND"):
+                elif body_str.endswith("and"):
                     body_str = body_str + " " + next_line
                 else:
                     body_str = body_str + " " + next_line
-            body_parts = re.split(r"\s+AND\s+", body_str)
+            body_parts = re.split(r"\s+and\s+", body_str)
             body = ", ".join(p.strip() for p in body_parts)
-            rules.append(_restore_strings(f"{head.strip()} IF {body}", line_strings))
+            rules.append(_restore_strings(f"{head.strip()} if {body}", line_strings))
         else:
             facts.append(_restore_strings(line, line_strings))
 

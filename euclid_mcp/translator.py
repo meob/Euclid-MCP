@@ -1,6 +1,6 @@
 import re
 
-from .language import _extract_strings
+from .language import _extract_strings, _restore_strings
 from .models import KB
 
 META_INTERPRETER = """
@@ -115,12 +115,17 @@ def _translate_vars(s: str) -> str:
 def _translate_operators(s: str) -> str:
     """Translate Euclid-IR operators to Prolog operators.
 
-    != -> =\\=   (arithmetic inequality)
+    ==  -> =:=   (arithmetic equality)
+    !=  -> =\\=  (arithmetic inequality)
     <=  -> =<    (less or equal, Prolog style)
+
+    Quoted strings are protected so operators inside them stay untouched.
     """
-    s = re.sub(r"!=", "=\\= ", s)
-    s = re.sub(r"<=", "=< ", s)
-    return s
+    cleaned, strings = _extract_strings(s)
+    cleaned = re.sub(r"==", "=:= ", cleaned)
+    cleaned = re.sub(r"!=", "=\\= ", cleaned)
+    cleaned = re.sub(r"<=", "=< ", cleaned)
+    return _restore_strings(cleaned, strings)
 
 
 def _translate_statement(fact: str) -> str:
@@ -168,7 +173,7 @@ def _generate_output(kb: KB, max_depth: int, max_solutions: int) -> list[str]:
     # Wrap in parentheses if it's a conjunction (contains commas at top level)
     if ", " in query_body:
         query_body = f"({query_body})"
-    query_pl = _translate_vars(query_body)
+    query_pl = _translate_operators(_translate_vars(query_body))
     # Deduplicate variable names while preserving order
     seen = set()
     var_names = []

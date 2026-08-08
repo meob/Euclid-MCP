@@ -109,7 +109,7 @@ can_access($user, $resource) IF
     user_clearance($user, $user_level) AND $user_level >= $cls_level
 ```
 
-**Supported operators:** `>`, `>=`, `<`, `<=`, `=:=`, `is`, `!=`
+**Supported operators:** `>`, `>=`, `<`, `<=`, `==`, `is`, `!=`
 
 ### Multi-line Rules
 
@@ -348,12 +348,17 @@ print(f"Valid: {check.valid}, Errors: {check.errors}")
 
 ```json
 {
+  "query": "mortal(plato)",
+  "mode": "why_not",
   "holds": false,
   "findings": [
-    "Fact 'mortal(plato)' not found in knowledge base",
-    "No rule with head 'mortal(plato)' found"
+    {
+      "type": "satisfied",
+      "predicate": "human",
+      "detail": "Facts exist for 'human' (1 facts)"
+    }
   ],
-  "conclusion": "Query fails: no derivation path for mortal(plato)"
+  "conclusion": "The query fails. Check rule conditions."
 }
 ```
 
@@ -361,15 +366,17 @@ print(f"Valid: {check.valid}, Errors: {check.errors}")
 
 ```json
 {
+  "query": "mortal($who)",
+  "modifications": "+ human(plato)",
   "before_count": 1,
   "after_count": 2,
-  "delta": 1,
+  "delta": "more",
   "solutions_before": [{"substitutions": {"who": "socrates"}}],
   "solutions_after": [
-    {"substitutions": {"who": "socrates"}},
-    {"substitutions": {"who": "plato"}}
+    {"substitutions": {"who": "plato"}},
+    {"substitutions": {"who": "socrates"}}
   ],
-  "conclusion": "Adding 'human(plato)' adds 1 new solution"
+  "conclusion": "Solutions increased: 1 -> 2."
 }
 ```
 
@@ -413,14 +420,20 @@ python examples/06_loan_eligibility/loan_officer.py
 # IT Security & Compliance — multi-layer policy reasoning
 python examples/07_it_security_compliance/demo.py --small
 
+# Cluedo Detective — solve Cluedo mysteries with deductive elimination
+python examples/08_cluedo/cluedo.py
+
 # LLM vs Euclid-MCP — interactive side-by-side comparison
 python examples/10_llm_vs_euclid/demo.py
+
+# KB validation — check_kb on valid and broken knowledge bases
+python examples/12_kb_check/demo.py
 ```
 
 Each example runs a complete reasoning session and prints solutions with proof trees — no LLM required.  
 Use them as templates for integrating Euclid-MCP into your own agents.
 
-The two newer examples (05, 06) demonstrate a **data-driven agent workflow**:
+Examples 05 and 06 demonstrate a **data-driven agent workflow**:
 - Read external data (JSON, CSV) that simulates API/CRM exports
 - Convert structured data to Euclid facts in Python
 - Load policy rules from `.euclid` files (separated from data)

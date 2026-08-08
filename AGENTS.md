@@ -81,9 +81,9 @@ stale($user) IF user($user) AND last_login($user, $days) AND $days > 90
 
 ### Rules
 - Variables: `$name` (lowercase after `$`)
-- Implication: `IF`
-- Conjunction: `AND`
-- Negation: `NOT`
+- Implication: `IF` (case-insensitive)
+- Conjunction: `AND` (case-insensitive)
+- Negation: `NOT` (case-insensitive)
 - Query prefix: `?` on a separate line
 - Predicates: lowercase with args in `()`
 - Wildcards: `_` (anonymous variable)
@@ -91,7 +91,7 @@ stale($user) IF user($user) AND last_login($user, $days) AND $days > 90
 - Multi-line rules: continuation implied after `IF` or `AND`
 
 ### Supported operators
-`>`, `>=`, `<`, `<=`, `=:=`, `is`, `!=`
+`>`, `>=`, `<`, `<=`, `==`, `is`, `!=`
 
 ### String literals
 UTF-8 strings for real-world data (emails, URLs, addresses):

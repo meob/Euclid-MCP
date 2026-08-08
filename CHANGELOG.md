@@ -37,6 +37,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Fixed `mypy` type errors in HTTP API and CLI wrappers
 - README: shields.io badges (PyPI, Python versions, license, CI, coverage) and
   a Development section with the standard check commands
+- `==` replaces `=:=` as the documented arithmetic-equality operator (`=:=` is
+  still accepted for backward compatibility); `==` now also works in queries,
+  and `==`/`!=`/`<=` inside quoted strings are no longer rewritten
+- Keywords (`IF`/`AND`/`NOT`) and the `@version` directive are now
+  case-insensitive (`if`/`and`/`not` and `@VERSION` are accepted)
+- `what_if` modifications now split on `AND`/`and` case-insensitively
+
+### Added
+- `is` is now validated as a reserved keyword and rejected as a predicate name
 
 ## [0.1.4] — 2026-08-06
 

@@ -72,7 +72,7 @@ parent(tom, bob)
 
 | Rule | Detail |
 |------|--------|
-| **Case sensitivity** | Case-insensitive. `Human(ALICE)` normalizes to `human(alice)`. Keywords (`IF`, `AND`, `NOT`) are recognized in any case. |
+| **Case sensitivity** | Identifiers are case-insensitive. `Human(ALICE)` normalizes to `human(alice)`. Keywords (`IF`, `AND`, `NOT`) are also case-insensitive. |
 | **Variables** | Start with `$` followed by a lowercase letter: `$x`, `$who`, `$user_name` |
 | **Atoms** | Lowercase identifiers: `tom`, `admin_role`, `us_east_1` |
 | **String literals** | UTF-8 strings in double or single quotes: `"Alice Smith"`, `'http://example.com'` |
@@ -150,9 +150,9 @@ mortal($x) IF human($x)
 
 **Syntax:** `<head> IF <body>`
 
-- `IF` is uppercase and separates head from body
+- `IF` separates head from body (case-insensitive)
 - Head: a predicate (possibly with variables)
-- Body: one or more conditions connected by `AND`
+- Body: one or more conditions connected by `AND` (case-insensitive)
 
 **Multiple conditions:**
 
@@ -224,10 +224,10 @@ active($user) IF status($user, $s) AND $s != "inactive"
 | `>` | `>` | Greater than | `$x > 0` |
 | `>=` | `>=` | Greater or equal | `$x >= 18` |
 | `<` | `<` | Less than | `$x < 100` |
-| `=:=` | `=:=` | Arithmetic equal | `$x =:= 42` |
+| `==` | `=:=` | Arithmetic equal | `$x == 42` |
 | `is` | `is` | Assignment/evaluation | `$x is $y + 1` |
 
-**Note:** `!=` and `<=` are Euclid-IR convenience operators. The translator maps them to the Prolog equivalents `=\=` and `=<`.
+**Note:** `==`, `!=` and `<=` are Euclid-IR convenience operators. The translator maps them to the Prolog equivalents `=:=`, `=\=` and `=<`. The raw Prolog forms (`=:=`, `=\=`, `=<`) are still accepted.
 
 ### Multi-line Rules
 
@@ -402,25 +402,27 @@ mortal($x) IF human($x)
 
 **Step 1 — Validate** with `check_kb`:
 ```json
-{"valid": true, "errors": [], "warnings": [], "facts_count": 2, "rules_count": 1}
+{"valid": true, "errors": [], "warnings": [], "facts_count": 2, "rules_count": 1, "predicates_count": 2}
 ```
 
 **Step 2 — Reason** with `reason` (`? mortal($who)`):
 ```json
 {"solutions": [
-  {"substitutions": {"who": "socrates"}, "proof": {...}},
-  {"substitutions": {"who": "plato"}, "proof": {...}}
+  {"substitutions": {"who": "plato"}, "proof": {...}},
+  {"substitutions": {"who": "socrates"}, "proof": {...}}
 ]}
 ```
 
 **Step 3 — Diagnose** a failing query with `diagnose` (`mortal(aristotle)`, mode `why_not`):
 ```json
-{"holds": false, "findings": ["Fact 'mortal(aristotle)' not found"], "conclusion": "No derivation path"}
+{"holds": false, "findings": [
+  {"type": "satisfied", "predicate": "human", "detail": "Facts exist for 'human' (2 facts)"}
+], "conclusion": "The query fails. Check rule conditions."}
 ```
 
 **Step 4 — What-if** adding a fact with `what_if` (`+ human(aristotle)`):
 ```json
-{"before_count": 2, "after_count": 3, "delta": 1}
+{"before_count": 2, "after_count": 3, "delta": "more"}
 ```
 
 ---
@@ -429,7 +431,7 @@ mortal($x) IF human($x)
 
 | Euclid-IR | Prolog equivalent |
 |-----------|-------------------|
-| `parent(tom, bob).` | `parent(tom, bob).` |
+| `parent(tom, bob)` | `parent(tom, bob).` |
 | `$x` | `X` (capitalized) |
 | `mortal($x) IF human($x)` | `mortal(X) :- human(X).` |
 | `a($x) AND b($x)` | `a(X), b(X)` |
@@ -437,6 +439,7 @@ mortal($x) IF human($x)
 | `? ancestor(tom, $who)` | `?- ancestor(tom, Who).` |
 | `$x != 0` | `X =\= 0` |
 | `$x <= 10` | `X =< 10` |
+| `$x == 42` | `X =:= 42` |
 | `$days > 90` | `Days > 90` |
 | `"Alice Smith"` | `"Alice Smith"` |
 
@@ -446,20 +449,20 @@ mortal($x) IF human($x)
 - `AND` instead of `,`
 - `NOT` instead of `\+`
 - `?` prefix for queries
-- `!=` instead of `=\=`, `<=` instead of `=<`
+- `!=` instead of `=\=`, `<=` instead of `=<`, `==` instead of `=:=`
 - No cut (`!`), no disjunction (`;`), no list syntax
 
 ---
 
 ## Known Limitations
 
-Euclid-IR targets **Horn-clause logic** — the core of Prolog without advanced features:
+Euclid-IR is a **simplified subset of Horn-clause logic** — the core of Prolog without unnecessary features:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Horn clauses | ✅ Supported | Facts + rules with conjunction |
 | Negation (NOT) | ✅ Supported | Closed-world assumption |
-| Arithmetic | ✅ Supported | `!=`, `<=`, `>`, `>=`, `<`, `=:=`, `is` |
+| Arithmetic | ✅ Supported | `!=`, `<=`, `>`, `>=`, `<`, `==`, `is` |
 | Multi-line rules | ✅ Supported | Body spans multiple lines |
 | Conjunction queries | ✅ Supported | `AND` in query |
 | String literals | ✅ Supported | UTF-8 strings in `"..."` or `'...'` |
@@ -553,7 +556,7 @@ Common parsing errors and fixes:
 | "No query found" | Missing `?` line | Add `? predicate(...)` at the end |
 | "Invalid variable" | `$X` or `$123` | Use `$x` or `$name` (lowercase after `$`) |
 | "Unterminated rule" | Missing body after `IF` | Add at least one condition |
-| "Unknown keyword" | `IF`/`AND`/`NOT` in wrong case | Use uppercase: `IF`, `AND`, `NOT` |
+| "Unknown keyword" | A reserved keyword used as a predicate name | Rename the predicate (`if`, `and`, `not` are reserved) |
 
 ---
 
