@@ -29,7 +29,7 @@
 - [x] **Arithmetic constraints**: `$x > 90`, `$x >= $y` in rules
 - [x] **Multi-line rules**: body on next lines
 - [x] **Conjunction queries**: `pred1($x) AND pred2($x)` with variable dedup
-- [x] **IT Security & Compliance demo**: 3,872 facts, 3 layers
+- [x] **IT Security & Compliance demo**: 3,869 facts, 3 layers
 - [x] CI pipeline (GitHub Actions: PyPI publish on release)
 - [x] MCP Registry: `io.github.meob/euclid-mcp` v0.1.3
 - [x] Awesome MCP Servers: PR [#10007](https://github.com/punkpeye/awesome-mcp-servers/pull/10007)
