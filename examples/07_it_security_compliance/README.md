@@ -1,6 +1,6 @@
 # IT Security & Compliance Demo
 
-Demonstrates Euclid-MCP reasoning over a realistic IT security knowledge base with 3 layers of rules and 3,872+ facts.
+Demonstrates Euclid-MCP reasoning over a realistic IT security knowledge base with 3 layers of rules and 3,869+ facts.
 
 ## Architecture
 
@@ -20,7 +20,7 @@ Demonstrates Euclid-MCP reasoning over a realistic IT security knowledge base wi
 │  Layer 3: Data Facts (from DB/generator)                │
 │  ├── 200 users across 8 departments                    │
 │  ├── 300 cloud resources (EC2, S3, RDS, etc.)          │
-│  └── ~3,872 facts (users, roles, permissions, resources)│
+│  └── ~3,869 facts (users, roles, permissions, resources)│
 └─────────────────────────────────────────────────────────┘
 ```
 
