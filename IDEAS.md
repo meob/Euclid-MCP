@@ -99,13 +99,98 @@ Python (PrologServer) ←── stdin/stdout (JSON lines) ──→ SWI-Prolog (
 
 - Graphviz proof tree
 - HTML explanations
+- **Rule IDs in the proof tree** — `@rule RBAC-0043` directive; every `rule` node
+  carries the source rule ID (audit trail: "this decision derives from rule 43")
+- **Deterministic `explain_proof`** — proof tree → natural language, server-side,
+  no LLM (cheaper + auditable; alternative to the LLM-based `explain` in TODO)
+- **KB identity** — version + content hash per KB (compliance: "decision taken
+  with KB v12")
 
 ### IR
 
 - Typed predicates
 - Temporal predicates
+- **Schema / arity declarations** — `@predicate has_role(person, role)`; validator
+  checks arity/args against the schema and gives the LLM a clear "contract" of
+  available predicates (check_kb already collects arities internally)
+- **Rule IDs** — `@rule <id>` directive attached to a rule, surfaced in the proof
+  tree (see Explainability)
+- **`@use "kb_name"`** — reference a pre-loaded named KB from within Euclid-IR
+  (complements the `kb_id` / `delta_knowledge` tool params)
+- **Namespaces** — `rbac.user(alice)` to avoid collisions in large KBs
+- **Metadata** — `@title`, `@description`, `@author`, `@domain` (enterprise)
+- **Execution directives** — `@engine prolog`, `@max_depth 30`,
+  `@max_solutions 10`, `@proof full` (metadata, not facts)
+- **Aggregations COUNT/SUM** — DEFERRED (scope risk: violates "Euclid-IR must not
+  become another Prolog"; tracked here so it stays a conscious rejection)
 
 
+
+## External review: Gemini & ChatGPT (Jul 2026)
+
+Independent reviews (sources: `staff/Eu4Gemini.md`, `staff/Eu4ChatGPT.md`,
+`staff/SuggerimentiREADME.txt`).
+
+**Overall verdict: strongly positive.** Both models independently identify the
+same core value — separating probabilistic understanding (LLM) from deterministic
+inference (engine), with Euclid-IR as the auditable intermediate layer. Criticisms
+are constructive extensions, not fundamental objections. No reviewer challenged
+the architecture.
+
+### Already implemented (comments now obsolete)
+
+| Suggestion | Source | Where |
+|---|---|---|
+| String literals `"Alice Smith"` | Gemini P1, ChatGPT P3 | `"..."` / `'...'` UTF-8 |
+| `!=` operator | Gemini P1, ChatGPT P3 | `!=` → `=\=` in translator |
+| Safe negation / unbound-variable check | Gemini P1, ChatGPT P3 | `linter.py` + `check_kb` warning |
+| Persistent-KB teaser in README | ChatGPT | README "Knowledge Base" section |
+| "LLMs describe, Euclid proves" | ChatGPT | README tagline (short form) |
+| Convenience operators `==`/`!=`/`<=` | ChatGPT P1 | canonical forms, mapped by translator |
+
+### Still open — prioritized
+
+Strategic framing lives in `staff/Euclid-Studio.md` (enterprise/consulting angle).
+
+| # | Idea | Source | Priority |
+|---|---|---|---|
+| 1 | Rule IDs (`@rule`) in proof tree | ChatGPT P1 | HIGH — audit trail |
+| 2 | KB identity (version + hash) | ChatGPT P2 | HIGH — compliance |
+| 3 | `@use "kb_name"` / `kb_id` + `delta_knowledge` | Gemini P1/P2, ChatGPT P2/P3 | HIGH — persistent KB (in roadmap) |
+| 4 | Schema/arity declarations (`@predicate`) | ChatGPT P1/P3, Gemini P3 | HIGH — LLM contract + validation |
+| 5 | Deterministic `explain_proof` (no LLM) | Gemini P1 | MEDIUM — decide vs LLM-based `explain` |
+| 6 | Confidence split (translation vs inference) | ChatGPT P1 | MEDIUM — positioning/docs |
+| 7 | "Less expressive by design" stated | ChatGPT P1 | MEDIUM — docs |
+| 8 | Stateful MCP / persistent engine | Gemini P2, ChatGPT P2 | HIGH — already the "game-changer" below |
+| 9 | COUNT/SUM aggregations | Gemini P1 | DEFERRED — scope risk |
+| 10 | Rename "Why External Inference?" | ChatGPT | LOW — cosmetic |
+
+### Rule IDs — design
+
+Origin: ChatGPT P1 — an auditor should be able to say *"this decision derives from
+rule 43"*. Today the proof tree emits `rule` nodes but the rule has no identity.
+
+**Syntax** (optional directive, backward compatible — rules without ID behave
+exactly as today):
+
+```
+@rule RBAC-0043
+can_access($u, $r) IF has_role($u, $role) AND role_perm($role, $r)
+```
+
+`@rule` binds to the immediately following rule. Multiple rules may share a head
+predicate; each keeps its own ID. Duplicate IDs → `check_kb` warning.
+
+**Two candidate implementations** (decision pending):
+
+1. **Prolog-native (ID carried through the proof)** — the meta-interpreter
+   recovers the ID of the exact clause that fired and `proof_to_json` emits it
+   on the `rule` node. Most trustworthy attribution, survives any engine work,
+   but requires translator + meta-interpreter + `proof_to_json` changes.
+   Output shape stays byte-identical when no IDs are present.
+2. **Python post-processing** — the server matches each proof `rule` node's
+   `goal`/`body` against the translated KB rules and attaches the ID afterwards.
+   No Prolog changes, minimal risk; but attribution is inferred, not carried.
 
 ## Euclid-IR Language Evolution - Design philosophy
 

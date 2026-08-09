@@ -53,6 +53,10 @@
 
 ## Short term (usefulness)
 
+- [ ] **Rule IDs** (language feature, release v0.2.0): trailing comment `# rule: <id>`
+      a fine regola, esposto nei proof tree come audit trail ("questa decisione deriva
+      dalla regola 43"). Design completo: `docs/PLANS/rule_ids.md` (cancellare dopo
+      l'implementazione).
 - [ ] README examples with Ollama (test with Llama 3B, Qwen 2.5 7B)
 - [ ] **Migrate to MCP SDK v2** (`mcp.server.mcpserver.MCPServer`): v2.0.0
       (2026-07-28) removed `mcp.server.fastmcp`; currently pinned `mcp>=1.27,<2`.

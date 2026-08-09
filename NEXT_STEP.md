@@ -33,7 +33,10 @@
 
 ## Next priorities
 - [ ] Update this checkpoint + TODO.md on every session end (keep them truthful)
-- [ ] Release decision: tag v0.1.6 (unreleased changes accumulated on main)
+- [ ] Rule IDs (`# rule:` syntax) — language feature → release **v0.2.0**
+      (design: `docs/PLANS/rule_ids.md`)
+- [ ] Release decision: tag v0.1.6 (unreleased changes accumulated on main) prima,
+      poi v0.2.0 con rule IDs
 - [ ] Migrate to MCP SDK v2 (currently pinned `mcp>=1.27,<2`)
 - [ ] `explain` tool: proof tree → natural language
 - [ ] Named knowledge bases: save/load for reuse
