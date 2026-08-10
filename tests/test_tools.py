@@ -368,3 +368,85 @@ class TestMCPInMemory:
         schemas = asyncio.run(run())
         for name in ("reason", "diagnose", "what_if", "check_kb"):
             assert schemas[name] is not None
+
+
+# =============================================================================
+# Rule IDs — end-to-end proof attribution
+# =============================================================================
+
+
+class TestRuleIDs:
+    def test_reason_proof_carries_rule_id(self):
+        r = reason(
+            "human(socrates)\n"
+            "mortal($x) IF human($x)  # rule: RBAC-0043\n"
+            "? mortal($who)"
+        )
+        assert r.error is None
+        assert r.solutions[0].proof.type == "rule"
+        assert r.solutions[0].proof.rule_id == "RBAC-0043"
+
+    def test_reason_no_id_keeps_rule_id_none(self):
+        r = reason("human(socrates)\nmortal($x) IF human($x)\n? mortal($who)")
+        assert r.error is None
+        assert r.solutions[0].proof.type == "rule"
+        assert r.solutions[0].proof.rule_id is None
+
+    def test_reason_multi_hop_ids(self):
+        kb = (
+            "parent(tom, bob)\n"
+            "parent(bob, ann)\n"
+            "ancestor($x, $y) IF parent($x, $y)  # rule: BASE-1\n"
+            "ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)  # rule: REC-2\n"
+            "? ancestor(tom, ann)"
+        )
+        r = reason(kb)
+        assert r.error is None
+        assert len(r.solutions) == 1
+        proof = r.solutions[0].proof
+        assert proof.type == "rule"
+        assert proof.rule_id in ("BASE-1", "REC-2")
+        nested = proof.subproof
+        assert nested.type == "and"
+        assert nested.right.type == "rule"
+        assert nested.right.rule_id == "BASE-1"
+
+    def test_reason_rule_id_on_fact_error(self):
+        r = reason("p(a)  # rule: X\n? p(a)")
+        assert r.error is not None
+        assert "not allowed on a fact" in r.error
+
+    def test_check_kb_duplicate_rule_id_warning(self):
+        c = check_kb(
+            "p(a)\n"
+            "q($x) IF p($x)  # rule: R1\n"
+            "s($x) IF p($x)  # rule: R1"
+        )
+        assert c.valid is True
+        assert any(
+            w.type == "duplicate_rule_id" and "R1" in w.message for w in c.warnings
+        )
+
+    def test_check_kb_unique_rule_ids_no_warning(self):
+        c = check_kb(
+            "p(a)\n"
+            "q($x) IF p($x)  # rule: R1\n"
+            "s($x) IF p($x)  # rule: R2"
+        )
+        assert c.valid is True
+        assert not any(w.type == "duplicate_rule_id" for w in c.warnings)
+
+    def test_hostile_rule_id_rejected(self):
+        hostile = (
+            "p(a)\n"
+            "q($x) IF p($x)  # rule: '); halt.\n"
+            "? q($who)"
+        )
+        r = reason(hostile)
+        assert r.error is not None
+
+    def test_hostile_rule_id_escaped_not_executed(self):
+        kb = "p(a)\nq($x) IF p($x)  # rule: a'b\\c\n? q($who)"
+        r = reason(kb)
+        assert r.error is None
+        assert r.solutions[0].proof.rule_id == "a'b\\c"

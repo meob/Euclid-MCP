@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **Rule IDs**: rules can carry an audit-trail ID via a trailing `# rule: <id>`
+  comment (case-preserving, also on the last body line of multi-line rules).
+  The ID is surfaced as `rule_id` on `rule` nodes of proof trees, so a decision
+  can be cited ("this derives from rule RBAC-0043"). Backward compatible: rules
+  without an ID behave exactly as before and their proofs omit the field.
+  `check_kb` warns on duplicate rule IDs; `# rule:` on a fact/query is a parse
+  error; the reserved internal marker `euclid_rule_id/1` is rejected by the
+  sanitizer.
 - Migrated to **MCP Python SDK v2** (`mcp>=2.0`): `FastMCP` → `MCPServer`
   (`mcp.server.mcpserver`), explicit server name preserved (`Euclid-MCP`).
   Unlocks in-memory testing via `Client(mcp)` (no stdio/ports), hardened stdio,

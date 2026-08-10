@@ -668,6 +668,20 @@ def check_kb(knowledge: str) -> KBCheckResult:
         for w in lint_warnings:
             warnings.append(KBError(type="unsafe_negation", message=w))
 
+    # Check 6: duplicate rule IDs
+    seen_rule_ids: dict[str, int] = {}
+    for idx, rule in enumerate(kb.rules):
+        rid = kb.rule_ids.get(idx)
+        if not rid:
+            continue
+        if rid in seen_rule_ids:
+            warnings.append(KBError(
+                type="duplicate_rule_id",
+                message=f"Duplicate rule ID: {rid}",
+                predicate=rid,
+            ))
+        seen_rule_ids[rid] = seen_rule_ids.get(rid, 0) + 1
+
     valid = len(errors) == 0
 
     elapsed = (time.monotonic() - start) * 1000

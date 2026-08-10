@@ -21,18 +21,29 @@ prove(\\+ Goal, D, neg(Goal, negated)) :- !,
     \\+ prove(Goal, D, _).
 prove(Goal, _, fact(Goal)) :-
     clause(Goal, true).
-prove(Goal, D, rule(Goal, Body, BodyProof)) :-
+prove(Goal, D, rule(Goal, Body, BodyProof, Id)) :-
     D > 0,
     D1 is D - 1,
     clause(Goal, Body),
     Body \\= true,
-    prove(Body, D1, BodyProof).
+    decompose_rule_id(Body, Rest, Id),
+    prove(Rest, D1, BodyProof).
+
+decompose_rule_id((euclid_rule_id(Id), Rest), Rest, Id) :- !.
+decompose_rule_id(euclid_rule_id(Id), true, Id) :- !.
+decompose_rule_id(Body, Body, null).
 """
 
 PROOF_TO_JSON = """
 proof_to_json(fact(G), _{type:"fact", goal:S}) :-
     term_string(G, S), !.
-proof_to_json(rule(G, B, P), _{type:"rule", goal:SG, body:SB, subproof:SP}) :-
+proof_to_json(rule(G, B, P, Id), _{type:"rule", goal:SG, body:SB, subproof:SP, rule_id:SId}) :-
+    Id \\= null,
+    term_string(G, SG),
+    term_string(B, SB),
+    proof_to_json(P, SP),
+    atom_string(Id, SId), !.
+proof_to_json(rule(G, B, P, _), _{type:"rule", goal:SG, body:SB, subproof:SP}) :-
     term_string(G, SG),
     term_string(B, SB),
     proof_to_json(P, SP), !.
@@ -64,8 +75,8 @@ def to_prolog(kb: KB, max_depth: int = 30, max_solutions: int = 1000) -> str:
         if sig:
             pred_sigs.add(sig)
 
-    for r in kb.rules:
-        s = _translate_rule(r)
+    for i, r in enumerate(kb.rules):
+        s = _translate_rule(r, kb.rule_ids.get(i))
         all_statements.append(s)
         head = re.split(r"\s+[Ii][Ff]\s+", r, maxsplit=1)[0].strip()
         sig = _extract_pred_sig(head)
@@ -132,7 +143,12 @@ def _translate_statement(fact: str) -> str:
     return _translate_operators(_translate_vars(fact.strip().rstrip("."))) + "."
 
 
-def _translate_rule(rule: str) -> str:
+def _prolog_escape_str(s: str) -> str:
+    """Escape a string for safe use as a Prolog single-quoted atom."""
+    return "'" + s.replace("\\", "\\\\").replace("'", "''") + "'"
+
+
+def _translate_rule(rule: str, rule_id: str | None = None) -> str:
     head, body = re.split(r"\s+[Ii][Ff]\s+", rule, maxsplit=1)
     head_pl = _translate_vars(head.strip())
     body = re.sub(r"\s+[Aa][Nn][Dd]\s+", ", ", body.strip())
@@ -140,6 +156,10 @@ def _translate_rule(rule: str) -> str:
     # Convert NOT to Prolog negation
     body_pl = re.sub(r"\b[Nn][Oo][Tt]\s+", "\\+ ", body_pl)
     body_pl = _translate_operators(body_pl)
+    if rule_id:
+        # Prepend the rule ID marker so the meta-interpreter can attach it
+        # to the proof tree (audit trail: "this decision derives from rule X").
+        body_pl = f"euclid_rule_id({_prolog_escape_str(rule_id)}), {body_pl}"
     return f"{head_pl} :- {body_pl}."
 
 

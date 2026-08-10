@@ -95,6 +95,15 @@ ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)
         """Comments containing :// should not trigger false positives."""
         sanitize("# see http://example.com for docs\nparent(tom, bob)")
 
+    def test_reject_euclid_rule_id(self):
+        """The reserved internal marker euclid_rule_id is blocked."""
+        with pytest.raises(ValueError, match="Rejected dangerous pattern"):
+            sanitize("p(x)\neuclid_rule_id('spoof')\n? p($x)")
+
+    def test_allow_rule_id_comment(self):
+        """The # rule: comment is a valid Euclid-IR feature, not dangerous."""
+        sanitize("p(a)\nq($x) IF p($x)  # rule: RBAC-0043")
+
 
 class TestInjectionViaParse:
     """Ensure injection is caught at the parse level."""

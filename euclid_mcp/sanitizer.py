@@ -24,6 +24,7 @@ _DANGEROUS_PATTERNS = re.compile(
     | \bset_prolog_flag\s*\(       # modify Prolog runtime flags
     | \bload_files\s*\(            # load_files/1,2 - load Prolog source
     | \buse_module\s*\(            # use_module/1,2 (only dangerous in user input)
+    | \beuclid_rule_id\s*\(        # euclid_rule_id/1 - reserved internal marker
     """,
     re.IGNORECASE | re.VERBOSE,
 )

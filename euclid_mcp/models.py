@@ -10,6 +10,7 @@ class ProofNode(BaseModel):
     subproof: Optional["ProofNode"] = None
     left: Optional["ProofNode"] = None
     right: Optional["ProofNode"] = None
+    rule_id: Optional[str] = None
 
 
 class Solution(BaseModel):
@@ -29,6 +30,7 @@ class KB(BaseModel):
     rules: list[str] = Field(default_factory=list)
     query: Optional[str] = None
     version: Optional[str] = None
+    rule_ids: dict[int, str] = Field(default_factory=dict)
 
 
 # ── Diagnosis models ──
