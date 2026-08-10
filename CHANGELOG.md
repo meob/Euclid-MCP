@@ -6,10 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- Migrated to **MCP Python SDK v2** (`mcp>=2.0`): `FastMCP` → `MCPServer`
+  (`mcp.server.mcpserver`), explicit server name preserved (`Euclid-MCP`).
+  Unlocks in-memory testing via `Client(mcp)` (no stdio/ports), hardened stdio,
+  stricter protocol validation, and structured `output_schema` on all tools.
+  The previous `mcp>=1.27,<2` pin (which blocked SDK 2.0 after it removed
+  `mcp.server.fastmcp`) is lifted.
+- In-memory MCP protocol tests via `Client(mcp)` in `tests/test_tools.py`
+
 ### Fixed
-- Pin `mcp>=1.27,<2`: MCP Python SDK 2.0 (2026-07-28) removed the
-  `mcp.server.fastmcp` module, breaking the server import and all CI tests.
-  Migration to `MCPServer`/standalone `fastmcp` is tracked in TODO
 - License detection: replaced the short header-only `LICENSE` with the full
   Apache-2.0 text so GitHub resolves the license (badge + repo metadata)
 - CI: bump `actions/checkout@v4`→`v5`, `actions/setup-python@v5`→`v6`,
