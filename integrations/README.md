@@ -6,11 +6,14 @@ Tools to integrate Euclid-MCP into automation platforms and agent frameworks.
 
 ```bash
 python3 integrations/euclid_api.py --port 8080
+# Preload a knowledge base so requests can omit the "knowledge" field:
+python3 integrations/euclid_api.py --kb-path /path/to/policies.euclid --port 8080
 ```
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/reason` | POST | Send facts + rules, get proof-backed solutions |
+| `/explain` | POST | Natural-language reasoning steps with rule ID citations |
 | `/diagnose` | POST | Diagnose why a query succeeds or fails |
 | `/what-if` | POST | What-if analysis with fact additions/removals |
 | `/check-kb` | POST | Validate a knowledge base for consistency |
@@ -31,6 +34,20 @@ python3 integrations/euclid_api.py --port 8080
 2. Method: `POST`, URL: `http://localhost:8080/reason`
 3. Headers: `Content-Type: application/json`
 4. Body (JSON): `{{ $json }}` with `knowledge`, `query`, etc.
+
+**POST /explain** — Request body:
+
+```json
+{
+  "knowledge": "human(socrates)\nmortal($x) IF human($x)  # rule: BIO-001",
+  "query": "mortal($who)",
+  "max_solutions": 5,
+  "max_depth": 30
+}
+```
+
+Returns `explanations[]`, each with `substitutions` and an ordered list of
+natural-language `steps` that cite rule IDs when present.
 
 **POST /diagnose** — Request body:
 

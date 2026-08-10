@@ -22,7 +22,7 @@ from pathlib import Path
 # Add parent project to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from euclid_mcp.server import diagnose, reason, what_if
+from euclid_mcp.server import diagnose, explain, reason, what_if
 
 # ── Knowledge base files (loaded in order) ──
 
@@ -147,6 +147,23 @@ DIAGNOSE_QUESTIONS = [
     },
 ]
 
+# ── Explain questions (for explain mode) ──
+
+EXPLAIN_QUESTIONS = [
+    {
+        "id": "E1",
+        "question": "Explain why eng_0008 can manage servers.",
+        "query": "user_has_permission(eng_0008, manage_servers)",
+        "description": "Readable reasoning steps with rule ID citations",
+    },
+    {
+        "id": "E2",
+        "question": "Explain which roles can deploy to production.",
+        "query": "can_deploy($who, production)",
+        "description": "Multi-hop explanation across rules",
+    },
+]
+
 # ── What-if scenarios ──
 
 WHAT_IF_SCENARIOS = [
@@ -255,6 +272,33 @@ def run_diagnose(knowledge: str, q: dict, max_solutions: int = 50) -> dict:
     }
 
 
+def run_explain(knowledge: str, q: dict, max_solutions: int = 50) -> dict:
+    """Run explain on a single question and return the result."""
+    start = time.time()
+    result = explain(
+        knowledge=knowledge,
+        query=q["query"],
+        max_solutions=max_solutions,
+        max_depth=30,
+    )
+    elapsed = time.time() - start
+
+    return {
+        "id": q["id"],
+        "question": q["question"],
+        "description": q.get("description", ""),
+        "explanations": [
+            {
+                "substitutions": e.substitutions,
+                "steps": e.steps,
+            }
+            for e in result.explanations
+        ],
+        "num_explanations": len(result.explanations),
+        "elapsed_ms": round(elapsed * 1000),
+    }
+
+
 def run_what_if(knowledge: str, q: dict, max_solutions: int = 50) -> dict:
     """Run what-if analysis on a single scenario and return the result."""
     start = time.time()
@@ -324,15 +368,27 @@ def print_result(result: dict, mode: str = "reason") -> None:
         print(f"  Modification: {result['modifications']}")
         print(f"  Conclusion: {result['conclusion']}")
 
+    elif mode == "explain":
+        print(f"  Explanations: {result['num_explanations']} | Time: {result['elapsed_ms']}ms")
+        if result["num_explanations"] == 0:
+            print("  Answer: No match (empty result)")
+        else:
+            for i, exp in enumerate(result["explanations"], 1):
+                subs = exp["substitutions"]
+                bindings = ", ".join(f"{k}={v}" for k, v in subs.items()) if subs else "{}"
+                print(f"\n  Solution {i}: {bindings}")
+                for step in exp["steps"]:
+                    print(f"    • {step}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="IT Security & Compliance Demo")
     parser.add_argument("--question", help="Run specific question (e.g. Q3)")
     parser.add_argument(
         "--mode",
-        choices=["reason", "diagnose", "what-if"],
+        choices=["reason", "diagnose", "what-if", "explain"],
         default="reason",
-        help="Tool to use: reason (default), diagnose, or what-if",
+        help="Tool to use: reason (default), diagnose, what-if, or explain",
     )
     parser.add_argument(
         "--diagnose-mode",
@@ -354,6 +410,8 @@ def main():
         available = DIAGNOSE_QUESTIONS
     elif args.mode == "what-if":
         available = WHAT_IF_SCENARIOS
+    elif args.mode == "explain":
+        available = EXPLAIN_QUESTIONS
     else:
         available = QUESTIONS
 
@@ -381,6 +439,8 @@ def main():
             result = run_diagnose(knowledge, q, max_solutions=args.max_solutions)
         elif args.mode == "what-if":
             result = run_what_if(knowledge, q, max_solutions=args.max_solutions)
+        elif args.mode == "explain":
+            result = run_explain(knowledge, q, max_solutions=args.max_solutions)
         else:
             result = run_question(knowledge, q, max_solutions=args.max_solutions)
         results.append(result)
@@ -403,6 +463,9 @@ def main():
     elif args.mode == "diagnose":
         holds_count = sum(1 for r in results if r["holds"])
         print(f"  Queries that hold: {holds_count}/{len(results)}")
+    elif args.mode == "explain":
+        with_steps = sum(1 for r in results if r["num_explanations"] > 0)
+        print(f"  Queries with explanations: {with_steps}/{len(results)}")
     elif args.mode == "what-if":
         for r in results:
             print(f"  {r['id']}: {r['delta']} ({r['before_count']} -> {r['after_count']})")

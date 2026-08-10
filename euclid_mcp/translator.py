@@ -21,7 +21,7 @@ prove(\\+ Goal, D, neg(Goal, negated)) :- !,
     \\+ prove(Goal, D, _).
 prove(Goal, _, fact(Goal)) :-
     clause(Goal, true).
-prove(Goal, D, rule(Goal, Body, BodyProof, Id)) :-
+prove(Goal, D, rule(Goal, Rest, BodyProof, Id)) :-
     D > 0,
     D1 is D - 1,
     clause(Goal, Body),

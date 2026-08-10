@@ -11,7 +11,8 @@ Both are read-only observers — the server needs no code changes.
 
 ## What you can observe
 
-The server exposes four tools: `check_kb`, `diagnose`, `reason`, `what_if`.
+The server exposes five tools: `check_kb`, `diagnose`, `explain`, `reason`,
+`what_if`.
 Each call is wrapped by `_log_call` (euclid_mcp/server.py) which logs the tool
 name, elapsed time and outcome:
 
@@ -31,20 +32,14 @@ WARN  tool=diagnose elapsed_ms=400.1 error=Unknown predicate: foo
 
 ## Mode A — MCP Inspector (interactive UI)
 
-### Important: pin the version
+### Inspector version
 
-The server uses the `mcp` SDK **1.x** (`mcp>=1.27,<2` in pyproject.toml) and
-speaks the **legacy protocol** (latest supported version: `2025-11-25`).
-
-Inspector `>=2.0` (published 2026-07-28) speaks the **2026-07-28 protocol era**:
-it probes the server with `server/discover`, which a legacy SDK-1.x server
-rejects (validation error) and the connection fails.
-
-**Use Inspector `0.22.0`** (published 2026-06-04, the last pre-2.0 release),
-built for SDK-1.x servers.
+The server uses the `mcp` SDK **2.x** (`mcp>=2.0` in pyproject.toml) and speaks
+the **modern protocol** (2026-07-28 era), so the latest MCP Inspector (`>= 2.0`)
+works out of the box — no version pin needed.
 
 ```bash
-npx -y @modelcontextprotocol/inspector@0.22.0 .venv/bin/python -m euclid_mcp
+npx -y @modelcontextprotocol/inspector .venv/bin/python -m euclid_mcp
 ```
 
 The Inspector starts `python -m euclid_mcp` as a child process and prints:
@@ -65,10 +60,11 @@ and opens your browser automatically.
 
 ### Where to paste text and call a tool
 
-1. Left sidebar → **Tools** section lists the four tools.
+1. Left sidebar → **Tools** section lists the five tools.
 2. Click a tool, e.g. `reason`: a **form-based panel** opens with one input
    field per parameter (generated from the tool's JSON schema).
-   - `reason`: `knowledge` (required), `query` (optional), `max_solutions`, `max_depth`
+   - `reason`: `knowledge` (optional when a KB is preloaded), `query`, `max_solutions`, `max_depth`
+   - `explain`: `knowledge`, `query`, `max_solutions`, `max_depth`
    - `diagnose`: `knowledge`, `query`, `mode` (`why` / `why_not` / `what_needs`), ...
    - `what_if`: `base_knowledge`, `modifications` (`+ fact(...)` / `- fact(...)`), `query`, ...
    - `check_kb`: `knowledge`
@@ -94,18 +90,18 @@ The same client, scriptable. Useful for quick checks and automation.
 
 ```bash
 # List the server's tools
-npx -y @modelcontextprotocol/inspector@0.22.0 --cli .venv/bin/python -m euclid_mcp \
+npx -y @modelcontextprotocol/inspector --cli .venv/bin/python -m euclid_mcp \
   --method tools/list
 
 # Call reason (single-quote args to keep $ and line breaks intact)
-npx -y @modelcontextprotocol/inspector@0.22.0 --cli .venv/bin/python -m euclid_mcp \
+npx -y @modelcontextprotocol/inspector --cli .venv/bin/python -m euclid_mcp \
   --method tools/call --tool-name reason \
   --tool-arg 'knowledge=human(socrates)
 mortal($x) IF human($x)
 ? mortal($who)'
 
 # Enable the server's structured logs in the spawned child
-npx -y @modelcontextprotocol/inspector@0.22.0 --cli \
+npx -y @modelcontextprotocol/inspector --cli \
   -e EUCLID_LOG_LEVEL=INFO \
   .venv/bin/python -m euclid_mcp --method tools/list
 ```
@@ -168,29 +164,14 @@ Inspector:
 
 | Server SDK        | Protocol era            | Inspector         |
 | ----------------- | ----------------------- | ----------------- |
-| `mcp` 1.x (this project) | legacy (max `2025-11-25`) | `0.22.0` (pin) |
-| `mcp` 2.x         | modern (`2026-07-28`)   | `>= 2.0`         |
+| `mcp` 1.x         | legacy (max `2025-11-25`) | `0.22.0` (pin) |
+| `mcp` 2.x (this project) | modern (`2026-07-28`)   | `>= 2.0`         |
+
+This project is on `mcp` 2.x, so the latest Inspector works without a pin.
 
 ### Coordinating with your other MCP servers
 
-The fix is a **per-command pin** (`@modelcontextprotocol/inspector@0.22.0`), so
-each project can adopt it independently and on its own schedule:
-
-1. Record the pinned Inspector version and the protocol era in each project's
-   own docs (this file is the template).
-2. Optionally install the Inspector once globally:
-   `npm i -g @modelcontextprotocol/inspector@0.22.0`, then
-   `mcp-inspector <server command>`. Prefer per-command pins to avoid surprises.
-3. Migrate to `mcp` 2.x per project when ready. A server on SDK 2.x uses the
-   latest Inspector; one still on 1.x keeps `0.22.0` — they do not interfere
-   (the Inspector is a client tool, not shared state).
-
-### Deciding when to move to FastMCP v2
-
-- Trigger: your MCP clients and/or other projects move to the 2026-07-28
-  protocol era, or a feature you need is only in `mcp` 2.x.
-- Impact: breaking — raises the `mcp>=1.27,<2` pin, the server class is renamed
-  (FastMCP → MCPServer in v2), and the protocol tests must be re-run.
-- Scope: the in-process call paths (e.g. the example-10 demo importing
-  `euclid_mcp.server`) are transport-agnostic and are **not** affected by the
-  migration.
+If a different project still uses `mcp` 1.x, pin its Inspector command:
+`npx -y @modelcontextprotocol/inspector@0.22.0`. Servers on SDK 2.x use the
+latest Inspector; ones still on 1.x keep `0.22.0` — they do not interfere
+(the Inspector is a client tool, not shared state).

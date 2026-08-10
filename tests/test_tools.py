@@ -464,3 +464,30 @@ class TestRuleIDs:
         r = reason(kb)
         assert r.error is None
         assert r.solutions[0].proof.rule_id == "a'b\\c"
+
+    def test_reason_rule_id_body_is_clean(self):
+        kb = (
+            "p(a)\n"
+            "q($x) IF p($x)  # rule: R1\n"
+            "? q($who)"
+        )
+        r = reason(kb)
+        assert r.error is None
+        proof = r.solutions[0].proof
+        assert proof.rule_id == "R1"
+        assert "euclid_rule_id" not in (proof.body or "")
+
+    def test_reason_multi_hop_body_is_clean(self):
+        kb = (
+            "parent(tom, bob)\n"
+            "parent(bob, ann)\n"
+            "ancestor($x, $y) IF parent($x, $y)  # rule: BASE-1\n"
+            "ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)  # rule: REC-2\n"
+            "? ancestor(tom, ann)"
+        )
+        r = reason(kb)
+        assert r.error is None
+        proof = r.solutions[0].proof
+        assert proof.rule_id == "REC-2"
+        assert "euclid_rule_id" not in (proof.body or "")
+        assert proof.subproof.right.body == "parent(bob,ann)"

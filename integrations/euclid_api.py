@@ -5,6 +5,7 @@ Run:  python3 integrations/euclid_api.py [--port 8080]
 
 Endpoints:
   POST /reason    —  {"knowledge": "...", "query": "...", "max_solutions": 5, "max_depth": 30}
+  POST /explain   —  {"knowledge": "...", "query": "...", "max_solutions": 5, "max_depth": 30}
   POST /diagnose  —  {"knowledge": "...", "query": "...", "mode": "why",
                       "max_solutions": 5, "max_depth": 30}
   POST /what-if   —  {"base_knowledge": "...", "modifications": "...", "query": "...",
@@ -44,6 +45,7 @@ from euclid_mcp.server import (  # noqa: E402
     _setup_logging,
     check_kb,
     diagnose,
+    explain,
     reason,
     what_if,
 )
@@ -66,6 +68,8 @@ class ReasonHandler(BaseHTTPRequestHandler):
         self._extract_request_id()
         if self.path == "/reason":
             self._handle_reason()
+        elif self.path == "/explain":
+            self._handle_explain()
         elif self.path == "/diagnose":
             self._handle_diagnose()
         elif self.path == "/what-if":
@@ -77,7 +81,7 @@ class ReasonHandler(BaseHTTPRequestHandler):
                 404,
                 {
                     "error": (
-                        "Not found. POST to /reason, /diagnose, /what-if, "
+                        "Not found. POST to /reason, /explain, /diagnose, /what-if, "
                         "/check-kb or GET /health"
                     )
                 },
@@ -107,6 +111,41 @@ class ReasonHandler(BaseHTTPRequestHandler):
             self._send(200, {
                 "query": result.query,
                 "solutions": [s.model_dump() for s in result.solutions],
+                "elapsed_ms": result.elapsed_ms,
+            })
+        except Exception as e:
+            self._send(500, {"error": str(e)})
+
+    def _handle_explain(self):
+        data = self._read_body()
+        if data is None:
+            return
+
+        knowledge = _optional_knowledge(data.get("knowledge"))
+        if knowledge is None and _PRELOADED_KB is None:
+            self._send(
+                400,
+                {"error": "'knowledge' field is required (or preload a KB "
+                         "via EUCLID_KB_PATH / --kb-path)"},
+            )
+            return
+
+        try:
+            result = explain(
+                knowledge=knowledge,
+                query=data.get("query"),
+                max_solutions=data.get("max_solutions", 5),
+                max_depth=data.get("max_depth", 30),
+            )
+            self._send(200, {
+                "query": result.query,
+                "explanations": [
+                    {
+                        "substitutions": e.substitutions,
+                        "steps": e.steps,
+                    }
+                    for e in result.explanations
+                ],
                 "elapsed_ms": result.elapsed_ms,
             })
         except Exception as e:
@@ -260,6 +299,7 @@ def main():
     logger.info("Euclid-MCP API running on http://0.0.0.0:%d", port)
     print(f"Euclid-MCP API running on http://0.0.0.0:{port}")
     print("  POST /reason    —  deduct from facts and rules")
+    print("  POST /explain   —  explain results in natural language")
     print("  POST /diagnose  —  diagnose why a query succeeds or fails")
     print("  POST /what-if   —  what-if analysis on knowledge base")
     print("  POST /check-kb  —  check KB for consistency")
