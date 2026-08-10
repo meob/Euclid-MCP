@@ -110,4 +110,6 @@ def _parse_proof(d: dict) -> ProofNode:
             node.left = _parse_proof(d["left"])
         if "right" in d and isinstance(d["right"], dict):
             node.right = _parse_proof(d["right"])
+    elif t == "neg":
+        node.goal = d.get("goal")
     return node

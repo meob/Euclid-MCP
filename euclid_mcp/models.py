@@ -33,6 +33,23 @@ class KB(BaseModel):
     rule_ids: dict[int, str] = Field(default_factory=dict)
 
 
+# ── Explanation models ──
+
+
+class Explanation(BaseModel):
+    """Natural-language explanation of a single solution's proof."""
+    substitutions: dict[str, Any] = Field(default_factory=dict)
+    steps: list[str] = Field(default_factory=list)
+
+
+class ExplanationResult(BaseModel):
+    """Result from explain(): deterministic proof-tree to natural language."""
+    query: str = ""
+    explanations: list[Explanation] = Field(default_factory=list)
+    elapsed_ms: float = 0.0
+    error: Optional[str] = None
+
+
 # ── Diagnosis models ──
 
 

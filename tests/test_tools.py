@@ -1,4 +1,4 @@
-"""Unit tests for all 4 MCP tools: reason, diagnose, what_if, check_kb."""
+"""Unit tests for all 5 MCP tools: reason, explain, diagnose, what_if, check_kb."""
 
 import asyncio
 import json
@@ -322,7 +322,7 @@ class TestMCPInMemory:
                 return [t.name for t in tools.tools]
 
         names = asyncio.run(run())
-        assert set(names) == {"reason", "diagnose", "what_if", "check_kb"}
+        assert set(names) == {"reason", "explain", "diagnose", "what_if", "check_kb"}
 
     def test_server_name(self):
         async def run():
@@ -345,6 +345,20 @@ class TestMCPInMemory:
         assert data["query"] == "mortal($who)"
         assert data["solutions"][0]["substitutions"]["who"] == "socrates"
 
+    def test_explain_tool_over_protocol(self):
+        data, is_error = _call_tool(
+            "explain",
+            {
+                "knowledge": (
+                    "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
+                )
+            },
+        )
+        assert is_error is False
+        assert data["query"] == "mortal($who)"
+        assert data["explanations"][0]["substitutions"]["who"] == "socrates"
+        assert len(data["explanations"][0]["steps"]) == 2
+
     def test_check_kb_tool_over_protocol(self):
         data, is_error = _call_tool(
             "check_kb", {"knowledge": "human(socrates)\nhuman(socrates)"}
@@ -366,7 +380,7 @@ class TestMCPInMemory:
                 return {t.name: t.output_schema for t in tools.tools}
 
         schemas = asyncio.run(run())
-        for name in ("reason", "diagnose", "what_if", "check_kb"):
+        for name in ("reason", "explain", "diagnose", "what_if", "check_kb"):
             assert schemas[name] is not None
 
 

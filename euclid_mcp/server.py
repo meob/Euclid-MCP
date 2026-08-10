@@ -7,11 +7,14 @@ from typing import Any, Callable, TypeVar, cast
 
 from mcp.server.mcpserver import MCPServer
 
+from euclid_mcp.explain import explain_solution
 from euclid_mcp.language import parse
 from euclid_mcp.linter import lint_rule
 from euclid_mcp.models import (
     DiagnosisFinding,
     DiagnosisResult,
+    Explanation,
+    ExplanationResult,
     KBCheckResult,
     KBError,
     ReasonResult,
@@ -178,6 +181,45 @@ def reason(
         solutions=solutions[:max_solutions],
         query=kb.query,
         elapsed_ms=elapsed,
+    )
+
+
+# ── explain() ───────────────────────────────────────────────────────────────
+
+
+@mcp.tool(
+    description="Explain, in natural language, how a query is proven: "
+    "walk the proof tree of each solution and return readable reasoning steps. "
+    "Rule IDs are cited when present.",
+)
+@_log_call("explain")
+def explain(
+    knowledge: str,
+    query: str | None = None,
+    max_solutions: int = 5,
+    max_depth: int = 30,
+) -> ExplanationResult:
+    start = time.monotonic()
+
+    result = reason(
+        knowledge, query=query, max_solutions=max_solutions, max_depth=max_depth
+    )
+    if result.error:
+        return ExplanationResult(
+            query=query or "",
+            error=result.error,
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
+
+    explanations = [
+        Explanation(substitutions=sol.substitutions, steps=explain_solution(sol))
+        for sol in result.solutions
+    ]
+
+    return ExplanationResult(
+        query=result.query,
+        explanations=explanations,
+        elapsed_ms=(time.monotonic() - start) * 1000,
     )
 
 
