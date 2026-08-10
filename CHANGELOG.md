@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **KB preload**: `knowledge`/`base_knowledge` on `reason`, `explain`, `diagnose`,
+  `what_if`, and `check_kb` are now optional (`str | None = None`). An explicit
+  value always wins; an empty value falls back to the KB preloaded from
+  `EUCLID_KB_PATH` (or a `--kb-path` flag). With neither provided, tools return
+  a clear "No knowledge provided" error. Backward compatible: passing
+  `knowledge` explicitly behaves exactly as before.
 - **Rule IDs**: rules can carry an audit-trail ID via a trailing `# rule: <id>`
   comment (case-preserving, also on the last body line of multi-line rules).
   The ID is surfaced as `rule_id` on `rule` nodes of proof trees, so a decision
@@ -30,6 +36,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `codecov/codecov-action@v5`→`v6` (Node 20 runtime is deprecated on runners)
 
 ### Added
+- **Knowledge Base preload**: a KB can be loaded once at server startup via the
+  `EUCLID_KB_PATH` env var or a `--kb-path` CLI flag (`python -m euclid_mcp`,
+  console script, and `integrations/euclid_api.py`). The file is validated with
+  `check_kb` at import time and fails fast with a clear message on a missing,
+  unreadable, oversized, or invalid file. A generic markdown digest of the
+  preloaded KB (new `euclid_mcp/kb_summary.py`: fact/rule/predicate counts,
+  predicate inventory with arities, rules with their IDs) is appended to the
+  server `instructions`, so agents see what the preloaded KB covers without
+  extra tool calls. The HTTP API accepts requests without a `knowledge` field
+  when a KB is preloaded.
 - Dependabot (`.github/dependabot.yml`): weekly update PRs for pip and GitHub Actions
 - Reproducible CI install: `uv sync --frozen --extra dev` from `uv.lock` instead of
   floating `pip install` (prevents unpinned upgrades like `mcp` 1.x → 2.x breaking CI)
