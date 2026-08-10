@@ -1,8 +1,12 @@
 """Unit tests for all 4 MCP tools: reason, diagnose, what_if, check_kb."""
 
+import asyncio
+import json
 import logging
 
-from euclid_mcp.server import check_kb, diagnose, reason, what_if
+from mcp import Client
+
+from euclid_mcp.server import check_kb, diagnose, mcp, reason, what_if
 
 # =============================================================================
 # reason
@@ -292,3 +296,75 @@ ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)
         assert len(r.errors) == 0
         assert r.facts_count == 3
         assert r.rules_count == 2
+
+
+# =============================================================================
+# MCP in-memory protocol (MCP SDK v2 Client against the live MCPServer)
+# =============================================================================
+
+
+def _call_tool(name: str, arguments: dict) -> tuple[dict, bool]:
+    """Call a tool over the in-memory MCP protocol and return parsed JSON."""
+    async def run() -> tuple[dict, bool]:
+        async with Client(mcp) as client:
+            result = await client.call_tool(name, arguments)
+        text = result.content[0].text if result.content else "{}"
+        return json.loads(text), result.is_error
+
+    return asyncio.run(run())
+
+
+class TestMCPInMemory:
+    def test_lists_all_tools(self):
+        async def run():
+            async with Client(mcp) as client:
+                tools = await client.list_tools()
+                return [t.name for t in tools.tools]
+
+        names = asyncio.run(run())
+        assert set(names) == {"reason", "diagnose", "what_if", "check_kb"}
+
+    def test_server_name(self):
+        async def run():
+            async with Client(mcp) as client:
+                return client.server_info
+
+        info = asyncio.run(run())
+        assert info.name == "Euclid-MCP"
+
+    def test_reason_tool_over_protocol(self):
+        data, is_error = _call_tool(
+            "reason",
+            {
+                "knowledge": (
+                    "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
+                )
+            },
+        )
+        assert is_error is False
+        assert data["query"] == "mortal($who)"
+        assert data["solutions"][0]["substitutions"]["who"] == "socrates"
+
+    def test_check_kb_tool_over_protocol(self):
+        data, is_error = _call_tool(
+            "check_kb", {"knowledge": "human(socrates)\nhuman(socrates)"}
+        )
+        assert is_error is False
+        assert data["valid"] is True
+        assert any(w["type"] == "duplicate_fact" for w in data["warnings"])
+
+    def test_reason_error_over_protocol(self):
+        data, is_error = _call_tool("reason", {"knowledge": "human(socrates)"})
+        assert is_error is False
+        assert data["error"] is not None
+        assert "No query" in data["error"]
+
+    def test_tools_expose_structured_output_schema(self):
+        async def run():
+            async with Client(mcp) as client:
+                tools = await client.list_tools()
+                return {t.name: t.output_schema for t in tools.tools}
+
+        schemas = asyncio.run(run())
+        for name in ("reason", "diagnose", "what_if", "check_kb"):
+            assert schemas[name] is not None

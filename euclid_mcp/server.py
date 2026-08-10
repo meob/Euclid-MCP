@@ -5,7 +5,7 @@ import re
 import time
 from typing import Any, Callable, TypeVar, cast
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from euclid_mcp.language import parse
 from euclid_mcp.linter import lint_rule
@@ -85,7 +85,7 @@ MAX_KNOWLEDGE_LENGTH = 500_000  # 500 KB
 MAX_DEPTH_LIMIT = 500
 MAX_SOLUTIONS_LIMIT = 1000
 
-mcp = FastMCP(
+mcp = MCPServer(
     "Euclid-MCP",
     instructions="""Euclid-MCP is a deterministic logical reasoning engine.
 Write facts and rules in Euclid IR, the engine returns solutions with proof trees.
