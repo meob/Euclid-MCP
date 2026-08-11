@@ -183,24 +183,112 @@ def _extract_pred_sig(term: str) -> str | None:
     return f"{name}/{arity}"
 
 
-def _generate_output(kb: KB, max_depth: int, max_solutions: int) -> list[str]:
-    query = kb.query
-    if not query:
-        return ["output :- true."]
+# Predicates provided to the persistent engine along with every KB load
+# (meta-interpreter + proof-tree serializer). They are declared dynamic and
+# asserted like ordinary clauses; the engine's stats exclude them.
+_ENGINE_PREDICATES = frozenset(
+    [
+        "prove/3",
+        "is_arith_goal/1",
+        "decompose_rule_id/3",
+        "proof_to_json/2",
+        "euclid_rule_id/1",
+    ]
+)
 
-    # Convert AND to Prolog conjunction before translating vars
+
+def _translate_query(query: str) -> tuple[str, list[str]]:
+    """Translate a Euclid-IR query into (prolog goal, ordered var names)."""
     query_body = re.sub(r"\s+[Aa][Nn][Dd]\s+", ", ", query.strip().rstrip("."))
     # Wrap in parentheses if it's a conjunction (contains commas at top level)
     if ", " in query_body:
         query_body = f"({query_body})"
     query_pl = _translate_operators(_translate_vars(query_body))
     # Deduplicate variable names while preserving order
-    seen = set()
-    var_names = []
+    seen: set[str] = set()
+    var_names: list[str] = []
     for vn in re.findall(r"\$([a-z][a-zA-Z0-9_]*)", query):
         if vn not in seen:
             seen.add(vn)
             var_names.append(vn)
+    return query_pl, var_names
+
+
+def kb_to_decls_clauses(kb: KB) -> tuple[list[str], list[str]]:
+    """Split a KB into (dynamic declarations, clause texts) for the engine.
+
+    The clauses carry the user facts/rules plus the meta-interpreter and the
+    proof-tree serializer; declarations cover both user predicates and the
+    engine helpers. Order of the returned list matches ``to_prolog`` for the
+    user statements, so solution ordering is identical.
+    """
+    decls: set[str] = set()
+    clauses: list[str] = []
+
+    for f in kb.facts:
+        clauses.append(_translate_statement(f))
+        sig = _extract_pred_sig(f)
+        if sig:
+            decls.add(sig)
+
+    for i, r in enumerate(kb.rules):
+        clauses.append(_translate_rule(r, kb.rule_ids.get(i)))
+        head = re.split(r"\s+[Ii][Ff]\s+", r, maxsplit=1)[0].strip()
+        sig = _extract_pred_sig(head)
+        if sig:
+            decls.add(sig)
+
+    clauses.sort(key=lambda x: (x.split("(")[0].split(" ")[0], x))
+
+    decls.update(_ENGINE_PREDICATES)
+    clauses.extend([META_INTERPRETER.strip(), PROOF_TO_JSON.strip()])
+
+    return (
+        sorted(decls, key=lambda x: (x.split("/")[0], int(x.split("/")[1]))),
+        clauses,
+    )
+
+
+def build_query_snippet(
+    query: str, max_depth: int = 30, max_solutions: int = 1000
+) -> str:
+    """Build the Prolog snippet for the engine's query command.
+
+    The snippet binds the variable ``Solutions`` to a list of result dicts
+    (``{'solution': {...}, 'proof': {...}}``) via ``findall/3``; the engine
+    replies with ``{"status": "ok", "solutions": [...]}``.
+    """
+    query_pl, var_names = _translate_query(query)
+    var_entries = [f"'{vn}': {vn.capitalize()}" for vn in var_names]
+    subs_dict = ", ".join(var_entries)
+    # The result line is the LAST goal of the conjunction, so it must not
+    # end with a comma (unlike _generate_output, where more goals follow).
+    if var_entries:
+        result_line = "Result = _{{'solution': _{{{s}}}, 'proof': JProof}}".format(
+            s=subs_dict
+        )
+    else:
+        result_line = "Result = _{'solution': _{}, 'proof': JProof}"
+
+    return "\n".join(
+        [
+            "findall(Result, (",
+            f"    MaxDepth = {max_depth},",
+            f"    Query = {query_pl},",
+            "    prove(Query, MaxDepth, Proof),",
+            "    proof_to_json(Proof, JProof),",
+            f"    {result_line}",
+            "), Solutions)",
+        ]
+    )
+
+
+def _generate_output(kb: KB, max_depth: int, max_solutions: int) -> list[str]:
+    query = kb.query
+    if not query:
+        return ["output :- true."]
+
+    query_pl, var_names = _translate_query(query)
 
     var_entries = []
     for vn in var_names:

@@ -23,7 +23,7 @@ from euclid_mcp.models import (
     WhatIfResult,
 )
 from euclid_mcp.prolog_bridge import execute as prolog_execute
-from euclid_mcp.translator import to_prolog
+from euclid_mcp.translator import kb_to_decls_clauses
 
 logger = logging.getLogger(__name__)
 
@@ -432,7 +432,7 @@ def reason(
         )
 
     try:
-        prolog_code = to_prolog(kb, max_depth=max_depth, max_solutions=max_solutions)
+        decls, clauses = kb_to_decls_clauses(kb)
     except Exception as exc:
         return ReasonResult(
             error=f"Prolog code generation error: {exc}",
@@ -440,7 +440,14 @@ def reason(
         )
 
     try:
-        solutions = prolog_execute(prolog_code, timeout=30)
+        solutions = prolog_execute(
+            decls,
+            clauses,
+            kb.query,
+            max_depth=max_depth,
+            max_solutions=max_solutions,
+            timeout=30,
+        )
     except RuntimeError as exc:
         return ReasonResult(
             error=str(exc),

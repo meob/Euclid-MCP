@@ -4,7 +4,7 @@ import pytest
 
 from euclid_mcp.models import KB
 from euclid_mcp.prolog_bridge import execute
-from euclid_mcp.translator import to_prolog
+from euclid_mcp.translator import kb_to_decls_clauses
 
 pytestmark = pytest.mark.skipif(
     shutil.which("swipl") is None,
@@ -13,8 +13,8 @@ pytestmark = pytest.mark.skipif(
 
 
 def _run(kb: KB) -> list:
-    code = to_prolog(kb)
-    return execute(code, timeout=15)
+    decls, clauses = kb_to_decls_clauses(kb)
+    return execute(decls, clauses, kb.query, timeout=15)
 
 
 def test_socrates():

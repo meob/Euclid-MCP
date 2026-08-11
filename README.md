@@ -21,15 +21,15 @@ Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable interme
 ## How it works
 
 ```
-┌──────────────┐     ┌──────────────────┐     ┌──────────────┐     ┌──────────────┐
-│  LLM/Agent   │────▶│  Euclid-MCP      │────▶│  Translator  │────▶│  SWI-Prolog  │
-│  (MCP Client)│◀────│  (MCPServer)     │◀────│  + Meta-IP   │◀────│ (subprocess) │
-└──────────────┘     └──────────────────┘     └──────────────┘     └──────────────┘
+┌──────────────┐     ┌──────────────────┐     ┌──────────────┐     ┌─────────────────┐
+│  LLM/Agent   │────▶│  Euclid-MCP      │────▶│  Translator  │────▶│  SWI-Prolog     │
+│  (MCP Client)│◀────│  (MCPServer)     │◀────│  + Meta-IP   │◀────│ (persistent)    │
+└──────────────┘     └──────────────────┘     └──────────────┘     └─────────────────┘
 ```
 
 1. Receive facts, rules, and a query in a simple intermediate language
 2. Translate into Prolog with a meta-interpreter for proof tree capture
-3. Execute via SWI-Prolog subprocess
+3. Execute via a persistent SWI-Prolog engine process (JSON-lines protocol on stdin/stdout; the workspace is reloaded per call, no process spawn overhead)
 4. Return solutions + proof trees as structured JSON
 
 Additional tools (`explain`, `diagnose`, `what_if`, `check_kb`) extend this core flow with natural-language explanations, analysis, scenario testing, and validation.
