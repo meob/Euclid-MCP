@@ -23,7 +23,7 @@ Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable interme
 ```
 ┌──────────────┐     ┌──────────────────┐     ┌──────────────┐     ┌──────────────┐
 │  LLM/Agent   │────▶│  Euclid-MCP      │────▶│  Translator  │────▶│  SWI-Prolog  │
-│  (MCP Client)│◀────│  (MCPServer)    │◀────│  + Meta-IP   │◀────│ (subprocess) │
+│  (MCP Client)│◀────│  (MCPServer)     │◀────│  + Meta-IP   │◀────│ (subprocess) │
 └──────────────┘     └──────────────────┘     └──────────────┘     └──────────────┘
 ```
 
@@ -39,42 +39,12 @@ LLMs describe. Euclid MCP proves.
 
 ### Knowledge Base
 
-In the current implementation, facts and rules are provided with each request.
+For small knowledge bases, facts and rules can be provided with each request.
 
-The long-term architecture also supports persistent **Knowledge Bases**, where stable business rules are loaded once into the inference engine, while agents provide only the session-specific facts required for the current query.
-
-This minimizes token usage, improves performance, and allows small LLMs to reason over large rule sets without reconstructing the entire knowledge base for every request.
-
-#### KB Preload (v0.2.0)
-
-A knowledge base can now be loaded **once at server startup** and reused across
+Since v0.2.0 a knowledge base can be loaded at server startup and reused across
 calls, so agents only pass the session-specific facts for the current query.
 
-Preload a KB by file path, via the `EUCLID_KB_PATH` environment variable or a
-`--kb-path` CLI flag:
-
-```bash
-# Environment variable
-EUCLID_KB_PATH=/path/to/policies.euclid python3 -m euclid_mcp
-
-# CLI flag (MCP stdio, console script, and HTTP API)
-python3 -m euclid_mcp --kb-path /path/to/policies.euclid
-python3 integrations/euclid_api.py --kb-path /path/to/policies.euclid --port 8080
-```
-
-Behavior:
-
-- The file is **validated with `check_kb` at startup** and the server fails fast
-  with a clear message if the file is missing, unreadable, oversized, or invalid.
-- `knowledge`/`base_knowledge` on `reason`, `explain`, `diagnose`, `what_if`, and
-  `check_kb` become **optional**: an explicit value always wins, an empty value
-  falls back to the preloaded KB. With neither, tools return a clear
-  "No knowledge provided" error.
-- A **markdown digest** of the preloaded KB (fact/rule/predicate counts, predicate
-  inventory, rules with their IDs) is appended to the server instructions, so
-  agents can see what the KB covers without extra tool calls.
-
-Backward compatible: passing `knowledge` explicitly behaves exactly as before.
+This minimizes token usage, improves performance, and allows small LLMs to reason over large rule sets without reconstructing the entire knowledge base for every request.
 
 
 ## Intermediate Language
@@ -265,6 +235,39 @@ Knowledge base validator — check for consistency before running deduction.
 | `knowledge` | `string` | — | Facts & rules in text or YAML format |
 
 **Returns** `KBCheckResult` with `valid`, `errors[]`, `warnings[]`, `facts_count`, `rules_count`, `predicates_count`.
+
+
+#### KB Preload (v0.2.0)
+
+Since v0.2.0 a knowledge base can be loaded **once at server startup** and reused across
+calls, so agents only pass the session-specific facts for the current query.
+
+Preload a KB by file path, via the `EUCLID_KB_PATH` environment variable or a
+`--kb-path` CLI flag:
+
+```bash
+# Environment variable
+EUCLID_KB_PATH=/path/to/policies.euclid python3 -m euclid_mcp
+
+# CLI flag (MCP stdio, console script, and HTTP API)
+python3 -m euclid_mcp --kb-path /path/to/policies.euclid
+python3 integrations/euclid_api.py --kb-path /path/to/policies.euclid --port 8080
+```
+
+Behavior:
+
+- The file is **validated with `check_kb` at startup** and the server fails fast
+  with a clear message if the file is missing, unreadable, oversized, or invalid.
+- `knowledge`/`base_knowledge` on `reason`, `explain`, `diagnose`, `what_if`, and
+  `check_kb` become **optional**: an explicit value always wins, an empty value
+  falls back to the preloaded KB. With neither, tools return a clear
+  "No knowledge provided" error.
+- A **markdown digest** of the preloaded KB (fact/rule/predicate counts, predicate
+  inventory, rules with their IDs) is appended to the server instructions, so
+  agents can see what the KB covers without extra tool calls.
+
+Backward compatible: passing `knowledge` explicitly behaves exactly as before.
+
 
 ## Installation
 
@@ -477,105 +480,14 @@ can be cited ("this derives from rule GEN-2").
 
 ### Real-world examples
 
-After installing (via pip or from source with an active virtualenv):
+There are several examples provided as samples: Genealogy, RBAC, Classification, Loan Eligibility,
+Cluedo Detective, IT Security & Compliance, LLM vs Euclid-MCP, ...
+Most interesting ones are the **IT Security & Compliance** (with
+CIS, AWS, IAM Standards enforcement, Company Policies implementation, hundreds of Data Facts)
+and side-by-side **LLM vs Euclid-MCP**.
 
-```bash
-# Genealogy — recursive family tree reasoning
-python examples/01_genealogy.py
+Examples full description: [`docs/EXAMPLES.md`](docs/EXAMPLES.md)
 
-# RBAC — Role-Based Access Control
-python examples/02_rbac.py
-
-# Classification — biological taxonomy
-python examples/03_classification.py
-
-# Business rules — loan eligibility
-python examples/04_loan_eligibility.py
-
-# Compliance auditor — cloud resource policy enforcement
-python examples/05_compliance_auditor/auditor.py
-
-# Loan officer — CSV-driven eligibility with detailed breakdown
-python examples/06_loan_eligibility/loan_officer.py
-
-# IT Security & Compliance — multi-layer policy reasoning (rule IDs + explanations)
-python examples/07_it_security_compliance/demo.py --small
-
-# Cluedo Detective — solve Cluedo mysteries with deductive elimination
-python examples/08_cluedo/cluedo.py
-
-# LLM vs Euclid-MCP — interactive side-by-side comparison
-python examples/10_llm_vs_euclid/demo.py
-
-# KB validation — check_kb on valid and broken knowledge bases
-python examples/12_kb_check/demo.py
-```
-
-Each example runs a complete reasoning session and prints solutions with proof trees — no LLM required.  
-Use them as templates for integrating Euclid-MCP into your own agents.
-
-Examples 05 and 06 demonstrate a **data-driven agent workflow**:
-- Read external data (JSON, CSV) that simulates API/CRM exports
-- Convert structured data to Euclid facts in Python
-- Load policy rules from `.euclid` files (separated from data)
-- Call `reason()` for deduction
-- Format results into human-readable reports with proof chains
-
-This mirrors how a real agent would work: collect data, describe it as facts, let Euclid reason, and present the results.
-
-### Example 07: IT Security & Compliance
-
-The most advanced example demonstrating:
-- **3-layer architecture**: Standards (CIS, AWS IAM) → Company Policies → Data Facts
-- **Arithmetic comparisons**: `$days > 90` for stale access detection
-- **Multi-line rules**: Complex policies split across lines
-- **Conjunction queries**: Combining multiple predicates
-- **Negative tests**: Verifying empty results for invalid access patterns
-- **Rule IDs**: policy rules tagged with `# rule: <id>` and cited in proofs
-- **Explanations**: `--mode explain` renders readable reasoning steps with
-  rule ID citations for a full audit trail
-
-```bash
-# Quick test (30 users, 50 resources, ~577 facts)
-python3 examples/07_it_security_compliance/demo.py --small
-
-# Full dataset (200 users, 300 resources, ~3,869 facts)
-python3 examples/07_it_security_compliance/demo.py
-
-# Natural-language explanations with rule ID citations
-python3 examples/07_it_security_compliance/demo.py --small --mode explain
-```
-
-### Example 10: LLM vs Euclid-MCP
-
-Interactive side-by-side comparison: a plain LLM vs the same LLM augmented with Euclid-MCP's reasoning engine. Same model, same knowledge base, dramatically different results.
-
-```bash
-# Requires: Ollama running with llama3.1:8b pulled
-ollama pull llama3.1:8b
-
-# Run the interactive demo
-python3 examples/10_llm_vs_euclid/demo.py
-
-# Options
-python3 examples/10_llm_vs_euclid/demo.py --model llama3.1:8b   # Explicit model
-python3 examples/10_llm_vs_euclid/demo.py --bot-a-only           # Plain LLM only
-python3 examples/10_llm_vs_euclid/demo.py --bot-b-only           # Euclid bot only
-
-# Scripted mode — run preset questions in sequence, then exit (ideal for demos)
-python3 examples/10_llm_vs_euclid/demo.py --scripted
-python3 examples/10_llm_vs_euclid/demo.py --scripted --pause     # Enter between questions
-python3 examples/10_llm_vs_euclid/demo.py --scripted --delay 2   # 2s pause between questions
-
-# Regenerate the condensed markdown digest of the KB (Bot A's context), persisted
-# in kb_markdown.md so the same digest can be reviewed/versioned
-python3 examples/10_llm_vs_euclid/generate_kb_markdown.py
-```
-
-- **Bot A** (plain): entire KB injected as markdown context — like RAG, grows with history
-- **Bot B** (Euclid): short system prompt + tool calling via `reason`, `diagnose`, `what_if`, `check_kb`
-- Language-agnostic: speak in any language, the engine translates to Euclid-IR automatically
-- Demonstrates proof trees, deterministic answers, and query diagnosis vs LLM hallucination
 
 ## Integrations
 
