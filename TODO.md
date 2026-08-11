@@ -53,10 +53,21 @@
 
 ## Short term (usefulness)
 
-- [ ] **Rule IDs** (language feature, release v0.2.0): trailing comment `# rule: <id>`
-      a fine regola, esposto nei proof tree come audit trail ("questa decisione deriva
-      dalla regola 43"). Design completo: `docs/PLANS/rule_ids.md` (cancellare dopo
-      l'implementazione).
+- [ ] **Lists** (language feature, release v0.2.1 or v0.3.0 — decision pending):
+      list literals as argument values + a single `member` builtin. Design agreed
+      (session Aug 11 2026, scope = "literals + member only"):
+      - [ ] List literals `[dev, ops]` (nested, `$var`/`_` inside) as values
+      - [ ] Builtin `member($x, $list)` → meta-interpreter + proof node + explain
+      - [ ] Reserved keyword: `member` cannot be used as user predicate
+      - [ ] Reserved words inside lists must be quoted (`"and"`)
+      - [ ] Arity/`,`-splitting must become bracket-aware in `translator._extract_pred_sig`,
+            `server._split_conjunction` + arity count, `explain._humanize_body`
+      - [ ] `check_kb` allowlist for `member/2`; linter: improper list `[x|y]` warning
+      - [ ] Design doc `docs/PLANS/lists.md` first (pattern: rule_ids.md)
+      - [ ] Docs: `docs/EUCLID_IR.md`, README, AGENTS.md, CHANGELOG
+      Open decisions to settle in the design doc: v0.2.1 vs v0.3.0, Euclid-IR
+      version bump (@version), keyword `MEMBER` vs `IN`, bracket syntax
+      (`[...]` vs alternatives).
 - [ ] README examples with Ollama (test with Llama 3B, Qwen 2.5 7B)
 
 ## Medium term (quality)
