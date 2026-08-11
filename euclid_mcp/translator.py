@@ -254,15 +254,15 @@ def build_query_snippet(
 ) -> str:
     """Build the Prolog snippet for the engine's query command.
 
-    The snippet binds the variable ``Solutions`` to a list of result dicts
-    (``{'solution': {...}, 'proof': {...}}``) via ``findall/3``; the engine
-    replies with ``{"status": "ok", "solutions": [...]}``.
+    The snippet streams a JSON array of result dicts
+    (``{'solution': {...}, 'proof': {...}}``) to ``current_output`` via
+    ``forall/2`` + ``json_write/3``; the engine captures it and replies
+    with ``{"status": "ok", "solutions": "<json array>"}``. Streaming
+    keeps large result sets fast and low-memory.
     """
     query_pl, var_names = _translate_query(query)
     var_entries = [f"'{vn}': {vn.capitalize()}" for vn in var_names]
     subs_dict = ", ".join(var_entries)
-    # The result line is the LAST goal of the conjunction, so it must not
-    # end with a comma (unlike _generate_output, where more goals follow).
     if var_entries:
         result_line = "Result = _{{'solution': _{{{s}}}, 'proof': JProof}}".format(
             s=subs_dict
@@ -272,13 +272,19 @@ def build_query_snippet(
 
     return "\n".join(
         [
-            "findall(Result, (",
-            f"    MaxDepth = {max_depth},",
-            f"    Query = {query_pl},",
+            "retractall(euclid_array_first), assertz(euclid_array_first),",
+            f"MaxDepth = {max_depth},",
+            f"Query = {query_pl},",
+            "write('['),",
+            "forall(",
             "    prove(Query, MaxDepth, Proof),",
-            "    proof_to_json(Proof, JProof),",
-            f"    {result_line}",
-            "), Solutions)",
+            "    ( proof_to_json(Proof, JProof),",
+            "      array_separator,",
+            f"      {result_line},",
+            "      json_write(current_output, Result, [width(0)])",
+            "    )",
+            "),",
+            "write(']')",
         ]
     )
 

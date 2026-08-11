@@ -10,9 +10,12 @@
 %       include the meta-interpreter (prove/3) and proof_to_json/2 rules,
 %       which are provided by the Python side on every load.
 %   {"command":"query","snippet":"<prolog>","timeout":30}
-%       The snippet must bind the variable `Solutions` to a list of result
-%       dicts (e.g. via findall/3). The engine replies with
-%       {"status":"ok","solutions":[...]} or {"status":"timeout"}.
+%       The snippet must write a JSON array of result dicts to
+%       current_output (one compact object per solution, commas between),
+%       e.g. via forall/2 + json_write/3. The engine captures the array and
+%       replies with {"status":"ok","solutions":"<json array string>"}.
+%       This streams instead of collecting all solutions in one term, so
+%       large result sets stay fast and low-memory.
 %   {"command":"assert","clause":"p(a)."}           -> {"status":"ok"}
 %   {"command":"retract","clause":"p(a)."}          -> {"status":"ok","count":N}
 %   {"command":"stats"}                             -> {"status":"ok","facts":N,"rules":M}
@@ -85,11 +88,10 @@ command_handler(query, Request) :-
     ( get_dict(timeout, Request, Timeout) -> true ; Timeout = 30 ),
     catch(
         ( atom_string(SnippetAtom, SnippetStr),
-          read_term_from_atom(SnippetStr, Snippet, [variable_names(Vars)]),
+          read_term_from_atom(SnippetStr, Snippet, []),
           call_with_time_limit(Timeout,
-              ( call(Snippet),
-                get_solutions(Vars, Solutions),
-                emit(_{status:ok, solutions:Solutions}) ) ) ),
+              with_output_to(string(Json), call(Snippet))),
+          emit(_{status:ok, solutions:Json}) ),
         time_limit_exceeded,
         emit(_{status:timeout})
     ).
@@ -129,13 +131,16 @@ command_handler(halt, _Request) :-
 command_handler(Other, _Request) :-
     emit(_{status:error, error:Other}).
 
-% read_term_from_atom/3 creates fresh variables, so the `Solutions`
-% bound inside the snippet is not shared with the handler clause. The
-% binding is retrieved by name from the variable_names/2 list.
-get_solutions(Vars, Solutions) :-
-    ( memberchk('Solutions'=V, Vars), nonvar(V)
-    -> Solutions = V
-    ;  Solutions = []
+% Streaming JSON-array separator for query snippets. The snippet asserts
+% euclid_array_first/0 before writing '[', then calls array_separator/0
+% before every element: the first call writes nothing, subsequent calls
+% write ','. Clear-on-load keeps the flag consistent after timeouts.
+:- dynamic euclid_array_first/0.
+
+array_separator :-
+    ( euclid_array_first
+    -> retractall(euclid_array_first)
+    ;  write(',')
     ).
 
 % ── load helpers ──────────────────────────────────────────────────────────

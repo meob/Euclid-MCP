@@ -178,9 +178,14 @@ class PrologServer:
         )
 
     def query(self, snippet: str, timeout: float = 30) -> dict[str, Any]:
-        return self._request(
+        resp = self._request(
             {"command": "query", "snippet": snippet, "timeout": timeout}, timeout
         )
+        solutions = resp.get("solutions")
+        if isinstance(solutions, str):
+            # The engine streams the result set as a JSON array string.
+            resp["solutions"] = json.loads(solutions) if solutions.strip() else []
+        return resp
 
     def assert_clause(self, clause: str, timeout: float = 30) -> dict[str, Any]:
         return self._request({"command": "assert", "clause": clause}, timeout)
