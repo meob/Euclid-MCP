@@ -102,7 +102,7 @@ Python (PrologServer) ←── stdin/stdout (JSON lines) ──→ SWI-Prolog (
 - **Rule IDs in the proof tree** — `@rule RBAC-0043` directive; every `rule` node
   carries the source rule ID (audit trail: "this decision derives from rule 43")
 - **Deterministic `explain_proof`** — proof tree → natural language, server-side,
-  no LLM (cheaper + auditable; alternative to the LLM-based `explain` in TODO)
+  no LLM (cheaper + auditable; alternative to an LLM-based `explain`)
 - **KB identity** — version + content hash per KB (compliance: "decision taken
   with KB v12")
 
