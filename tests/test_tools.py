@@ -1,8 +1,12 @@
-"""Unit tests for all 4 MCP tools: reason, diagnose, what_if, check_kb."""
+"""Unit tests for all 5 MCP tools: reason, explain, diagnose, what_if, check_kb."""
 
+import asyncio
+import json
 import logging
 
-from euclid_mcp.server import check_kb, diagnose, reason, what_if
+from mcp import Client
+
+from euclid_mcp.server import check_kb, diagnose, mcp, reason, what_if
 
 # =============================================================================
 # reason
@@ -292,3 +296,198 @@ ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)
         assert len(r.errors) == 0
         assert r.facts_count == 3
         assert r.rules_count == 2
+
+
+# =============================================================================
+# MCP in-memory protocol (MCP SDK v2 Client against the live MCPServer)
+# =============================================================================
+
+
+def _call_tool(name: str, arguments: dict) -> tuple[dict, bool]:
+    """Call a tool over the in-memory MCP protocol and return parsed JSON."""
+    async def run() -> tuple[dict, bool]:
+        async with Client(mcp) as client:
+            result = await client.call_tool(name, arguments)
+        text = result.content[0].text if result.content else "{}"
+        return json.loads(text), result.is_error
+
+    return asyncio.run(run())
+
+
+class TestMCPInMemory:
+    def test_lists_all_tools(self):
+        async def run():
+            async with Client(mcp) as client:
+                tools = await client.list_tools()
+                return [t.name for t in tools.tools]
+
+        names = asyncio.run(run())
+        assert set(names) == {"reason", "explain", "diagnose", "what_if", "check_kb"}
+
+    def test_server_name(self):
+        async def run():
+            async with Client(mcp) as client:
+                return client.server_info
+
+        info = asyncio.run(run())
+        assert info.name == "Euclid-MCP"
+
+    def test_reason_tool_over_protocol(self):
+        data, is_error = _call_tool(
+            "reason",
+            {
+                "knowledge": (
+                    "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
+                )
+            },
+        )
+        assert is_error is False
+        assert data["query"] == "mortal($who)"
+        assert data["solutions"][0]["substitutions"]["who"] == "socrates"
+
+    def test_explain_tool_over_protocol(self):
+        data, is_error = _call_tool(
+            "explain",
+            {
+                "knowledge": (
+                    "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
+                )
+            },
+        )
+        assert is_error is False
+        assert data["query"] == "mortal($who)"
+        assert data["explanations"][0]["substitutions"]["who"] == "socrates"
+        assert len(data["explanations"][0]["steps"]) == 2
+
+    def test_check_kb_tool_over_protocol(self):
+        data, is_error = _call_tool(
+            "check_kb", {"knowledge": "human(socrates)\nhuman(socrates)"}
+        )
+        assert is_error is False
+        assert data["valid"] is True
+        assert any(w["type"] == "duplicate_fact" for w in data["warnings"])
+
+    def test_reason_error_over_protocol(self):
+        data, is_error = _call_tool("reason", {"knowledge": "human(socrates)"})
+        assert is_error is False
+        assert data["error"] is not None
+        assert "No query" in data["error"]
+
+    def test_tools_expose_structured_output_schema(self):
+        async def run():
+            async with Client(mcp) as client:
+                tools = await client.list_tools()
+                return {t.name: t.output_schema for t in tools.tools}
+
+        schemas = asyncio.run(run())
+        for name in ("reason", "explain", "diagnose", "what_if", "check_kb"):
+            assert schemas[name] is not None
+
+
+# =============================================================================
+# Rule IDs — end-to-end proof attribution
+# =============================================================================
+
+
+class TestRuleIDs:
+    def test_reason_proof_carries_rule_id(self):
+        r = reason(
+            "human(socrates)\n"
+            "mortal($x) IF human($x)  # rule: RBAC-0043\n"
+            "? mortal($who)"
+        )
+        assert r.error is None
+        assert r.solutions[0].proof.type == "rule"
+        assert r.solutions[0].proof.rule_id == "RBAC-0043"
+
+    def test_reason_no_id_keeps_rule_id_none(self):
+        r = reason("human(socrates)\nmortal($x) IF human($x)\n? mortal($who)")
+        assert r.error is None
+        assert r.solutions[0].proof.type == "rule"
+        assert r.solutions[0].proof.rule_id is None
+
+    def test_reason_multi_hop_ids(self):
+        kb = (
+            "parent(tom, bob)\n"
+            "parent(bob, ann)\n"
+            "ancestor($x, $y) IF parent($x, $y)  # rule: BASE-1\n"
+            "ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)  # rule: REC-2\n"
+            "? ancestor(tom, ann)"
+        )
+        r = reason(kb)
+        assert r.error is None
+        assert len(r.solutions) == 1
+        proof = r.solutions[0].proof
+        assert proof.type == "rule"
+        assert proof.rule_id in ("BASE-1", "REC-2")
+        nested = proof.subproof
+        assert nested.type == "and"
+        assert nested.right.type == "rule"
+        assert nested.right.rule_id == "BASE-1"
+
+    def test_reason_rule_id_on_fact_error(self):
+        r = reason("p(a)  # rule: X\n? p(a)")
+        assert r.error is not None
+        assert "not allowed on a fact" in r.error
+
+    def test_check_kb_duplicate_rule_id_warning(self):
+        c = check_kb(
+            "p(a)\n"
+            "q($x) IF p($x)  # rule: R1\n"
+            "s($x) IF p($x)  # rule: R1"
+        )
+        assert c.valid is True
+        assert any(
+            w.type == "duplicate_rule_id" and "R1" in w.message for w in c.warnings
+        )
+
+    def test_check_kb_unique_rule_ids_no_warning(self):
+        c = check_kb(
+            "p(a)\n"
+            "q($x) IF p($x)  # rule: R1\n"
+            "s($x) IF p($x)  # rule: R2"
+        )
+        assert c.valid is True
+        assert not any(w.type == "duplicate_rule_id" for w in c.warnings)
+
+    def test_hostile_rule_id_rejected(self):
+        hostile = (
+            "p(a)\n"
+            "q($x) IF p($x)  # rule: '); halt.\n"
+            "? q($who)"
+        )
+        r = reason(hostile)
+        assert r.error is not None
+
+    def test_hostile_rule_id_escaped_not_executed(self):
+        kb = "p(a)\nq($x) IF p($x)  # rule: a'b\\c\n? q($who)"
+        r = reason(kb)
+        assert r.error is None
+        assert r.solutions[0].proof.rule_id == "a'b\\c"
+
+    def test_reason_rule_id_body_is_clean(self):
+        kb = (
+            "p(a)\n"
+            "q($x) IF p($x)  # rule: R1\n"
+            "? q($who)"
+        )
+        r = reason(kb)
+        assert r.error is None
+        proof = r.solutions[0].proof
+        assert proof.rule_id == "R1"
+        assert "euclid_rule_id" not in (proof.body or "")
+
+    def test_reason_multi_hop_body_is_clean(self):
+        kb = (
+            "parent(tom, bob)\n"
+            "parent(bob, ann)\n"
+            "ancestor($x, $y) IF parent($x, $y)  # rule: BASE-1\n"
+            "ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)  # rule: REC-2\n"
+            "? ancestor(tom, ann)"
+        )
+        r = reason(kb)
+        assert r.error is None
+        proof = r.solutions[0].proof
+        assert proof.rule_id == "REC-2"
+        assert "euclid_rule_id" not in (proof.body or "")
+        assert proof.subproof.right.body == "parent(bob,ann)"

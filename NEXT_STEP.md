@@ -1,33 +1,39 @@
-# Euclid-MCP — Session Checkpoint (Aug 6, 2026)
+# Euclid-MCP — Session Checkpoint (Aug 10, 2026)
 
-## Completed in this session
-- **Dev tooling upgrade** (5 commits, all verified):
-  - Lint/typecheck cleanup: ruff clean across the whole repo (per-file-ignores for
-    demo scripts in `examples/`, `benchmarks/`), mypy extended to `integrations/`
-  - New integration tests for HTTP API (`tests/test_api.py`) and CLI (`tests/test_cli.py`):
-    131 tests total, 82% coverage
-  - CI workflow on push/PR (`.github/workflows/ci.yml`): Python 3.10-3.12 matrix,
-    SWI-Prolog, ruff → mypy → pytest+cov, Codecov upload
-  - README: shields.io badges (PyPI, Python versions, license, CI, coverage) +
-    Development section
-  - Structured logging: every tool call logs name, elapsed_ms, solution count, error;
-    level controlled by `EUCLID_LOG_LEVEL`; HTTP API supports `X-Request-Id` echo/tracing
-  - Pre-commit hooks (ruff, mypy, pytest) + coverage gate `fail_under = 80` in pyproject
-  - AGENTS.md: Development section with standard verification commands
+## v0.2.0 in progress — Phases 1–5 done, awaiting final verification
+Plan: was `docs/PLANS/v0.2.0_release.md` (deleted after Phase 5). All commits
+local, no GitHub push until the user re-tests and re-checks the docs.
+
+## Completed in this session (Phase 5 — Examples + docs + release)
+- **Example 07**: new `--mode explain` (E1/E2) renders readable reasoning steps
+  with rule ID citations (`RBAC-USER-PERM-1`, `ENV-DEPLOY-1`, …); README updated.
+- **HTTP API**: new `POST /explain` endpoint with tests (parity with the 5th tool).
+- **Polish**: proof-tree `body` no longer leaks the internal `euclid_rule_id(...)`
+  marker (meta-interpreter now stores the decomposed body); 2 new tests.
+- **Docs aligned**: README (5 tools, `explain` section, KB preload section,
+  `rule_id` in example output, `/explain` endpoint, example 07 explain),
+  `docs/EUCLID_IR.md` (`# rule:` syntax + rule_id proof + explain in workflow),
+  `AGENTS.md` (5 tools, optional knowledge/preload, rule IDs),
+  `integrations/README.md` (`/explain`, `--kb-path`), `.opencode.json`
+  (reasoning-engine instructions: 5 tools + preloaded KB).
+- **Version**: CHANGELOG v0.2.0 (2026-08-10) consolidating Unreleased;
+  `pyproject.toml` + `euclid_mcp/__init__.py` bumped to 0.2.0.
+- **Cleanup**: deleted `docs/PLANS/rule_ids.md` and `docs/PLANS/v0.2.0_release.md`.
+
+## Remaining
+- [ ] User re-test: full test suite, examples, docs review
+- [ ] Final gate (ruff, mypy, pytest+cov, A/B) before push
+- [ ] Push to GitHub + tag v0.2.0 (only after user approval)
 
 ## Previous sessions
-- **Jul 26**: Euclid-IR v1.0 stabilization (case-insensitive identifiers, string literals,
-  generic inequality, safe negation linting, `%` comments) — 110 tests
+- **Aug 10**: Phase 4 — KB preload (`EUCLID_KB_PATH` / `--kb-path`, kb_summary digest)
+- **Aug 10**: Phase 3 — `explain` tool (deterministic proof → natural language)
+- **Aug 10**: Phase 2 — Rule IDs (`# rule:` on proof trees)
+- **Aug 8**: Case-insensitive keywords, operator alignment (`==`/`!=`/`<=`), docs, tests.
+- **Aug 6**: Dev tooling upgrade — CI matrix, ruff/mypy/pytest gate, logging + tracing.
+- **Jul 26**: Euclid-IR v1.0 stabilization (110 tests)
 - **Jul 22**: Docker container, lint + type checking (89 tests)
-- **Jul 21**: Documentation refresh (tools, examples, EUCLID_IR quick reference)
-- **Jul 13**: Security hardening, `diagnose`/`what_if`/`check_kb` tools, PyPI v0.1.3, MCP Registry
+- **Jul 13**: Security hardening, diagnose/what_if/check_kb, PyPI v0.1.3, MCP Registry
 
 ## Status
-- Tests: 131/131 passing (ruff + mypy clean, coverage 82%)
-- CI: workflow in place, badge activates after first push
-- Note: uncommitted work in the working tree (example 10 + related docs/uv.lock) left untouched
-
-## Next priorities
-- [ ] `explain` tool: proof tree → natural language
-- [ ] Named knowledge bases: save/load for reuse
-- [ ] README examples with Ollama (Llama 3B, Qwen 2.5 7B)
+- Working tree: Phase 5 changes staged for local commit; `main` ahead of `origin/main` (local only)

@@ -102,6 +102,7 @@ def _parse_proof(d: dict) -> ProofNode:
     elif t == "rule":
         node.goal = d.get("goal")
         node.body = d.get("body")
+        node.rule_id = d.get("rule_id")
         if "subproof" in d and isinstance(d["subproof"], dict):
             node.subproof = _parse_proof(d["subproof"])
     elif t == "and":
@@ -109,4 +110,6 @@ def _parse_proof(d: dict) -> ProofNode:
             node.left = _parse_proof(d["left"])
         if "right" in d and isinstance(d["right"], dict):
             node.right = _parse_proof(d["right"])
+    elif t == "neg":
+        node.goal = d.get("goal")
     return node

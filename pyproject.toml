@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "euclid-mcp"
-version = "0.1.5"
+version = "0.2.0"
 description = "MCP server for deterministic logical reasoning via Prolog — transforms facts into formal proofs"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,7 +23,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "mcp>=1.27,<2",
+    "mcp>=2.0",
     "ollama>=0.6.2",
     "pydantic>=2.0",
     "PyYAML>=6.0",

@@ -87,10 +87,10 @@ critical_operation(modify_security_group)
 critical_operation(manage_encryption_keys)
 
 # ── Who can perform critical operations ──
-can_perform_critical($user, $op) IF user($user) AND user_has_permission($user, $op) AND has_role($user, $role) AND deploy_role_level($role, $level) AND $level >= 6
+can_perform_critical($user, $op) IF user($user) AND user_has_permission($user, $op) AND has_role($user, $role) AND deploy_role_level($role, $level) AND $level >= 6  # rule: ACL-CRITICAL-1
 
 # ── Database access rules ──
-can_access_database($user) IF user($user) AND user_has_permission($user, access_database)
+can_access_database($user) IF user($user) AND user_has_permission($user, access_database)  # rule: ACL-DATABASE-1
 
 # Users who can access production databases need additional approval
-production_db_access($user) IF user($user) AND can_access_database($user) AND has_role($user, $role) AND deploy_role_level($role, $level) AND $level >= 5
+production_db_access($user) IF user($user) AND can_access_database($user) AND has_role($user, $role) AND deploy_role_level($role, $level) AND $level >= 5  # rule: ACL-DATABASE-2

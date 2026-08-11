@@ -3,15 +3,20 @@ import logging
 import os
 import re
 import time
+from pathlib import Path
 from typing import Any, Callable, TypeVar, cast
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
+from euclid_mcp.explain import explain_solution
+from euclid_mcp.kb_summary import build_kb_summary
 from euclid_mcp.language import parse
 from euclid_mcp.linter import lint_rule
 from euclid_mcp.models import (
     DiagnosisFinding,
     DiagnosisResult,
+    Explanation,
+    ExplanationResult,
     KBCheckResult,
     KBError,
     ReasonResult,
@@ -85,9 +90,251 @@ MAX_KNOWLEDGE_LENGTH = 500_000  # 500 KB
 MAX_DEPTH_LIMIT = 500
 MAX_SOLUTIONS_LIMIT = 1000
 
-mcp = FastMCP(
-    "Euclid-MCP",
-    instructions="""Euclid-MCP is a deterministic logical reasoning engine.
+_KB_PATH_ENV = "EUCLID_KB_PATH"
+
+
+def _extract_predicate(text: str) -> tuple[str, str] | None:
+    """Extract predicate name and args from a term like 'parent(tom, bob)'."""
+    text = text.strip()
+    match = re.match(r"([a-z_]\w*)\s*\((.*)\)\s*$", text)
+    if match:
+        return match.group(1), match.group(2)
+    # Zero-arity fact
+    match = re.match(r"([a-z_]\w*)\s*$", text)
+    if match:
+        return match.group(1), ""
+    return None
+
+
+def _split_conjunction(body: str) -> list[str]:
+    """Split a rule body on AND, respecting parentheses."""
+    parts = []
+    depth = 0
+    current: list[str] = []
+    for ch in body:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append("".join(current).strip())
+            current = []
+            continue
+        current.append(ch)
+    if current:
+        tail = "".join(current).strip()
+        if tail:
+            parts.append(tail)
+    return parts
+
+
+def _body_predicates(body: str) -> set[str]:
+    """Extract predicate names referenced in a rule body.
+
+    Handles negation (NOT ...) and skips arithmetic goals and variables.
+    Used by check_kb for exact recursive-rule detection (avoids substring
+    false positives such as 'deploy_role_level' matching 'role_level').
+    """
+    preds: set[str] = set()
+    for goal in _split_conjunction(body):
+        goal = goal.strip()
+        if _is_not_goal(goal):
+            goal = goal[4:].strip()
+        parsed = _extract_predicate(goal)
+        if parsed:
+            preds.add(parsed[0])
+    return preds
+
+
+def _run_check_kb(knowledge: str) -> KBCheckResult:
+    """Core KB validation, independent of the MCP server.
+
+    Defined before the server object so the preloaded KB (EUCLID_KB_PATH) can
+    be validated at import time, before MCPServer is created.
+    """
+    start = time.monotonic()
+    errors: list[KBError] = []
+    warnings: list[KBError] = []
+
+    # Parse the KB
+    try:
+        kb = parse(knowledge)
+    except Exception as exc:
+        return KBCheckResult(
+            valid=False,
+            errors=[KBError(type="parse_error", message=str(exc))],
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
+
+    # Collect all defined predicates
+    defined: dict[str, set[int]] = {}  # name -> set of arities
+
+    for fact in kb.facts:
+        parsed = _extract_predicate(fact)
+        if parsed:
+            name, args = parsed
+            arity = args.count(",") + 1 if args else 0
+            defined.setdefault(name, set()).add(arity)
+
+    for rule in kb.rules:
+        head, _ = _split_rule(rule)
+        parsed = _extract_predicate(head.strip())
+        if parsed:
+            name, args = parsed
+            arity = args.count(",") + 1 if args else 0
+            defined.setdefault(name, set()).add(arity)
+
+    # Check 1: duplicate facts
+    seen_facts: dict[str, int] = {}
+    for fact in kb.facts:
+        normalized = fact.strip().rstrip(".")
+        if normalized in seen_facts:
+            warnings.append(KBError(
+                type="duplicate_fact",
+                message=f"Duplicate fact: {normalized}",
+                predicate=normalized.split("(")[0] if "(" in normalized else normalized,
+            ))
+        seen_facts[normalized] = seen_facts.get(normalized, 0) + 1
+
+    # Check 2: undefined predicates in rule bodies
+    for rule in kb.rules:
+        _, body = _split_rule(rule)
+        body_goals = _split_conjunction(body)
+
+        for goal in body_goals:
+            goal = goal.strip()
+            if _is_not_goal(goal):
+                goal = goal[4:].strip()
+
+            goal_pred = _extract_predicate(goal)
+            if goal_pred:
+                goal_name, goal_args = goal_pred
+                # Skip variables, arithmetic, and wildcards
+                if goal_name.startswith("$") or goal_name in (
+                    "true", "false", "is", ">", ">=", "<", "<=", "=<", "==", "=\\=", "!="
+                ):
+                    continue
+                goal_arity = goal_args.count(",") + 1 if goal_args else 0
+                if goal_name not in defined:
+                    errors.append(KBError(
+                        type="undefined_predicate",
+                        message=(
+                            "Rule body references undefined predicate "
+                            f"'{goal_name}/{goal_arity}'"
+                        ),
+                        predicate=f"{goal_name}/{goal_arity}",
+                    ))
+
+    # Check 3: circular rules (simple detection)
+    rule_heads: dict[str, list[str]] = {}
+    for rule in kb.rules:
+        head, _ = _split_rule(rule)
+        parsed = _extract_predicate(head.strip())
+        if parsed:
+            name, _ = parsed
+            rule_heads.setdefault(name, []).append(rule)
+
+    for pred_name, rules in rule_heads.items():
+        for rule in rules:
+            _, body = _split_rule(rule)
+            if pred_name in _body_predicates(body):
+                # Recursive rule — check if there's also a non-recursive base case
+                has_base = any(
+                    pred_name not in _body_predicates(_split_rule(r)[1])
+                    for r in rules
+                )
+                if not has_base:
+                    errors.append(KBError(
+                        type="circular_rule",
+                        message=f"Recursive rule for '{pred_name}' without base case",
+                        predicate=pred_name,
+                    ))
+
+    # Check 4: query referenced but not defined
+    if kb.query:
+        query_pred = _extract_predicate(kb.query)
+        if query_pred:
+            name, args = query_pred
+            if name not in defined:
+                errors.append(KBError(
+                    type="undefined_predicate",
+                    message=f"Query references undefined predicate '{name}'",
+                    predicate=name,
+                ))
+
+    # Check 5: unsafe negation (lint)
+    for rule in kb.rules:
+        lint_warnings = lint_rule(rule)
+        for w in lint_warnings:
+            warnings.append(KBError(type="unsafe_negation", message=w))
+
+    # Check 6: duplicate rule IDs
+    seen_rule_ids: dict[str, int] = {}
+    for idx, rule in enumerate(kb.rules):
+        rid = kb.rule_ids.get(idx)
+        if not rid:
+            continue
+        if rid in seen_rule_ids:
+            warnings.append(KBError(
+                type="duplicate_rule_id",
+                message=f"Duplicate rule ID: {rid}",
+                predicate=rid,
+            ))
+        seen_rule_ids[rid] = seen_rule_ids.get(rid, 0) + 1
+
+    valid = len(errors) == 0
+
+    elapsed = (time.monotonic() - start) * 1000
+    return KBCheckResult(
+        valid=valid,
+        errors=errors,
+        warnings=warnings,
+        facts_count=len(kb.facts),
+        rules_count=len(kb.rules),
+        predicates_count=len(defined),
+        elapsed_ms=elapsed,
+    )
+
+
+def _load_preloaded_kb() -> str | None:
+    """Load and validate the KB referenced by EUCLID_KB_PATH.
+
+    Returns None when the env var is unset. Raises RuntimeError (fail-fast at
+    import time) when the file is missing, unreadable, oversized, or invalid.
+    """
+    path = os.environ.get(_KB_PATH_ENV, "").strip()
+    if not path:
+        return None
+    if not os.path.isfile(path):
+        raise RuntimeError(
+            f"EUCLID_KB_PATH points to a missing file: {path}. "
+            "Create the file or unset EUCLID_KB_PATH to run without "
+            "a preloaded KB."
+        )
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(
+            f"EUCLID_KB_PATH file is not readable: {path}: {exc}"
+        ) from exc
+    if len(text) > MAX_KNOWLEDGE_LENGTH:
+        raise RuntimeError(
+            f"EUCLID_KB_PATH file exceeds the maximum KB size "
+            f"({len(text):,} > {MAX_KNOWLEDGE_LENGTH:,} bytes): {path}"
+        )
+    result = _run_check_kb(text)
+    if not result.valid:
+        details = "; ".join(e.message for e in result.errors)
+        raise RuntimeError(
+            f"EUCLID_KB_PATH file is not a valid knowledge base: "
+            f"{path}: {details}"
+        )
+    return text
+
+
+_PRELOADED_KB = _load_preloaded_kb()
+
+_BASE_INSTRUCTIONS = """Euclid-MCP is a deterministic logical reasoning engine.
 Write facts and rules in Euclid IR, the engine returns solutions with proof trees.
 
 Syntax:
@@ -100,9 +347,28 @@ Examples:
     ? mortal($who)
 
 YAML format also supported (see AGENTS.md for full reference).
-Use when: logical rules, compliance checks, RBAC, proof trees, deterministic answers.
-""",
-)
+Use when: logical rules, compliance checks, RBAC, proof trees, deterministic answers."""
+
+
+def _server_instructions() -> str:
+    """Base instructions plus a digest of the preloaded KB when present.
+
+    MCPServer.instructions is read-only, so the digest is computed before the
+    server object is created.
+    """
+    if not _PRELOADED_KB:
+        return _BASE_INSTRUCTIONS
+    return f"{_BASE_INSTRUCTIONS}\n\n{build_kb_summary(_PRELOADED_KB)}"
+
+
+mcp = MCPServer("Euclid-MCP", instructions=_server_instructions())
+
+
+def _resolve_knowledge(knowledge: str | None) -> str | None:
+    """Effective KB source: an explicit value wins, else the preloaded KB."""
+    if knowledge is not None and knowledge.strip():
+        return knowledge
+    return _PRELOADED_KB
 
 
 @mcp.tool(
@@ -111,12 +377,20 @@ Use when: logical rules, compliance checks, RBAC, proof trees, deterministic ans
 )
 @_log_call("reason")
 def reason(
-    knowledge: str,
+    knowledge: str | None = None,
     query: str | None = None,
     max_solutions: int = 5,
     max_depth: int = 30,
 ) -> ReasonResult:
     start = time.monotonic()
+
+    kb_source = _resolve_knowledge(knowledge)
+    if kb_source is None:
+        return ReasonResult(
+            error="No knowledge provided: pass 'knowledge' or preload a KB "
+            "via EUCLID_KB_PATH.",
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
 
     # Security: validate limits
     if not (1 <= max_solutions <= MAX_SOLUTIONS_LIMIT):
@@ -131,15 +405,15 @@ def reason(
         )
 
     # Security: reject oversized input
-    if len(knowledge) > MAX_KNOWLEDGE_LENGTH:
+    if len(kb_source) > MAX_KNOWLEDGE_LENGTH:
         return ReasonResult(
             error=f"Knowledge exceeds maximum allowed size "
-            f"({len(knowledge):,} > {MAX_KNOWLEDGE_LENGTH:,} bytes)",
+            f"({len(kb_source):,} > {MAX_KNOWLEDGE_LENGTH:,} bytes)",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
 
     try:
-        kb = parse(knowledge)
+        kb = parse(kb_source)
     except Exception as exc:
         return ReasonResult(
             error=f"Knowledge parsing error: {exc}",
@@ -181,6 +455,54 @@ def reason(
     )
 
 
+# ── explain() ───────────────────────────────────────────────────────────────
+
+
+@mcp.tool(
+    description="Explain, in natural language, how a query is proven: "
+    "walk the proof tree of each solution and return readable reasoning steps. "
+    "Rule IDs are cited when present.",
+)
+@_log_call("explain")
+def explain(
+    knowledge: str | None = None,
+    query: str | None = None,
+    max_solutions: int = 5,
+    max_depth: int = 30,
+) -> ExplanationResult:
+    start = time.monotonic()
+
+    kb_source = _resolve_knowledge(knowledge)
+    if kb_source is None:
+        return ExplanationResult(
+            query=query or "",
+            error="No knowledge provided: pass 'knowledge' or preload a KB "
+            "via EUCLID_KB_PATH.",
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
+
+    result = reason(
+        kb_source, query=query, max_solutions=max_solutions, max_depth=max_depth
+    )
+    if result.error:
+        return ExplanationResult(
+            query=query or "",
+            error=result.error,
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
+
+    explanations = [
+        Explanation(substitutions=sol.substitutions, steps=explain_solution(sol))
+        for sol in result.solutions
+    ]
+
+    return ExplanationResult(
+        query=result.query,
+        explanations=explanations,
+        elapsed_ms=(time.monotonic() - start) * 1000,
+    )
+
+
 # ── diagnose() ──────────────────────────────────────────────────────────────
 
 
@@ -191,13 +513,21 @@ def reason(
 )
 @_log_call("diagnose")
 def diagnose(
-    knowledge: str,
-    query: str,
+    knowledge: str | None = None,
+    query: str = "",
     mode: str = "why",
     max_solutions: int = 5,
     max_depth: int = 30,
 ) -> DiagnosisResult:
     start = time.monotonic()
+
+    kb_source = _resolve_knowledge(knowledge)
+    if kb_source is None:
+        return DiagnosisResult(
+            error="No knowledge provided: pass 'knowledge' or preload a KB "
+            "via EUCLID_KB_PATH.",
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
 
     if mode not in ("why", "why_not", "what_needs"):
         return DiagnosisResult(
@@ -206,7 +536,7 @@ def diagnose(
         )
 
     # First: check if the query holds or not
-    base_result = reason(knowledge, query=query, max_solutions=max_solutions, max_depth=max_depth)
+    base_result = reason(kb_source, query=query, max_solutions=max_solutions, max_depth=max_depth)
     if base_result.error:
         return DiagnosisResult(
             error=base_result.error,
@@ -217,7 +547,7 @@ def diagnose(
 
     # Parse KB for structural analysis
     try:
-        kb = parse(knowledge)
+        kb = parse(kb_source)
     except Exception as exc:
         return DiagnosisResult(
             error=f"Knowledge parsing error: {exc}",
@@ -347,59 +677,6 @@ def _analyze_query(kb, query: str, holds: bool) -> list[DiagnosisFinding]:
     return findings
 
 
-def _extract_predicate(text: str) -> tuple[str, str] | None:
-    """Extract predicate name and args from a term like 'parent(tom, bob)'."""
-    text = text.strip()
-    match = re.match(r"([a-z_]\w*)\s*\((.*)\)\s*$", text)
-    if match:
-        return match.group(1), match.group(2)
-    # Zero-arity fact
-    match = re.match(r"([a-z_]\w*)\s*$", text)
-    if match:
-        return match.group(1), ""
-    return None
-
-
-def _split_conjunction(body: str) -> list[str]:
-    """Split a rule body on AND, respecting parentheses."""
-    parts = []
-    depth = 0
-    current: list[str] = []
-    for ch in body:
-        if ch == "(":
-            depth += 1
-        elif ch == ")":
-            depth -= 1
-        elif ch == "," and depth == 0:
-            parts.append("".join(current).strip())
-            current = []
-            continue
-        current.append(ch)
-    if current:
-        tail = "".join(current).strip()
-        if tail:
-            parts.append(tail)
-    return parts
-
-
-def _body_predicates(body: str) -> set[str]:
-    """Extract predicate names referenced in a rule body.
-
-    Handles negation (NOT ...) and skips arithmetic goals and variables.
-    Used by check_kb for exact recursive-rule detection (avoids substring
-    false positives such as 'deploy_role_level' matching 'role_level').
-    """
-    preds: set[str] = set()
-    for goal in _split_conjunction(body):
-        goal = goal.strip()
-        if _is_not_goal(goal):
-            goal = goal[4:].strip()
-        parsed = _extract_predicate(goal)
-        if parsed:
-            preds.add(parsed[0])
-    return preds
-
-
 # ── what_if() ───────────────────────────────────────────────────────────────
 
 
@@ -410,13 +687,21 @@ def _body_predicates(body: str) -> set[str]:
 )
 @_log_call("what_if")
 def what_if(
-    base_knowledge: str,
-    modifications: str,
-    query: str,
+    base_knowledge: str | None = None,
+    modifications: str = "",
+    query: str = "",
     max_solutions: int = 5,
     max_depth: int = 30,
 ) -> WhatIfResult:
     start = time.monotonic()
+
+    kb_source = _resolve_knowledge(base_knowledge)
+    if kb_source is None:
+        return WhatIfResult(
+            error="No base knowledge provided: pass 'base_knowledge' or "
+            "preload a KB via EUCLID_KB_PATH.",
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
 
     # Validate input
     if not modifications.strip():
@@ -450,7 +735,7 @@ def what_if(
 
     # Build modified knowledge
     modified_lines: list[str] = []
-    for line in base_knowledge.splitlines():
+    for line in kb_source.splitlines():
         stripped = line.strip()
         # Skip removed facts
         if any(_facts_match(stripped, rf) for rf in remove_facts):
@@ -465,7 +750,7 @@ def what_if(
 
     # Run before (base only) and after (modified)
     base_result = reason(
-        base_knowledge, query=query,
+        kb_source, query=query,
         max_solutions=max_solutions, max_depth=max_depth,
     )
     mod_result = reason(
@@ -551,135 +836,22 @@ def _facts_match(line: str, pattern: str) -> bool:
     "syntax errors, undefined predicates, circular rules, duplicates.",
 )
 @_log_call("check_kb")
-def check_kb(knowledge: str) -> KBCheckResult:
+def check_kb(knowledge: str | None = None) -> KBCheckResult:
     start = time.monotonic()
-    errors: list[KBError] = []
-    warnings: list[KBError] = []
-
-    # Parse the KB
-    try:
-        kb = parse(knowledge)
-    except Exception as exc:
+    kb_source = _resolve_knowledge(knowledge)
+    if kb_source is None:
         return KBCheckResult(
             valid=False,
-            errors=[KBError(type="parse_error", message=str(exc))],
+            errors=[KBError(
+                type="no_knowledge",
+                message="No knowledge provided: pass 'knowledge' or preload "
+                        "a KB via EUCLID_KB_PATH.",
+            )],
+            error="No knowledge provided: pass 'knowledge' or preload a KB "
+                  "via EUCLID_KB_PATH.",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
-
-    # Collect all defined predicates
-    defined: dict[str, set[int]] = {}  # name -> set of arities
-
-    for fact in kb.facts:
-        parsed = _extract_predicate(fact)
-        if parsed:
-            name, args = parsed
-            arity = args.count(",") + 1 if args else 0
-            defined.setdefault(name, set()).add(arity)
-
-    for rule in kb.rules:
-        head, _ = _split_rule(rule)
-        parsed = _extract_predicate(head.strip())
-        if parsed:
-            name, args = parsed
-            arity = args.count(",") + 1 if args else 0
-            defined.setdefault(name, set()).add(arity)
-
-    # Check 1: duplicate facts
-    seen_facts: dict[str, int] = {}
-    for fact in kb.facts:
-        normalized = fact.strip().rstrip(".")
-        if normalized in seen_facts:
-            warnings.append(KBError(
-                type="duplicate_fact",
-                message=f"Duplicate fact: {normalized}",
-                predicate=normalized.split("(")[0] if "(" in normalized else normalized,
-            ))
-        seen_facts[normalized] = seen_facts.get(normalized, 0) + 1
-
-    # Check 2: undefined predicates in rule bodies
-    for rule in kb.rules:
-        _, body = _split_rule(rule)
-        body_goals = _split_conjunction(body)
-
-        for goal in body_goals:
-            goal = goal.strip()
-            if _is_not_goal(goal):
-                goal = goal[4:].strip()
-
-            goal_pred = _extract_predicate(goal)
-            if goal_pred:
-                goal_name, goal_args = goal_pred
-                # Skip variables, arithmetic, and wildcards
-                if goal_name.startswith("$") or goal_name in (
-                    "true", "false", "is", ">", ">=", "<", "<=", "=<", "==", "=\\=", "!="
-                ):
-                    continue
-                goal_arity = goal_args.count(",") + 1 if goal_args else 0
-                if goal_name not in defined:
-                    errors.append(KBError(
-                        type="undefined_predicate",
-                        message=(
-                            "Rule body references undefined predicate "
-                            f"'{goal_name}/{goal_arity}'"
-                        ),
-                        predicate=f"{goal_name}/{goal_arity}",
-                    ))
-
-    # Check 3: circular rules (simple detection)
-    rule_heads: dict[str, list[str]] = {}
-    for rule in kb.rules:
-        head, _ = _split_rule(rule)
-        parsed = _extract_predicate(head.strip())
-        if parsed:
-            name, _ = parsed
-            rule_heads.setdefault(name, []).append(rule)
-
-    for pred_name, rules in rule_heads.items():
-        for rule in rules:
-            _, body = _split_rule(rule)
-            if pred_name in _body_predicates(body):
-                # Recursive rule — check if there's also a non-recursive base case
-                has_base = any(
-                    pred_name not in _body_predicates(_split_rule(r)[1])
-                    for r in rules
-                )
-                if not has_base:
-                    errors.append(KBError(
-                        type="circular_rule",
-                        message=f"Recursive rule for '{pred_name}' without base case",
-                        predicate=pred_name,
-                    ))
-
-    # Check 4: query referenced but not defined
-    if kb.query:
-        query_pred = _extract_predicate(kb.query)
-        if query_pred:
-            name, args = query_pred
-            if name not in defined:
-                errors.append(KBError(
-                    type="undefined_predicate",
-                    message=f"Query references undefined predicate '{name}'",
-                    predicate=name,
-                ))
-
-    # Check 5: unsafe negation (lint)
-    for rule in kb.rules:
-        lint_warnings = lint_rule(rule)
-        for w in lint_warnings:
-            warnings.append(KBError(type="unsafe_negation", message=w))
-
-    valid = len(errors) == 0
-
-    elapsed = (time.monotonic() - start) * 1000
-    return KBCheckResult(
-        valid=valid,
-        errors=errors,
-        warnings=warnings,
-        facts_count=len(kb.facts),
-        rules_count=len(kb.rules),
-        predicates_count=len(defined),
-        elapsed_ms=elapsed,
-    )
+    return _run_check_kb(kb_source)
 
 
 def main() -> None:

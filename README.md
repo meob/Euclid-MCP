@@ -23,7 +23,7 @@ Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable interme
 ```
 ┌──────────────┐     ┌──────────────────┐     ┌──────────────┐     ┌──────────────┐
 │  LLM/Agent   │────▶│  Euclid-MCP      │────▶│  Translator  │────▶│  SWI-Prolog  │
-│  (MCP Client)│◀────│  (FastMCP)       │◀────│  + Meta-IP   │◀────│ (subprocess) │
+│  (MCP Client)│◀────│  (MCPServer)    │◀────│  + Meta-IP   │◀────│ (subprocess) │
 └──────────────┘     └──────────────────┘     └──────────────┘     └──────────────┘
 ```
 
@@ -32,7 +32,7 @@ Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable interme
 3. Execute via SWI-Prolog subprocess
 4. Return solutions + proof trees as structured JSON
 
-Additional tools (`diagnose`, `what_if`, `check_kb`) extend this core flow with analysis, scenario testing, and validation.
+Additional tools (`explain`, `diagnose`, `what_if`, `check_kb`) extend this core flow with natural-language explanations, analysis, scenario testing, and validation.
 
 LLMs describe. Euclid MCP proves.  
 
@@ -44,6 +44,37 @@ In the current implementation, facts and rules are provided with each request.
 The long-term architecture also supports persistent **Knowledge Bases**, where stable business rules are loaded once into the inference engine, while agents provide only the session-specific facts required for the current query.
 
 This minimizes token usage, improves performance, and allows small LLMs to reason over large rule sets without reconstructing the entire knowledge base for every request.
+
+#### KB Preload (v0.2.0)
+
+A knowledge base can now be loaded **once at server startup** and reused across
+calls, so agents only pass the session-specific facts for the current query.
+
+Preload a KB by file path, via the `EUCLID_KB_PATH` environment variable or a
+`--kb-path` CLI flag:
+
+```bash
+# Environment variable
+EUCLID_KB_PATH=/path/to/policies.euclid python3 -m euclid_mcp
+
+# CLI flag (MCP stdio, console script, and HTTP API)
+python3 -m euclid_mcp --kb-path /path/to/policies.euclid
+python3 integrations/euclid_api.py --kb-path /path/to/policies.euclid --port 8080
+```
+
+Behavior:
+
+- The file is **validated with `check_kb` at startup** and the server fails fast
+  with a clear message if the file is missing, unreadable, oversized, or invalid.
+- `knowledge`/`base_knowledge` on `reason`, `explain`, `diagnose`, `what_if`, and
+  `check_kb` become **optional**: an explicit value always wins, an empty value
+  falls back to the preloaded KB. With neither, tools return a clear
+  "No knowledge provided" error.
+- A **markdown digest** of the preloaded KB (fact/rule/predicate counts, predicate
+  inventory, rules with their IDs) is appended to the server instructions, so
+  agents can see what the KB covers without extra tool calls.
+
+Backward compatible: passing `knowledge` explicitly behaves exactly as before.
 
 
 ## Intermediate Language
@@ -152,11 +183,12 @@ Some internal [benchmarks](benchmarks/BENCHMARKS.md) demonstrate the difference:
 
 ## Tools
 
-Euclid-MCP exposes **4 tools**, each with a specific purpose:
+Euclid-MCP exposes **5 tools**, each with a specific purpose:
 
 | Tool | Purpose |
 |------|---------|
 | `reason` | Main deduction — get solutions + proof trees |
+| `explain` | Readable, natural-language reasoning steps |
 | `diagnose` | Understand why a query succeeds or fails |
 | `what_if` | Test modifications before applying them |
 | `check_kb` | Validate KB consistency before reasoning |
@@ -173,6 +205,23 @@ Main tool for verifiable deterministic reasoning.
 | `max_depth` | `int` | `30` | Max proof tree depth |
 
 **Returns** `ReasonResult` with `solutions[]` — each containing variable bindings and a proof tree.
+
+### `explain`
+
+Deterministic proof-tree → natural-language reasoning steps. No LLM involved: it
+walks the proof tree of each solution and renders every step in plain language,
+citing the rule ID (`# rule: <id>`) when a rule has one. Use it to turn a proof
+into an auditable, human-readable explanation.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `knowledge` | `string?` | — | Facts & rules in text or YAML format |
+| `query` | `string?` | — | Override query (optional) |
+| `max_solutions` | `int` | `5` | Max solutions to return |
+| `max_depth` | `int` | `30` | Max proof tree depth |
+
+**Returns** `ExplanationResult` with `explanations[]` — each containing variable
+bindings and an ordered list of natural-language `steps`.
 
 ### `diagnose`
 
@@ -275,7 +324,7 @@ See [Docker in Integrations](#docker) for full details.
 ### Via Python
 
 ```python
-from euclid_mcp.server import reason, diagnose, what_if, check_kb
+from euclid_mcp.server import reason, explain, diagnose, what_if, check_kb
 
 # Reasoning
 result = reason(knowledge="""
@@ -285,6 +334,14 @@ result = reason(knowledge="""
 """)
 for sol in result.solutions:
     print(sol.substitutions, sol.proof.type)
+
+# Explanation — readable reasoning steps (cites rule IDs when present)
+expl = explain(
+    knowledge="human(socrates)\nmortal($x) IF human($x)  # rule: BIO-001",
+    query="mortal($who)"
+)
+for e in expl.explanations:
+    print(e.substitutions, e.steps)
 
 # Diagnosis — why does a query fail?
 diag = diagnose(
@@ -319,6 +376,7 @@ print(f"Valid: {check.valid}, Errors: {check.errors}")
         "type": "rule",
         "goal": "ancestor(tom, bob)",
         "body": "parent(tom, bob)",
+        "rule_id": "GEN-1",
         "subproof": {"type": "fact", "goal": "parent(tom, bob)"}
       }
     },
@@ -328,6 +386,7 @@ print(f"Valid: {check.valid}, Errors: {check.errors}")
         "type": "rule",
         "goal": "ancestor(tom, ann)",
         "body": "parent(tom, bob), ancestor(bob, ann)",
+        "rule_id": "GEN-2",
         "subproof": {
           "type": "and",
           "left": {"type": "fact", "goal": "parent(tom, bob)"},
@@ -335,6 +394,7 @@ print(f"Valid: {check.valid}, Errors: {check.errors}")
             "type": "rule",
             "goal": "ancestor(bob, ann)",
             "body": "parent(bob, ann)",
+            "rule_id": "GEN-1",
             "subproof": {"type": "fact", "goal": "parent(bob, ann)"}
           }
         }
@@ -343,6 +403,10 @@ print(f"Valid: {check.valid}, Errors: {check.errors}")
   ]
 }
 ```
+
+Rules can carry an audit-trail ID via a trailing `# rule: <id>` comment; the ID
+is surfaced as `rule_id` on the `rule` nodes of the proof tree, so a decision
+can be cited ("this derives from rule GEN-2").
 
 #### Diagnose output
 
@@ -377,6 +441,23 @@ print(f"Valid: {check.valid}, Errors: {check.errors}")
     {"substitutions": {"who": "socrates"}}
   ],
   "conclusion": "Solutions increased: 1 -> 2."
+}
+```
+
+#### Explain output
+
+```json
+{
+  "query": "mortal($who)",
+  "explanations": [
+    {
+      "substitutions": {"who": "socrates"},
+      "steps": [
+        "mortal(socrates) is derived by rule BIO-001 from: human(socrates).",
+        "human(socrates) is asserted as a fact in the knowledge base."
+      ]
+    }
+  ]
 }
 ```
 
@@ -417,7 +498,7 @@ python examples/05_compliance_auditor/auditor.py
 # Loan officer — CSV-driven eligibility with detailed breakdown
 python examples/06_loan_eligibility/loan_officer.py
 
-# IT Security & Compliance — multi-layer policy reasoning
+# IT Security & Compliance — multi-layer policy reasoning (rule IDs + explanations)
 python examples/07_it_security_compliance/demo.py --small
 
 # Cluedo Detective — solve Cluedo mysteries with deductive elimination
@@ -450,6 +531,9 @@ The most advanced example demonstrating:
 - **Multi-line rules**: Complex policies split across lines
 - **Conjunction queries**: Combining multiple predicates
 - **Negative tests**: Verifying empty results for invalid access patterns
+- **Rule IDs**: policy rules tagged with `# rule: <id>` and cited in proofs
+- **Explanations**: `--mode explain` renders readable reasoning steps with
+  rule ID citations for a full audit trail
 
 ```bash
 # Quick test (30 users, 50 resources, ~577 facts)
@@ -457,6 +541,9 @@ python3 examples/07_it_security_compliance/demo.py --small
 
 # Full dataset (200 users, 300 resources, ~3,869 facts)
 python3 examples/07_it_security_compliance/demo.py
+
+# Natural-language explanations with rule ID citations
+python3 examples/07_it_security_compliance/demo.py --small --mode explain
 ```
 
 ### Example 10: LLM vs Euclid-MCP
@@ -526,6 +613,7 @@ python3 integrations/euclid_api.py --port 8080
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/reason` | POST | Deduction with proof trees |
+| `/explain` | POST | Natural-language reasoning steps |
 | `/diagnose` | POST | Query failure analysis |
 | `/what-if` | POST | Scenario testing |
 | `/check-kb` | POST | KB validation |
@@ -534,6 +622,11 @@ python3 integrations/euclid_api.py --port 8080
 ```bash
 # Reasoning
 curl -X POST http://localhost:8080/reason \
+  -H "Content-Type: application/json" \
+  -d '{"knowledge": "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"}'
+
+# Explanation
+curl -X POST http://localhost:8080/explain \
   -H "Content-Type: application/json" \
   -d '{"knowledge": "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"}'
 

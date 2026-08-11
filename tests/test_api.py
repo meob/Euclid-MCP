@@ -89,6 +89,22 @@ class TestApi:
             assert status == 400
             assert "knowledge" in data["error"]
 
+    def test_explain(self):
+        with _TestServer() as s:
+            status, data = _request(s.port, "POST", "/explain", {"knowledge": KB})
+            assert status == 200
+            assert len(data["explanations"]) == 1
+            exp = data["explanations"][0]
+            assert exp["substitutions"]["who"] == "socrates"
+            assert any("mortal(socrates)" in s for s in exp["steps"])
+            assert "elapsed_ms" in data
+
+    def test_explain_missing_knowledge(self):
+        with _TestServer() as s:
+            status, data = _request(s.port, "POST", "/explain", {"knowledge": "  "})
+            assert status == 400
+            assert "knowledge" in data["error"]
+
     def test_diagnose(self):
         with _TestServer() as s:
             body = {"knowledge": KB, "query": "mortal(plato)", "mode": "why_not"}

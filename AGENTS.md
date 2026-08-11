@@ -2,18 +2,23 @@
 
 Deterministic logical reasoning engine. Write facts/rules in **Euclid IR**, engine translates to Prolog, returns solutions with **proof trees**.
 
-Tools: `euclid-mcp_reason`, `euclid-mcp_diagnose`, `euclid-mcp_what_if`, `euclid-mcp_check_kb`
+Tools: `euclid-mcp_reason`, `euclid-mcp_explain`, `euclid-mcp_diagnose`, `euclid-mcp_what_if`, `euclid-mcp_check_kb`
 
 ## Workflow
 
 ```
 1. check_kb    → validate before reasoning (catch syntax errors, undefined predicates)
 2. reason      → run deduction, get solutions + proof trees
-3. diagnose    → if result unexpected: mode="why_not" to find missing facts/rules
-4. what_if     → test modifications before applying them
+3. explain     → turn solutions into readable, auditable reasoning steps
+4. diagnose    → if result unexpected: mode="why_not" to find missing facts/rules
+5. what_if     → test modifications before applying them
 ```
 
 Always call `check_kb` first on new or modified knowledge bases.
+
+`knowledge`/`base_knowledge` are optional on all tools: when a KB is preloaded
+(`EUCLID_KB_PATH` / `--kb-path`), an empty value falls back to it. Pass
+`knowledge` explicitly only for session-specific facts or a different KB.
 
 ## Tools
 
@@ -22,7 +27,18 @@ Main deduction. Returns solutions with variable bindings and proof trees.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `knowledge` | `string` | — | Facts & rules (text or YAML) |
+| `knowledge` | `string?` | — | Facts & rules (falls back to preloaded KB) |
+| `query` | `string?` | — | Override query (optional) |
+| `max_solutions` | `int` | `5` | Max solutions |
+| `max_depth` | `int` | `30` | Max proof tree depth |
+
+### `explain`
+Deterministic proof-tree → natural-language reasoning steps. Cites `rule_id`
+when a rule has one.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `knowledge` | `string?` | — | Facts & rules (falls back to preloaded KB) |
 | `query` | `string?` | — | Override query (optional) |
 | `max_solutions` | `int` | `5` | Max solutions |
 | `max_depth` | `int` | `30` | Max proof tree depth |
@@ -65,7 +81,7 @@ active(user_42)
 rainy
 
 # Rules
-mortal($x) IF human($x)
+mortal($x) IF human($x)  # rule: BIO-001
 ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)
 
 # Negation
@@ -88,6 +104,7 @@ stale($user) IF user($user) AND last_login($user, $days) AND $days > 90
 - Predicates: lowercase with args in `()`
 - Wildcards: `_` (anonymous variable)
 - Comments: `#` or `//`
+- Rule IDs: trailing `# rule: <id>` → surfaced as `rule_id` in proofs, cited by `explain`
 - Multi-line rules: continuation implied after `IF` or `AND`
 
 ### Supported operators

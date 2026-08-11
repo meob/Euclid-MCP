@@ -29,7 +29,7 @@
 - [x] **Arithmetic constraints**: `$x > 90`, `$x >= $y` in rules
 - [x] **Multi-line rules**: body on next lines
 - [x] **Conjunction queries**: `pred1($x) AND pred2($x)` with variable dedup
-- [x] **IT Security & Compliance demo**: 3,872 facts, 3 layers
+- [x] **IT Security & Compliance demo**: 3,869 facts, 3 layers
 - [x] CI pipeline (GitHub Actions: PyPI publish on release)
 - [x] MCP Registry: `io.github.meob/euclid-mcp` v0.1.3
 - [x] Awesome MCP Servers: PR [#10007](https://github.com/punkpeye/awesome-mcp-servers/pull/10007)
@@ -53,11 +53,22 @@
 
 ## Short term (usefulness)
 
+- [ ] **Lists** (language feature, release v0.2.1 or v0.3.0 — decision pending):
+      list literals as argument values + a single `member` builtin. Design agreed
+      (session Aug 11 2026, scope = "literals + member only"):
+      - [ ] List literals `[dev, ops]` (nested, `$var`/`_` inside) as values
+      - [ ] Builtin `member($x, $list)` → meta-interpreter + proof node + explain
+      - [ ] Reserved keyword: `member` cannot be used as user predicate
+      - [ ] Reserved words inside lists must be quoted (`"and"`)
+      - [ ] Arity/`,`-splitting must become bracket-aware in `translator._extract_pred_sig`,
+            `server._split_conjunction` + arity count, `explain._humanize_body`
+      - [ ] `check_kb` allowlist for `member/2`; linter: improper list `[x|y]` warning
+      - [ ] Design doc `docs/PLANS/lists.md` first (pattern: rule_ids.md)
+      - [ ] Docs: `docs/EUCLID_IR.md`, README, AGENTS.md, CHANGELOG
+      Open decisions to settle in the design doc: v0.2.1 vs v0.3.0, Euclid-IR
+      version bump (@version), keyword `MEMBER` vs `IN`, bracket syntax
+      (`[...]` vs alternatives).
 - [ ] README examples with Ollama (test with Llama 3B, Qwen 2.5 7B)
-- [ ] **Migrate to MCP SDK v2** (`mcp.server.mcpserver.MCPServer` or standalone
-      `fastmcp`): v2.0.0 (2026-07-28) removed `mcp.server.fastmcp`; currently
-      pinned `mcp>=1.27,<2`
-- [ ] Policy Compiler
 
 ## Medium term (quality)
 

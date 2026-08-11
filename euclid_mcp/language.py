@@ -5,6 +5,9 @@ from .sanitizer import sanitize
 
 VERSION_PATTERN = re.compile(r"^@version\s+(\d+\.\d+)", re.IGNORECASE)
 
+# Trailing comment reserved for rule IDs:  # rule: <id>
+_RULE_ID_PATTERN = re.compile(r"(?<!\S)\s*#\s*rule:\s*(.+?)\s*$", re.IGNORECASE)
+
 _RESERVED_KEYWORDS = {"if", "and", "not", "is"}
 
 # Regex for quoted strings (double or single quote, with escape support)
@@ -134,9 +137,21 @@ def _parse_yaml(text: str) -> KB:
     return KB(facts=facts, rules=rules, query=query)
 
 
+def _extract_rule_id(raw_line: str) -> str | None:
+    """Extract a rule ID from a trailing `# rule: <id>` comment.
+
+    Case-preserving (like string literals); returns None when the line has
+    no reserved `# rule:` comment. Applied to the raw line after string
+    extraction and before lowercasing.
+    """
+    m = _RULE_ID_PATTERN.search(raw_line)
+    return m.group(1) if m else None
+
+
 def _parse_text(text: str) -> KB:
     facts: list[str] = []
     rules: list[str] = []
+    rule_ids: dict[int, str] = {}
     query: str | None = None
 
     lines = text.split("\n")
@@ -145,6 +160,7 @@ def _parse_text(text: str) -> KB:
         raw_line = lines[i]
         # Extract strings before stripping comments (strings may contain #)
         raw_line, line_strings = _extract_strings(raw_line)
+        rule_id = _extract_rule_id(raw_line)
         # Strip comments (#, //, %)
         line = re.sub(r"(?<!\S)\s*(#|//|%).*$", "", raw_line).strip()
         i += 1
@@ -159,6 +175,11 @@ def _parse_text(text: str) -> KB:
         line = line.lower().replace("__str_", "__STR_")
 
         if line.startswith("?"):
+            if rule_id:
+                raise ValueError(
+                    "`# rule:` is not allowed on a query. "
+                    "It applies only to rules."
+                )
             query = _restore_strings(line.lstrip("? ").strip(), line_strings)
         elif " if " in line or line.endswith(" if"):
             if " if " in line:
@@ -174,6 +195,9 @@ def _parse_text(text: str) -> KB:
                 next_raw = lines[i]
                 next_raw, next_strings = _extract_strings(next_raw)
                 line_strings.extend(next_strings)
+                next_rule_id = _extract_rule_id(next_raw)
+                if next_rule_id:
+                    rule_id = next_rule_id  # last body line wins
                 next_line = re.sub(r"(?<!\S)\s*(#|//|%).*$", "", next_raw).strip()
                 i += 1
                 if not next_line:
@@ -187,11 +211,19 @@ def _parse_text(text: str) -> KB:
                     body_str = body_str + " " + next_line
             body_parts = re.split(r"\s+and\s+", body_str)
             body = ", ".join(p.strip() for p in body_parts)
+            rule_index = len(rules)
             rules.append(_restore_strings(f"{head.strip()} if {body}", line_strings))
+            if rule_id:
+                rule_ids[rule_index] = rule_id
         else:
+            if rule_id:
+                raise ValueError(
+                    "`# rule:` is not allowed on a fact. "
+                    "It applies only to rules."
+                )
             facts.append(_restore_strings(line, line_strings))
 
-    return KB(facts=facts, rules=rules, query=query)
+    return KB(facts=facts, rules=rules, query=query, rule_ids=rule_ids)
 
 
 def _normalize_kb(kb: KB) -> KB:

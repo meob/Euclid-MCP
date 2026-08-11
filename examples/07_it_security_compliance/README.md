@@ -53,6 +53,15 @@ python demo.py --small --question Q5
 
 # Limit solutions per query
 python demo.py --small --max-solutions 10
+
+# Diagnose a query (why / why_not / what_needs)
+python demo.py --small --mode diagnose
+
+# What-if analysis (add/remove facts)
+python demo.py --small --mode what-if
+
+# Natural-language explanations with rule ID citations
+python demo.py --small --mode explain
 ```
 
 ## Data Generation
@@ -81,6 +90,9 @@ python data/extract_from_postgres.py --host localhost --dbname mydb --user admin
 3. **Conjunction queries**: Q3 combines `can_access_resource` with `resource` filter
 4. **Negative tests**: Q6, Q8 verify empty results for invalid access patterns
 5. **Proof trees**: Each solution includes a proof tree showing reasoning steps
+6. **Rule IDs**: policy rules carry `# rule: <id>` tags surfaced as `rule_id` in proofs
+7. **Natural-language explanations**: `--mode explain` renders readable reasoning
+   steps and cites the rule IDs behind every conclusion (audit trail)
 
 ## Files
 

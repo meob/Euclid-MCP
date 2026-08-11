@@ -232,3 +232,78 @@ def test_string_preserves_case():
 def test_string_in_rule():
     kb = parse('greet($x) IF name($x, "World")\n? greet($who)')
     assert kb.rules[0] == 'greet($x) if name($x, "World")'
+
+
+# =============================================================================
+# Rule IDs (# rule: <id>)
+# =============================================================================
+
+
+def test_rule_id_single_line():
+    kb = parse("p(a)\nq($x) IF p($x)  # rule: RBAC-0043")
+    assert kb.rule_ids == {0: "RBAC-0043"}
+
+
+def test_rule_id_multi_line():
+    kb = parse(
+        "p(a)\np(b)\n"
+        "q($x) IF\n    p($x) AND\n    r($x)  # rule: POL-17\n"
+        "r(b)\n"
+        "? q($who)"
+    )
+    assert kb.rule_ids == {0: "POL-17"}
+
+
+def test_rule_id_case_preserved():
+    kb = parse("p(a)\nq($x) IF p($x)  # rule: MyRule-X1")
+    assert kb.rule_ids == {0: "MyRule-X1"}
+    assert kb.rules[0] == "q($x) if p($x)"
+
+
+def test_rule_id_multiple_rules_own_ids():
+    kb = parse(
+        "p(a)\n"
+        "q($x) IF p($x)  # rule: R1\n"
+        "s($x) IF p($x)  # rule: R2\n"
+        "t($x) IF p($x)"
+    )
+    assert kb.rule_ids == {0: "R1", 1: "R2"}
+
+
+def test_rule_id_prefix_case_insensitive():
+    kb = parse("p(a)\nq($x) IF p($x)  # RULE: ABC-1")
+    assert kb.rule_ids == {0: "ABC-1"}
+
+
+def test_rule_id_on_fact_raises():
+    import pytest
+    with pytest.raises(ValueError, match="not allowed on a fact"):
+        parse("p(a)  # rule: X")
+
+
+def test_rule_id_on_query_raises():
+    import pytest
+    with pytest.raises(ValueError, match="not allowed on a query"):
+        parse("p(a)\n? p(a)  # rule: X")
+
+
+def test_rule_id_standalone_line_ignored():
+    kb = parse("# rule: orphan\np(a)\nq($x) IF p($x)\n? q($who)")
+    assert kb.rule_ids == {}
+    assert len(kb.rules) == 1
+
+
+def test_rule_id_plain_comment_not_reserved():
+    kb = parse("p(a)\nq($x) IF p($x)  # important rule")
+    assert kb.rule_ids == {}
+    assert len(kb.rules) == 1
+
+
+def test_rule_id_yaml_empty():
+    kb = parse("facts:\n  - p(a)\nrules:\n  - q($x) IF p($x)")
+    assert kb.rule_ids == {}
+
+
+def test_rule_id_string_literal_inside_ignored():
+    kb = parse('note("data # rule: fake")\np(a)\nq($x) IF p($x)  # rule: real')
+    assert kb.rule_ids == {0: "real"}
