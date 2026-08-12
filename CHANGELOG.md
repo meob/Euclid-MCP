@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- **Python 3.13 and 3.14 support**: verified end-to-end (lint, mypy, and the
+  full test suite) on CPython 3.13 and 3.14. New PyPI classifiers advertise
+  both, and the CI matrix now runs on Python 3.10–3.14.
+
 ## [0.3.0] — 2026-08-12
 
 ### Added

@@ -652,7 +652,7 @@ pytest --cov=euclid_mcp --cov=integrations
 ```
 
 The CI workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs these
-same checks on push and pull request, across Python 3.10–3.12.
+same checks on push and pull request, across Python 3.10–3.14.
 
 ### Logging & tracing
 

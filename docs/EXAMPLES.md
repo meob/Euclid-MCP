@@ -91,6 +91,7 @@ python3 examples/10_llm_vs_euclid/demo.py
 python3 examples/10_llm_vs_euclid/demo.py --model llama3.1:8b   # Explicit model
 python3 examples/10_llm_vs_euclid/demo.py --bot-a-only           # Plain LLM only
 python3 examples/10_llm_vs_euclid/demo.py --bot-b-only           # Euclid bot only
+python3 examples/10_llm_vs_euclid/demo.py --verbose              # Show proof chains
 
 # Scripted mode — run preset questions in sequence, then exit (ideal for demos)
 python3 examples/10_llm_vs_euclid/demo.py --scripted

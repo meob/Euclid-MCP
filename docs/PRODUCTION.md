@@ -12,11 +12,11 @@ sufficient production architecture once the in-process hardening is in place
 ## Architecture
 
 ```
-                    ┌──────────────┐   ┌──────────────────────┐
-  n8n/Zapier/Make ─▶│   HAProxy    │──▶│ replica 1: euclid-api │──▶ swipl
-  (TLS, rate limit,│ (LB + health │  ┌┴──────────────────────┐
+                    ┌──────────────┐    ┌───────────────────────┐
+  n8n/Zapier/Make ─▶│   HAProxy    │───▶│ replica 1: euclid-api │──▶ swipl
+  (TLS, rate limit, │ (LB + health │   ┌┴──────────────────────┐
    timeouts)        │  + circuit   )──▶│ replica 2: euclid-api │──▶ swipl
-                    │  breaking)   │  └──────────────────────┘
+                    │  breaking)   │   └───────────────────────┘
                     └──────────────┘   replica N ...
 ```
 
@@ -24,8 +24,7 @@ sufficient production architecture once the in-process hardening is in place
   a single persistent `swipl` engine process.
 - Any replica can serve any request: the KB travels with the request.
 - A replica handles one request at a time (serialized by `PrologServer`'s lock);
-  concurrency comes from horizontal scale-out. An in-process engine pool is on
-  the roadmap (see `IDEAS.md`).
+  concurrency comes from horizontal scale-out.
 
 ## Prerequisites (already in the codebase)
 
@@ -208,12 +207,10 @@ The HTTP API access log includes `request_id=...` when the client sent
   `EUCLID_KB_PATH` resolves to the same file everywhere.
 - **A slow client holds a replica**: the engine is single-request at a time; set
   `timeout client` at the proxy and consider the in-process engine pool roadmap
-  item (`IDEAS.md`) for concurrent requests within one instance.
+  item for concurrent requests within one instance.
 
 ## References
 
-- Plan + hardening review: `docs/PLANS/security-hardening.md`
 - Internal monitoring: `docs/MONITORING.md`
 - HTTP API endpoints: `integrations/README.md`, `integrations/euclid_api.py`
-- Roadmap (engine pool, threaded HTTP API): `IDEAS.md`
 - Benchmarks: `benchmarks/BENCHMARKS.md`, `benchmarks/solution_cap_benchmark.py`
