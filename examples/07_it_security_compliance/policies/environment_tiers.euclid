@@ -37,7 +37,7 @@ requires_audit_log(golden)
 requires_audit_log(staging)
 
 # ── Access rules: who can access each tier ──
-can_access_tier($user, $env) IF user($user) AND has_role($user, $role) AND deploy_requires_level($env, $min_level) AND deploy_role_level($role, $level) AND $level >= $min_level  # rule: ENV-ACCESS-1
+can_access_tier($user, $env) IF user($user) AND has_role($user, $role) AND deploy_requires_level($env, $min_level) AND deploy_role_level($role, $level) AND $level >= $min_level  # RULE: ENV-ACCESS-1
 
 # ── Deployment permission = role level >= tier requirement AND has deploy permission ──
-can_deploy($user, $env) IF user($user) AND has_role($user, $role) AND deploy_requires_level($env, $min_level) AND deploy_role_level($role, $level) AND $level >= $min_level AND user_has_permission($user, deploy_code)  # rule: ENV-DEPLOY-1
+can_deploy($user, $env) IF user($user) AND has_role($user, $role) AND deploy_requires_level($env, $min_level) AND deploy_role_level($role, $level) AND $level >= $min_level AND user_has_permission($user, deploy_code)  # RULE: ENV-DEPLOY-1

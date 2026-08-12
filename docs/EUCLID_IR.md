@@ -42,7 +42,7 @@ Output: `$who = bob`, `$who = ann` (with full proof trees).
 | `a AND b` | Conjunction | `p($x) AND q($x)` |
 | `NOT a` | Negation | `NOT active($user)` |
 | `? goal` | Query | `? mortal($who)` |
-| `# rule: <id>` | Rule ID (trailing comment) | `mortal($x) IF human($x)  # rule: BIO-001` |
+| `# RULE: <id>` | Rule ID (trailing comment) | `mortal($x) IF human($x)  # RULE: BIO-001` |
 | `a != b` | Inequality | `$x != 0` |
 | `a > b` | Arithmetic | `$days > 90` |
 | `"text"` | String literal | `"alice@example.com"` |
@@ -277,28 +277,28 @@ Comments are stripped during parsing.
 
 ### Rule IDs
 
-Rules can carry an audit-trail identifier via a trailing `# rule: <id>` comment.
+Rules can carry an audit-trail identifier via a trailing `# RULE: <id>` comment.
 The ID is surfaced as `rule_id` on the `rule` nodes of the proof tree, so a
 decision can be cited ("this derives from rule RBAC-0043").
 
 ```
-can_access($u, $r) IF has_role($u, $role) AND role_perm($role, $r)  # rule: RBAC-0043
+can_access($u, $r) IF has_role($u, $role) AND role_perm($role, $r)  # RULE: RBAC-0043
 ```
 
-For multi-line rules, place the `# rule:` comment on the **last body line**:
+For multi-line rules, place the `# RULE:` comment on the **last body line**:
 
 ```
 can_deploy($user, $env) IF
     user($user) AND
     has_role($user, $role) AND
     deploy_requires_level($env, $min) AND
-    $level >= $min  # rule: DEPLOY-POL-1
+    $level >= $min  # RULE: DEPLOY-POL-1
 ```
 
 **Rules:**
-- `# rule:` is reserved. A plain trailing comment (e.g. `# important rule`)
-  stays an ordinary comment. A standalone line `# rule: X` is ignored.
-- `# rule:` on a fact or query is a **parse error**.
+- `# RULE:` is reserved. A plain trailing comment (e.g. `# important rule`)
+  stays an ordinary comment. A standalone line `# RULE: X` is ignored.
+- `# RULE:` on a fact or query is a **parse error**.
 - IDs preserve case (extracted before lowercasing), like string literals.
 - `check_kb` warns on duplicate rule IDs.
 - Backward compatible: rules without an ID behave exactly as before and their
@@ -317,7 +317,7 @@ can_deploy($user, $env) IF
 ```
 
 **Security:** the ID is re-emitted as an escaped Prolog string — hostile input
-like `# rule: '); halt.` cannot break out of the engine.
+like `# RULE: '); halt.` cannot break out of the engine.
 
 ### YAML Format
 
@@ -481,7 +481,7 @@ mortal($x) IF human($x)
 ]}
 ```
 
-If the rules carry `# rule:` IDs, `explain` cites them: *"mortal(socrates) is
+If the rules carry `# RULE:` IDs, `explain` cites them: *"mortal(socrates) is
 derived by rule BIO-001 from: human(socrates)."*
 
 ---
@@ -525,7 +525,7 @@ Euclid-IR is a **simplified subset of Horn-clause logic** — the core of Prolog
 | Multi-line rules | ✅ Supported | Body spans multiple lines |
 | Conjunction queries | ✅ Supported | `AND` in query |
 | String literals | ✅ Supported | UTF-8 strings in `"..."` or `'...'` |
-| Rule IDs | ✅ Supported | `# rule: <id>` trailing comment, surfaced as `rule_id` in proofs |
+| Rule IDs | ✅ Supported | `# RULE: <id>` trailing comment, surfaced as `rule_id` in proofs |
 | Case-insensitive | ✅ Supported | `Human(ALICE)` → `human(alice)` |
 | Disjunction (OR) | ❌ Not supported | Use multiple rules instead |
 | Cut (!) | ❌ Not supported | No backtracking control |

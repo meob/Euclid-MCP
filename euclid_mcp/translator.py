@@ -140,7 +140,7 @@ def _translate_operators(s: str) -> str:
 
 
 def _translate_statement(fact: str) -> str:
-    return _translate_operators(_translate_vars(fact.strip().rstrip("."))) + "."
+    return _quote_goal(_translate_operators(_translate_vars(fact.strip().rstrip(".")))) + "."
 
 
 def _prolog_escape_str(s: str) -> str:
@@ -148,14 +148,112 @@ def _prolog_escape_str(s: str) -> str:
     return "'" + s.replace("\\", "\\\\").replace("'", "''") + "'"
 
 
+_PLACEHOLDER_RE = re.compile(r"^__STR_\d+__$")
+
+
+def _quote_atom(name: str) -> str:
+    """Single-quote a Prolog atom whose first char would be misread.
+
+    An atom is safe unquoted when it starts with an ASCII lowercase letter
+    ([a-z]). Anything else gets single-quoted: SWI-Prolog would otherwise
+    parse an uppercase initial (e.g. Cyrillic 'Бог') as a variable, and a
+    CJK/caseless name (e.g. '父') gets quoted for clarity. Quoted and
+    unquoted atoms are identical in SWI-Prolog, so this is always safe.
+    """
+    if name and "a" <= name[0] <= "z":
+        return name
+    return _prolog_escape_str(name)
+
+
+def _quote_term(term: str) -> str:
+    """Recursively quote unsafe atoms in a Prolog term string.
+
+    Leaves $var-derived variables (ASCII uppercase first char), the
+    anonymous `_`, numbers, and quoted-string placeholders untouched.
+    """
+    term = term.strip()
+    if not term:
+        return term
+    if _PLACEHOLDER_RE.match(term):
+        return term
+    if term.startswith("(") and term.endswith(")"):
+        inner = term[1:-1]
+        args = _split_args(inner)
+        return "(" + ", ".join(_quote_term(a) for a in args) + ")"
+    open_idx = term.find("(")
+    if open_idx >= 0 and term.endswith(")"):
+        name = term[:open_idx].strip()
+        inner = term[open_idx + 1 : -1]
+        args = _split_args(inner)
+        return f"{_quote_atom(name)}({', '.join(_quote_term(a) for a in args)})"
+    # atomic token
+    if term == "_":
+        return term
+    if term[0].isascii() and term[0].isupper():
+        return term  # translated $var -> Variable
+    try:
+        float(term)
+        return term
+    except ValueError:
+        pass
+    return _quote_atom(term)
+
+
+def _quote_goal(pl_goal: str) -> str:
+    """Quote unsafe atoms in a single Prolog goal (protects string literals)."""
+    cleaned, strings = _extract_strings(pl_goal)
+    result = _quote_term(cleaned)
+    for i, s in enumerate(strings):
+        result = result.replace(f"__STR_{i}__", s)
+    return result
+
+
+def _quote_body(pl_body: str) -> str:
+    """Quote unsafe atoms in a Prolog body; handle `\\+ ` and paren-wraps."""
+    cleaned, strings = _extract_strings(pl_body)
+    goals = _split_args(cleaned)
+    quoted = []
+    for g in goals:
+        g = g.strip()
+        if g.startswith("\\+ "):
+            quoted.append("\\+ " + _quote_term(g[3:].strip()))
+        else:
+            quoted.append(_quote_term(g))
+    result = ", ".join(quoted)
+    for i, s in enumerate(strings):
+        result = result.replace(f"__STR_{i}__", s)
+    return result
+
+
+def _split_args(s: str) -> list[str]:
+    """Split a comma-separated string at top level, respecting parentheses."""
+    parts: list[str] = []
+    depth = 0
+    cur: list[str] = []
+    for ch in s:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        if ch == "," and depth == 0:
+            parts.append("".join(cur).strip())
+            cur = []
+        else:
+            cur.append(ch)
+    if cur:
+        parts.append("".join(cur).strip())
+    return parts
+
+
 def _translate_rule(rule: str, rule_id: str | None = None) -> str:
     head, body = re.split(r"\s+[Ii][Ff]\s+", rule, maxsplit=1)
-    head_pl = _translate_vars(head.strip())
+    head_pl = _quote_goal(_translate_vars(head.strip()))
     body = re.sub(r"\s+[Aa][Nn][Dd]\s+", ", ", body.strip())
     body_pl = _translate_vars(body)
     # Convert NOT to Prolog negation
     body_pl = re.sub(r"\b[Nn][Oo][Tt]\s+", "\\+ ", body_pl)
     body_pl = _translate_operators(body_pl)
+    body_pl = _quote_body(body_pl)
     if rule_id:
         # Prepend the rule ID marker so the meta-interpreter can attach it
         # to the proof tree (audit trail: "this decision derives from rule X").
@@ -170,7 +268,7 @@ def _extract_pred_sig(term: str) -> str | None:
     name = m.group(1)
     args_str = m.group(2).strip()
     if not args_str:
-        return f"{name}/0"
+        return f"{_quote_atom(name)}/0"
     depth = 0
     arity = 1
     for c in args_str:
@@ -180,7 +278,7 @@ def _extract_pred_sig(term: str) -> str | None:
             depth -= 1
         elif c == "," and depth == 0:
             arity += 1
-    return f"{name}/{arity}"
+    return f"{_quote_atom(name)}/{arity}"
 
 
 # Predicates provided to the persistent engine along with every KB load
@@ -203,7 +301,7 @@ def _translate_query(query: str) -> tuple[str, list[str]]:
     # Wrap in parentheses if it's a conjunction (contains commas at top level)
     if ", " in query_body:
         query_body = f"({query_body})"
-    query_pl = _translate_operators(_translate_vars(query_body))
+    query_pl = _quote_body(_translate_operators(_translate_vars(query_body)))
     # Deduplicate variable names while preserving order
     seen: set[str] = set()
     var_names: list[str] = []

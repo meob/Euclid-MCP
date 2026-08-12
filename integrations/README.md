@@ -39,7 +39,7 @@ python3 integrations/euclid_api.py --kb-path /path/to/policies.euclid --port 808
 
 ```json
 {
-  "knowledge": "human(socrates)\nmortal($x) IF human($x)  # rule: BIO-001",
+  "knowledge": "human(socrates)\nmortal($x) IF human($x)  # RULE: BIO-001",
   "query": "mortal($who)",
   "max_solutions": 5,
   "max_depth": 30

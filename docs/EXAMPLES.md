@@ -61,7 +61,7 @@ The most advanced example demonstrating:
 - **Multi-line rules**: Complex policies split across lines
 - **Conjunction queries**: Combining multiple predicates
 - **Negative tests**: Verifying empty results for invalid access patterns
-- **Rule IDs**: policy rules tagged with `# rule: <id>` and cited in proofs
+- **Rule IDs**: policy rules tagged with `# RULE: <id>` and cited in proofs
 - **Explanations**: `--mode explain` renders readable reasoning steps with
   rule ID citations for a full audit trail
 

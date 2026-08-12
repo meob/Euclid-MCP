@@ -96,11 +96,11 @@ _KB_PATH_ENV = "EUCLID_KB_PATH"
 def _extract_predicate(text: str) -> tuple[str, str] | None:
     """Extract predicate name and args from a term like 'parent(tom, bob)'."""
     text = text.strip()
-    match = re.match(r"([a-z_]\w*)\s*\((.*)\)\s*$", text)
+    match = re.match(r"([^\W\d_]\w*)\s*\((.*)\)\s*$", text)
     if match:
         return match.group(1), match.group(2)
     # Zero-arity fact
-    match = re.match(r"([a-z_]\w*)\s*$", text)
+    match = re.match(r"([^\W\d_]\w*)\s*$", text)
     if match:
         return match.group(1), ""
     return None

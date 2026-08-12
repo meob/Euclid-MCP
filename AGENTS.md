@@ -81,7 +81,7 @@ active(user_42)
 rainy
 
 # Rules
-mortal($x) IF human($x)  # rule: BIO-001
+mortal($x) IF human($x)  # RULE: BIO-001
 ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)
 
 # Negation
@@ -104,7 +104,7 @@ stale($user) IF user($user) AND last_login($user, $days) AND $days > 90
 - Predicates: lowercase with args in `()`
 - Wildcards: `_` (anonymous variable)
 - Comments: `#` or `//`
-- Rule IDs: trailing `# rule: <id>` → surfaced as `rule_id` in proofs, cited by `explain`
+- Rule IDs: trailing `# RULE: <id>` → surfaced as `rule_id` in proofs, cited by `explain`
 - Multi-line rules: continuation implied after `IF` or `AND`
 
 ### Supported operators

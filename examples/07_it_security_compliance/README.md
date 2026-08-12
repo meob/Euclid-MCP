@@ -90,7 +90,7 @@ python data/extract_from_postgres.py --host localhost --dbname mydb --user admin
 3. **Conjunction queries**: Q3 combines `can_access_resource` with `resource` filter
 4. **Negative tests**: Q6, Q8 verify empty results for invalid access patterns
 5. **Proof trees**: Each solution includes a proof tree showing reasoning steps
-6. **Rule IDs**: policy rules carry `# rule: <id>` tags surfaced as `rule_id` in proofs
+6. **Rule IDs**: policy rules carry `# RULE: <id>` tags surfaced as `rule_id` in proofs
 7. **Natural-language explanations**: `--mode explain` renders readable reasoning
    steps and cites the rule IDs behind every conclusion (audit trail)
 

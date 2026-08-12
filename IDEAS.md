@@ -37,6 +37,20 @@ Euclid is not trying to:
 - Z3
 - Soufflé
 - ASP
+- **Custom engine (SWI-Euclid)**: a self-contained Prolog engine embedded in the
+  Euclid-MCP process (compile or distribute the SWI-Prolog runtime), removing the
+  external `swipl` dependency for deployment (Docker images, standalone binaries).
+
+### Scaling & parallelism
+
+- **In-process engine pool**: run N persistent engines per instance and dispatch
+  each request to an idle one (round-robin), enabling concurrent requests on a
+  single process / HTTP API without cross-process coordination.
+- **Threaded HTTP API**: serve parallel requests via `ThreadingHTTPServer` so one
+  instance can translate a new request while the engine works on another.
+- **Horizontal scale-out**: stateless replicas behind a load balancer — no session
+  affinity, any instance serves any request (see README "Scalability"). Document
+  a reference architecture with nginx / Kubernetes.
 
 ### Knowledge
 
@@ -45,7 +59,11 @@ Euclid is not trying to:
 
 #### Persistent Prolog Engine (game-changer — needs enterprise project to validate)
 
-**Status**: Planned
+**Status**: Done — implemented in v0.3.0 (`euclid_mcp/prolog_server.py`,
+`euclid_mcp/prolog_engine.pl`), single persistent `swipl` process with
+JSON-lines protocol, workspace reloaded per request. Benchmarks show ~3×–42×
+steady-state speedup. Remaining roadmap items: assert/retract exposure and
+auto-restart.
 
 **Motivation**: Each `reason()` call spawns a new SWI-Prolog process, loads the entire KB, and exits. For large KBs or repeated queries, this overhead is prohibitive.
 

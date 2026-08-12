@@ -10,6 +10,17 @@ _RULE_ID_PATTERN = re.compile(r"(?<!\S)\s*#\s*rule:\s*(.+?)\s*$", re.IGNORECASE)
 
 _RESERVED_KEYWORDS = {"if", "and", "not", "is"}
 
+
+def _fold_ascii(s: str) -> str:
+    """Lowercase ASCII A-Z only; leave non-ASCII letters untouched.
+
+    Preserves the __STR_N__ placeholders used for quoted strings so they
+    survive case folding (kept uppercase for _restore_strings).
+    """
+    folded = "".join(c.lower() if "A" <= c <= "Z" else c for c in s)
+    return re.sub(r"__str_(\d+)__", lambda m: f"__STR_{m.group(1)}__", folded)
+
+
 # Regex for quoted strings (double or single quote, with escape support)
 _STRING_RE = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'')
 
@@ -38,15 +49,15 @@ def _normalize_term(term: str) -> str:
     reserved keywords used as predicate names.
     """
     cleaned, strings = _extract_strings(term)
-    result = cleaned.lower()
+    result = _fold_ascii(cleaned)
     for i, s in enumerate(strings):
-        result = result.replace(f"__str_{i}__", s)
+        result = result.replace(f"__STR_{i}__", s)
     return result
 
 
 def _validate_no_keywords(term: str) -> None:
     """Check that predicate names are not reserved keywords."""
-    m = re.match(r"([a-z]\w*)\s*\(", term.strip())
+    m = re.match(r"([^\W\d_]\w*)\s*\(", term.strip())
     if m and m.group(1) in _RESERVED_KEYWORDS:
         raise ValueError(
             f"Reserved keyword '{m.group(1)}' cannot be used as predicate name"
@@ -108,7 +119,7 @@ def _is_yaml(text: str) -> bool:
         import yaml
         data = yaml.safe_load(text)
         if isinstance(data, dict):
-            keys = {k.lower() for k in data}
+            keys = {_fold_ascii(k) for k in data}
             if keys & {"facts", "rules", "query"}:
                 return True
     except Exception:
@@ -172,7 +183,7 @@ def _parse_text(text: str) -> KB:
         line = line.rstrip(".")
         # Keywords are case-insensitive: normalize to lowercase while
         # preserving quoted-string placeholders for later restoration.
-        line = line.lower().replace("__str_", "__STR_")
+        line = _fold_ascii(line)
 
         if line.startswith("?"):
             if rule_id:
@@ -202,7 +213,7 @@ def _parse_text(text: str) -> KB:
                 i += 1
                 if not next_line:
                     continue
-                next_line = next_line.rstrip(".").lower().replace("__str_", "__STR_")
+                next_line = _fold_ascii(next_line.rstrip("."))
                 if body_str == "":
                     body_str = next_line
                 elif body_str.endswith("and"):
