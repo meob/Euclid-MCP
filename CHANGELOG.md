@@ -4,12 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.3.1] — 2026-08-12
+
+### Performance
+- **KB preload optimization**: repeated loads of the same knowledge base now
+  skip re-parsing and re-asserting. Python-side parse+translate results are
+  cached per KB source (`_translate_cached`), and the engine skips the
+  workspace rebuild when the `load` carries the same `kb_hash` (reply
+  `skipped:true` with the stored stats). A repeated identical KB at 20 000
+  facts drops from ~196 ms to ~18 ms per load (and the query still runs);
+  `explain`, `diagnose`, and `what_if` inherit the win through `reason`, and
+  the HTTP API benefits as well. `assert`/`retract` invalidate the
+  fingerprint so the next load rebuilds the workspace.
+
+### Fixed
+- **Periodic engine restart**: the restart fired at the end of the request
+  that crossed the threshold, stranding the paired query on a bare engine
+  (`existence_error` on the per-load `prove/3` → `engine_error`). It now
+  fires before the next `load`, so a relaunched engine always receives its
+  workspace first. Regression coverage in `tests/test_prolog_server.py`.
 
 ### Added
 - **Python 3.13 and 3.14 support**: verified end-to-end (lint, mypy, and the
   full test suite) on CPython 3.13 and 3.14. New PyPI classifiers advertise
   both, and the CI matrix now runs on Python 3.10–3.14.
+- **Stress & soak benchmark** (`benchmarks/euclid_bench.py`): detects response
+  mixing, KB pollution, and engine errors across periodic restarts; it is the
+  regression detector for the known load+query atomicity gap (direct mode
+  with `--workers>1`).
+- **Benchmark documentation**: one detail page per benchmark
+  (`benchmarks/docs/`) plus a catalog of results and consequent
+  implementation choices (`benchmarks/BENCHMARKS.md`).
 
 ## [0.3.0] — 2026-08-12
 

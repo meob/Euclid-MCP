@@ -1,4 +1,5 @@
 import functools
+import hashlib
 import logging
 import os
 import re
@@ -13,6 +14,7 @@ from euclid_mcp.kb_summary import build_kb_summary
 from euclid_mcp.language import parse
 from euclid_mcp.linter import lint_rule
 from euclid_mcp.models import (
+    KB,
     DiagnosisFinding,
     DiagnosisResult,
     Explanation,
@@ -373,6 +375,35 @@ def _resolve_knowledge(knowledge: str | None) -> str | None:
     return _PRELOADED_KB
 
 
+@functools.lru_cache(maxsize=8)
+def _parse_cached(kb_source: str) -> KB:
+    """Parse a KB source, cached by source text.
+
+    The returned KB is shared between callers: never mutate it in place.
+    Parse errors are not cached (an lru_cache does not store exceptions).
+    """
+    return parse(kb_source)
+
+
+@functools.lru_cache(maxsize=8)
+def _translate_cached(
+    kb_source: str,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Parse and translate a KB source, cached by source text.
+
+    Repeated requests with the same KB skip both parsing and Prolog-code
+    generation. Tuples are returned so callers cannot accidentally mutate a
+    cached payload shared across requests.
+    """
+    decls, clauses = kb_to_decls_clauses(parse(kb_source))
+    return tuple(decls), tuple(clauses)
+
+
+def _kb_fingerprint(kb_source: str) -> str:
+    """Fingerprint of a KB source; the engine skips unchanged workspaces."""
+    return hashlib.sha256(kb_source.encode("utf-8")).hexdigest()
+
+
 @mcp.tool(
     description="Perform logical deduction on a knowledge base "
     "and return solutions with proof trees for each result",
@@ -421,7 +452,7 @@ def reason(
         )
 
     try:
-        kb = parse(kb_source)
+        kb = _parse_cached(kb_source)
     except Exception as exc:
         return ReasonResult(
             error=f"Knowledge parsing error: {exc}",
@@ -436,7 +467,8 @@ def reason(
                 error=str(exc),
                 elapsed_ms=(time.monotonic() - start) * 1000,
             )
-        kb.query = query
+        # The cached KB is shared: copy before overriding the query.
+        kb = kb.model_copy(update={"query": query})
 
     if not kb.query:
         return ReasonResult(
@@ -447,7 +479,7 @@ def reason(
         )
 
     try:
-        decls, clauses = kb_to_decls_clauses(kb)
+        decls, clauses = (list(x) for x in _translate_cached(kb_source))
     except Exception as exc:
         return ReasonResult(
             error=f"Prolog code generation error: {exc}",
@@ -462,6 +494,7 @@ def reason(
             max_depth=max_depth,
             max_solutions=max_solutions,
             timeout=30,
+            kb_hash=_kb_fingerprint(kb_source),
         )
     except RuntimeError as exc:
         return ReasonResult(

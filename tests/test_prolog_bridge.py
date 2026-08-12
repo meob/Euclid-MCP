@@ -74,3 +74,12 @@ def test_multiple_facts():
     solutions = _run(kb)
     assert len(solutions) == 2
     assert {s.substitutions["c"] for s in solutions} == {"bob", "liz"}
+
+
+def test_execute_with_kb_hash():
+    kb = KB(facts=["mortal(socrates)"], query="mortal($who)")
+    decls, clauses = kb_to_decls_clauses(kb)
+    first = execute(decls, clauses, "mortal($who)", timeout=15, kb_hash="kb-1")
+    second = execute(decls, clauses, "mortal($who)", timeout=15, kb_hash="kb-1")
+    assert len(first) == len(second) == 1
+    assert first[0].substitutions == second[0].substitutions == {"who": "socrates"}

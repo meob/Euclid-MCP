@@ -27,6 +27,7 @@ Usage:
     python benchmarks/euclid_bench.py --iterations 5000 --workers 4
 """
 import argparse
+import hashlib
 import json
 import shutil
 import statistics
@@ -102,7 +103,12 @@ class DirectRunner:
 
     def request(self, tag: int, n_facts: int) -> bool:
         decls, clauses = build_direct_kb(tag, n_facts)
-        self.server.load(decls, clauses, timeout=TIMEOUT)
+        # Content-derived fingerprint: lets the engine skip the workspace
+        # rebuild when the same KB is loaded again (as server.py does).
+        kb_hash = hashlib.sha256(
+            ("\n".join(decls) + "\0" + "\n".join(clauses)).encode()
+        ).hexdigest()
+        self.server.load(decls, clauses, timeout=TIMEOUT, kb_hash=kb_hash)
         snippet = build_query_snippet(
             "answer($t,$x)", max_depth=30, max_solutions=MAX_SOLUTIONS
         )

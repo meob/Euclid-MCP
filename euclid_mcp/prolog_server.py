@@ -7,7 +7,9 @@ self-healing (a crashed engine is relaunched on the next request).
 
 The engine never builds knowledge itself: every ``load`` clears the
 workspace and re-asserts the clauses the caller provides, so repeated
-loads are idempotent.
+loads are idempotent. A ``load`` carrying a ``kb_hash`` that matches the
+currently-loaded workspace is skipped by the engine (``skipped:true``) —
+the KB persists and only the query runs.
 """
 
 import collections
@@ -200,12 +202,30 @@ class PrologServer:
         return self._request({"command": "ping"}, timeout)
 
     def load(
-        self, decls: list[str], clauses: list[str], timeout: float = 30
+        self,
+        decls: list[str],
+        clauses: list[str],
+        timeout: float = 30,
+        kb_hash: str | None = None,
     ) -> dict[str, Any]:
-        return self._request(
-            {"command": "load", "decls": decls, "clauses": "\n".join(clauses)},
-            timeout,
-        )
+        """Load a knowledge base into the engine workspace.
+
+        When ``kb_hash`` matches the engine's currently-loaded workspace the
+        load is skipped (response ``skipped: true``) and the stored facts/rules
+        counts are returned, so repeated loads of the same KB only pay for the
+        query. Without a hash, every load rebuilds the workspace.
+        """
+        payload: dict[str, Any] = {
+            "command": "load",
+            "decls": decls,
+            "clauses": "\n".join(clauses),
+        }
+        if kb_hash is not None:
+            payload["kb_hash"] = kb_hash
+        resp = self._request(payload, timeout)
+        if isinstance(resp.get("skipped"), int):
+            resp["skipped"] = bool(resp["skipped"])
+        return resp
 
     def query(self, snippet: str, timeout: float = 30) -> dict[str, Any]:
         resp = self._request(

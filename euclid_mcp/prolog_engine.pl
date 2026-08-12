@@ -4,11 +4,16 @@
 % line per request). Commands:
 %   {"command":"ping"}                              -> {"status":"ok"}
 %   {"command":"load","decls":["p/1",...],
-%    "clauses":"p(a).\nq(b,c)."}                    -> {"status":"ok","facts":N,"rules":M}
+%    "clauses":"p(a).\nq(b,c).","kb_hash":"<sha256>"}
+%                                                   -> {"status":"ok","facts":N,"rules":M,"skipped":B}
 %       Clears every dynamic predicate from the previous workspace, declares
 %       the given signatures dynamic and asserts the clauses. Clauses may
 %       include the meta-interpreter (prove/3) and proof_to_json/2 rules,
 %       which are provided by the Python side on every load.
+%       When kb_hash matches the fingerprint of the currently-loaded
+%       workspace the load is skipped (skipped:1) and the stored stats are
+%       returned. assert/retract invalidate the fingerprint so the next load
+%       rebuilds the workspace.
 %   {"command":"query","snippet":"<prolog>","timeout":30}
 %       The snippet must write a JSON array of result dicts to
 %       current_output (one compact object per solution, commas between),
@@ -73,12 +78,18 @@ command_handler(ping, _Request) :-
 command_handler(load, Request) :-
     get_dict(decls, Request, Decls),
     get_dict(clauses, Request, Clauses),
+    ( get_dict(kb_hash, Request, Hash) -> true ; Hash = none ),
     catch(
-        ( clear_workspace,
-          maplist(declare_dynamic, Decls),
-          load_clauses(Clauses),
-          stats(Facts, Rules),
-          emit(_{status:ok, facts:Facts, rules:Rules}) ),
+        ( ( Hash \= none, current_kb_hash(Hash)
+          -> current_kb_stats(Facts, Rules),
+             emit(_{status:ok, facts:Facts, rules:Rules, skipped:1})
+          ; clear_workspace,
+            maplist(declare_dynamic, Decls),
+            load_clauses(Clauses),
+            stats(Facts, Rules),
+            record_workspace(Hash, Facts, Rules),
+            emit(_{status:ok, facts:Facts, rules:Rules, skipped:0})
+          ) ),
         Error,
         emit_error(Error)
     ).
@@ -101,6 +112,7 @@ command_handler(assert, Request) :-
     catch(
         ( read_term_from_atom(ClauseAtom, Clause, []),
           assert_clause(Clause),
+          retractall(current_kb_hash(_)),
           emit(_{status:ok}) ),
         Error,
         emit_error(Error)
@@ -111,6 +123,7 @@ command_handler(retract, Request) :-
     catch(
         ( read_term_from_atom(ClauseAtom, Clause, []),
           count_retract(Clause, Count),
+          retractall(current_kb_hash(_)),
           emit(_{status:ok, count:Count}) ),
         Error,
         emit_error(Error)
@@ -136,6 +149,12 @@ command_handler(Other, _Request) :-
 % before every element: the first call writes nothing, subsequent calls
 % write ','. Clear-on-load keeps the flag consistent after timeouts.
 :- dynamic euclid_array_first/0.
+
+% Fingerprint of the currently-loaded workspace. record_workspace/3 stores it
+% on load; assert/retract retract it so the next load rebuilds the workspace.
+% current_kb_stats/2 keeps the facts/rules counts so a skipped load can reply
+% without recomputing them.
+:- dynamic current_kb_hash/1, current_kb_stats/2.
 
 array_separator :-
     ( euclid_array_first
@@ -171,6 +190,18 @@ load_stream(Stream) :-
     ; assertz(Term),
       load_stream(Stream)
     ).
+
+% Remember the fingerprint (and stats) of the workspace just loaded so an
+% identical load can skip the rebuild. Hash = none means the caller did not
+% opt into the fingerprint check, so nothing is stored.
+record_workspace(none, _Facts, _Rules) :-
+    retractall(current_kb_hash(_)),
+    retractall(current_kb_stats(_,_)).
+record_workspace(Hash, Facts, Rules) :-
+    retractall(current_kb_hash(_)),
+    retractall(current_kb_stats(_,_)),
+    assertz(current_kb_hash(Hash)),
+    assertz(current_kb_stats(Facts, Rules)).
 
 % ── assert/retract helpers ────────────────────────────────────────────────
 
@@ -213,7 +244,8 @@ dynamic_rule(Term) :-
 user_predicate(Name/Arity) :-
     \+ member(Name/Arity, [
         prove/3, is_arith_goal/1, decompose_rule_id/3,
-        proof_to_json/2, euclid_rule_id/1
+        proof_to_json/2, euclid_rule_id/1,
+        current_kb_hash/1, current_kb_stats/2
     ]).
 
 % ── response helpers ──────────────────────────────────────────────────────

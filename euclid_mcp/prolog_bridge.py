@@ -44,6 +44,7 @@ def execute(
     max_depth: int = 30,
     max_solutions: int = 1000,
     timeout: int = 30,
+    kb_hash: str | None = None,
 ) -> list[Solution]:
     """Load a knowledge base into the persistent engine and run a query.
 
@@ -55,6 +56,9 @@ def execute(
         max_depth: Maximum proof tree depth for the meta-interpreter.
         max_solutions: Upper bound on returned solutions.
         timeout: Seconds allowed for load and query.
+        kb_hash: Fingerprint of the KB source. When it matches the engine's
+            currently-loaded workspace the load is skipped and only the query
+            runs (see ``prolog_server.PrologServer.load``).
 
     Returns:
         Solutions (variable substitutions + proof trees). Empty when the
@@ -64,7 +68,7 @@ def execute(
         return []
 
     server = _get_server()
-    server.load(decls=decls, clauses=clauses, timeout=timeout)
+    server.load(decls=decls, clauses=clauses, timeout=timeout, kb_hash=kb_hash)
     snippet = build_query_snippet(query, max_depth=max_depth, max_solutions=max_solutions)
     response = server.query(snippet, timeout=timeout)
 

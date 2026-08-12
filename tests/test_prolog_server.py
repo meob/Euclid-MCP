@@ -151,3 +151,65 @@ def test_restart_after_timeout(server):
     server.ping()
     assert server._proc is not None
     assert server._proc.pid != pid_before
+
+
+def test_load_skips_unchanged_kb_hash(server):
+    kb = KB(facts=["parent(tom, bob)"], rules=[])
+    decls, clauses = kb_to_decls_clauses(kb)
+    first = server.load(decls, clauses, kb_hash="h1")
+    assert first["skipped"] is False
+    assert first["facts"] == 1
+    second = server.load(decls, clauses, kb_hash="h1")
+    assert second["skipped"] is True
+    assert second["facts"] == 1  # stored stats are returned, not recomputed
+    resp = server.query(build_query_snippet("parent($who, bob)", max_solutions=5))
+    assert len(resp["solutions"]) == 1
+
+
+def test_load_reloads_on_kb_hash_change(server):
+    kb = KB(facts=["parent(tom, bob)"], rules=[])
+    decls, clauses = kb_to_decls_clauses(kb)
+    assert server.load(decls, clauses, kb_hash="h1")["skipped"] is False
+    assert server.load(decls, clauses, kb_hash="h2")["skipped"] is False
+    # the workspace is now h2, so h1 must rebuild again
+    assert server.load(decls, clauses, kb_hash="h1")["skipped"] is False
+
+
+def test_load_without_kb_hash_always_reloads(server):
+    kb = KB(facts=["parent(tom, bob)"], rules=[])
+    decls, clauses = kb_to_decls_clauses(kb)
+    assert server.load(decls, clauses)["skipped"] is False
+    assert server.load(decls, clauses)["skipped"] is False
+
+
+def test_assert_retract_invalidate_workspace_hash(server):
+    kb = KB(facts=["parent(tom, bob)"], rules=[])
+    decls, clauses = kb_to_decls_clauses(kb)
+    server.load(decls, clauses, kb_hash="h1")
+    server.assert_clause("parent(liz, mia).")
+    # the assert invalidated the hash: reloading the same KB must rebuild the
+    # workspace from decls/clauses, so the asserted fact is gone
+    assert server.load(decls, clauses, kb_hash="h1")["skipped"] is False
+    resp = server.query(build_query_snippet("parent($who, mia)", max_solutions=5))
+    assert resp["status"] == "ok"
+    assert resp["solutions"] == []  # the asserted fact is not present
+    # the original KB is still intact after the rebuild
+    resp = server.query(build_query_snippet("parent(tom, $who)", max_solutions=5))
+    assert resp["status"] == "ok"
+    assert [s["solution"]["who"] for s in resp["solutions"]] == ["bob"]
+    # retract also invalidates: the same hash must rebuild again
+    server.retract("parent(liz, mia).")
+    assert server.load(decls, clauses, kb_hash="h1")["skipped"] is False
+
+
+def test_skip_does_not_leak_previous_workspace(server):
+    kb_a = KB(facts=["parent(tom, bob)"], rules=[])
+    kb_b = KB(facts=["parent(ann, pat)"], rules=[])
+    decls_a, clauses_a = kb_to_decls_clauses(kb_a)
+    decls_b, clauses_b = kb_to_decls_clauses(kb_b)
+    server.load(decls_a, clauses_a, kb_hash="a")
+    server.load(decls_b, clauses_b, kb_hash="b")  # reload -> workspace is B
+    server.load(decls_a, clauses_a, kb_hash="a")  # reload again -> workspace is A
+    resp = server.query(build_query_snippet("parent($who, bob)", max_solutions=5))
+    assert len(resp["solutions"]) == 1
+    assert resp["solutions"][0]["solution"]["who"] == "tom"
