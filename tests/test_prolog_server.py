@@ -87,3 +87,48 @@ def test_assert_retract(server):
 def test_unknown_command(server):
     with pytest.raises(RuntimeError):
         server._request({"command": "nope"})
+
+
+def test_query_caps_solutions(server):
+    kb = KB(facts=[f"item({i})" for i in range(50)], rules=[])
+    decls, clauses = kb_to_decls_clauses(kb)
+    server.load(decls, clauses)
+    resp = server.query(build_query_snippet("item($x)", max_solutions=3))
+    assert resp["status"] == "ok"
+    assert len(resp["solutions"]) == 3
+    assert set(s["solution"]["x"] for s in resp["solutions"]) == {0, 1, 10}
+
+
+def test_query_cap_does_not_trim_within_limit(server):
+    kb = KB(facts=[f"item({i})" for i in range(10)], rules=[])
+    decls, clauses = kb_to_decls_clauses(kb)
+    server.load(decls, clauses)
+    resp = server.query(build_query_snippet("item($x)", max_solutions=25))
+    assert len(resp["solutions"]) == 10
+
+
+def test_restart_after_request_count():
+    srv = PrologServer(restart_every=3)
+    try:
+        srv.ping()  # request 1
+        first_pid = srv._proc.pid
+        srv.ping()  # request 2
+        assert srv._proc.pid == first_pid
+        srv.ping()  # request 3 -> periodic restart (lazy terminate)
+        assert srv._proc is None
+        srv.ping()  # request 4 -> relaunched
+        assert srv._proc.pid != first_pid
+    finally:
+        srv.close()
+
+
+def test_restart_after_timeout(server):
+    pid_before = server._proc.pid
+    with pytest.raises(RuntimeError, match="timed out"):
+        server._request(
+            {"command": "query", "snippet": "repeat, fail.", "timeout": 0.1}
+        )
+    assert server._proc is None
+    server.ping()
+    assert server._proc is not None
+    assert server._proc.pid != pid_before

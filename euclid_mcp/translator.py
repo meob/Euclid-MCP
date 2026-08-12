@@ -357,6 +357,11 @@ def build_query_snippet(
     ``forall/2`` + ``json_write/3``; the engine captures it and replies
     with ``{"status": "ok", "solutions": "<json array>"}``. Streaming
     keeps large result sets fast and low-memory.
+
+    The enumeration is capped at ``max_solutions`` on the Prolog side
+    (via an ``nb_setval/2`` counter inside the ``forall/2`` generator) so an
+    explosive query stops producing once the requested count is reached,
+    instead of buffering every solution up to the engine timeout.
     """
     query_pl, var_names = _translate_query(query)
     var_entries = [f"'{vn}': {vn.capitalize()}" for vn in var_names]
@@ -372,10 +377,16 @@ def build_query_snippet(
         [
             "retractall(euclid_array_first), assertz(euclid_array_first),",
             f"MaxDepth = {max_depth},",
+            f"MaxSolutions = {max_solutions},",
             f"Query = {query_pl},",
+            "nb_setval(euclid_solution_count, 0),",
             "write('['),",
             "forall(",
-            "    prove(Query, MaxDepth, Proof),",
+            "    ( prove(Query, MaxDepth, Proof),",
+            "      nb_getval(euclid_solution_count, C0),",
+            "      C0 < MaxSolutions,",
+            "      C1 is C0 + 1,",
+            "      nb_setval(euclid_solution_count, C1) ),",
             "    ( proof_to_json(Proof, JProof),",
             "      array_separator,",
             f"      {result_line},",
@@ -403,9 +414,15 @@ def _generate_output(kb: KB, max_depth: int, max_solutions: int) -> list[str]:
     lines = [
         "output :-",
         f"    MaxDepth = {max_depth},",
+        f"    MaxSolutions = {max_solutions},",
         f"    Query = {query_pl},",
+        "    nb_setval(euclid_solution_count, 0),",
         "    forall(",
-        "        prove(Query, MaxDepth, Proof),",
+        "        ( prove(Query, MaxDepth, Proof),",
+        "          nb_getval(euclid_solution_count, C0),",
+        "          C0 < MaxSolutions,",
+        "          C1 is C0 + 1,",
+        "          nb_setval(euclid_solution_count, C1) ),",
         "        ( proof_to_json(Proof, JProof),",
     ]
     if var_entries:

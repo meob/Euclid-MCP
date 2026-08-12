@@ -145,6 +145,12 @@ def _parse_yaml(text: str) -> KB:
     query = data.get("query")
     if isinstance(query, str):
         query = query.strip().rstrip(".")
+    # Re-scan the parsed statements: YAML string values were masked by the
+    # raw-text sanitize() above, so a real directive can only be caught here.
+    for stmt in facts + rules:
+        sanitize(stmt)
+    if query:
+        sanitize(query)
     return KB(facts=facts, rules=rules, query=query)
 
 

@@ -23,6 +23,7 @@ from euclid_mcp.models import (
     WhatIfResult,
 )
 from euclid_mcp.prolog_bridge import execute as prolog_execute
+from euclid_mcp.sanitizer import sanitize
 from euclid_mcp.translator import kb_to_decls_clauses
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,7 @@ def _is_not_goal(goal: str) -> bool:
 
 # Security limits
 MAX_KNOWLEDGE_LENGTH = 500_000  # 500 KB
+MAX_QUERY_LENGTH = 5_000  # 5 KB, for the query parameter
 MAX_DEPTH_LIMIT = 500
 MAX_SOLUTIONS_LIMIT = 1000
 
@@ -403,6 +405,12 @@ def reason(
             error=f"max_depth must be between 1 and {MAX_DEPTH_LIMIT}",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+    if query is not None and len(query) > MAX_QUERY_LENGTH:
+        return ReasonResult(
+            error=f"Query exceeds maximum allowed size "
+            f"({len(query):,} > {MAX_QUERY_LENGTH:,} characters)",
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
 
     # Security: reject oversized input
     if len(kb_source) > MAX_KNOWLEDGE_LENGTH:
@@ -421,6 +429,13 @@ def reason(
         )
 
     if query:
+        try:
+            sanitize(query)
+        except ValueError as exc:
+            return ReasonResult(
+                error=str(exc),
+                elapsed_ms=(time.monotonic() - start) * 1000,
+            )
         kb.query = query
 
     if not kb.query:

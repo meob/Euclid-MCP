@@ -32,6 +32,15 @@ Euclid is not trying to:
 
 ## Future ideas
 
+### Security (P3 — from 2026-08-12 hardening review)
+
+- **Structural allowlist validation (post-parse)**: after translating a KB,
+  validate that every predicate/arg conforms to the Euclid-IR grammar
+  (predicates `\p{L}\w*`, args = atom/variable/number/string, only supported
+  operators). Makes the contract explicit instead of relying on the blacklist;
+  the blacklist stays as an early-reject/UX layer, not the security boundary.
+  See `docs/PLANS/security-hardening.md` (P1/P2) for the full review context.
+
 ### Backend
 
 - Z3

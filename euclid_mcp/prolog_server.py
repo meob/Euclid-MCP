@@ -43,17 +43,28 @@ def _find_swipl() -> str:
 class PrologServer:
     """A persistent SWI-Prolog inference engine over a JSON-lines pipe."""
 
-    def __init__(self, engine_file: str | Path | None = None, swipl: str | None = None):
+    def __init__(
+        self,
+        engine_file: str | Path | None = None,
+        swipl: str | None = None,
+        restart_every: int = 1000,
+    ):
         self._engine_file = Path(engine_file) if engine_file else _ENGINE_FILE
         self._swipl = swipl or _find_swipl()
         self._proc: subprocess.Popen[str] | None = None
         self._err_thread: threading.Thread | None = None
         self._stderr_tail: collections.deque[str] = collections.deque(maxlen=50)
         self._lock = threading.RLock()
+        # Bounded-resource policy: restart the long-lived engine after N
+        # requests (and after any timeout recovery) to cap atom-table and
+        # stack growth. 0 disables the periodic restart.
+        self._restart_every = max(0, restart_every)
+        self._requests_since_restart = 0
 
     # ── lifecycle ────────────────────────────────────────────────────────
 
     def _launch(self) -> None:
+        self._requests_since_restart = 0
         self._proc = subprocess.Popen(
             [
                 self._swipl,
@@ -115,6 +126,7 @@ class PrologServer:
         with self._lock:
             if not self._alive():
                 self._launch()
+            self._requests_since_restart += 1
             line = json.dumps(payload) + "\n"
             try:
                 self._write(line)
@@ -131,7 +143,14 @@ class PrologServer:
             if status == "error":
                 raise RuntimeError(data.get("error") or "Euclid engine error")
             if status == "timeout":
+                # Drop the engine so the next request starts from a clean
+                # state: the time limit fired, so state may be inconsistent.
+                self._terminate()
                 raise RuntimeError(f"Euclid engine timed out after {timeout}s")
+            if self._restart_every and self._requests_since_restart >= self._restart_every:
+                # Periodic restart to bound memory growth; relaunch lazily on
+                # the next request.
+                self._terminate()
             return data
 
     def _write(self, line: str) -> None:

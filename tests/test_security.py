@@ -8,7 +8,13 @@ import pytest
 from euclid_mcp.language import parse
 from euclid_mcp.prolog_bridge import _sanitize_error
 from euclid_mcp.sanitizer import sanitize
-from euclid_mcp.server import MAX_DEPTH_LIMIT, MAX_KNOWLEDGE_LENGTH, MAX_SOLUTIONS_LIMIT, reason
+from euclid_mcp.server import (
+    MAX_DEPTH_LIMIT,
+    MAX_KNOWLEDGE_LENGTH,
+    MAX_QUERY_LENGTH,
+    MAX_SOLUTIONS_LIMIT,
+    reason,
+)
 
 # =============================================================================
 # Phase 1: Input sanitization tests
@@ -104,6 +110,21 @@ ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)
         """The # rule: comment is a valid Euclid-IR feature, not dangerous."""
         sanitize("p(a)\nq($x) IF p($x)  # rule: RBAC-0043")
 
+    def test_allow_dangerous_tokens_inside_strings(self):
+        """Tokens that match blacklist words inside string literals are inert
+        data, not calls: no false positives."""
+        sanitize('note(alice, "write a review")')
+        sanitize('user(open_ai)')
+        sanitize('description(bob, "uses use_module for tutorials")')
+        sanitize("p('consult me')")
+
+    def test_reject_dangerous_token_outside_string(self):
+        """Blacklist words still rejected when they are actual calls."""
+        with pytest.raises(ValueError, match="Rejected dangerous pattern"):
+            sanitize('p("x"), shell(y)')
+        with pytest.raises(ValueError, match="Rejected dangerous pattern"):
+            sanitize("p(use_module(library(foo)))")
+
 
 class TestInjectionViaParse:
     """Ensure injection is caught at the parse level."""
@@ -163,6 +184,30 @@ class TestMaxSolutionsLimits:
             max_solutions=MAX_SOLUTIONS_LIMIT + 1,
         )
         assert result.error is not None
+
+    def test_max_solutions_capped_in_engine(self):
+        """A query with more than N solutions returns exactly N: the cap is
+        enforced in the Prolog snippet, not only by the Python-side slice."""
+        facts = "\n".join(f"item({i})" for i in range(50))
+        result = reason(knowledge=facts + "\n? item($x)", max_solutions=3)
+        assert result.error is None
+        assert len(result.solutions) == 3
+
+
+class TestQueryLengthLimit:
+    """Ensure the query parameter is length-capped."""
+
+    def test_reject_oversized_query(self):
+        huge = "p(" + "a" * (MAX_QUERY_LENGTH + 1) + ")"
+        result = reason(knowledge="p(x)\n? p($x)", query=huge)
+        assert result.error is not None
+        assert "exceeds maximum" in result.error
+
+    def test_reject_dangerous_query(self):
+        """The query parameter goes through the sanitizer too."""
+        result = reason(knowledge="p(x)\n? p($x)", query=":- shell('id')")
+        assert result.error is not None
+        assert "dangerous" in result.error
 
 
 # =============================================================================
