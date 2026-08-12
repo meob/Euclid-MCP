@@ -57,7 +57,10 @@ class PrologServer:
         self._lock = threading.RLock()
         # Bounded-resource policy: restart the long-lived engine after N
         # requests (and after any timeout recovery) to cap atom-table and
-        # stack growth. 0 disables the periodic restart.
+        # stack growth. The restart is deferred until the next `load`, so a
+        # freshly-launched engine always receives its workspace (including
+        # the per-load meta-interpreter, prove/3) before any query runs on
+        # it. 0 disables the periodic restart.
         self._restart_every = max(0, restart_every)
         self._requests_since_restart = 0
 
@@ -124,6 +127,18 @@ class PrologServer:
 
     def _request(self, payload: dict[str, Any], timeout: float = 30) -> dict[str, Any]:
         with self._lock:
+            if (
+                self._restart_every
+                and self._requests_since_restart >= self._restart_every
+                and payload.get("command") == "load"
+            ):
+                # Periodic restart to bound memory growth. Fire it only right
+                # before a `load`, never after one: a freshly-launched engine
+                # must receive its workspace (incl. the per-load meta-
+                # interpreter, prove/3) before any query runs on it, otherwise
+                # the query paired with a restarting load fails with an
+                # existence error on a bare engine.
+                self._terminate()
             if not self._alive():
                 self._launch()
             self._requests_since_restart += 1
@@ -147,10 +162,6 @@ class PrologServer:
                 # state: the time limit fired, so state may be inconsistent.
                 self._terminate()
                 raise RuntimeError(f"Euclid engine timed out after {timeout}s")
-            if self._restart_every and self._requests_since_restart >= self._restart_every:
-                # Periodic restart to bound memory growth; relaunch lazily on
-                # the next request.
-                self._terminate()
             return data
 
     def _write(self, line: str) -> None:

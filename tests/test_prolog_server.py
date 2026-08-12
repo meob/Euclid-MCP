@@ -109,15 +109,34 @@ def test_query_cap_does_not_trim_within_limit(server):
 
 def test_restart_after_request_count():
     srv = PrologServer(restart_every=3)
+    kb = KB(facts=["parent(tom, bob)"], rules=[])
+    decls, clauses = kb_to_decls_clauses(kb)
+    try:
+        srv.load(decls, clauses)  # request 1
+        first_pid = srv._proc.pid
+        srv.load(decls, clauses)  # request 2
+        assert srv._proc.pid == first_pid
+        srv.load(decls, clauses)  # request 3 -> threshold crossed
+        assert srv._proc.pid == first_pid
+        # request 4 is a load: the periodic restart fires at its start, so the
+        # relaunched engine already has the workspace for the query that follows.
+        srv.load(decls, clauses)
+        assert srv._proc.pid != first_pid
+        resp = srv.query(build_query_snippet("parent($who, bob)", max_solutions=5))
+        assert len(resp["solutions"]) == 1
+    finally:
+        srv.close()
+
+
+def test_periodic_restart_defers_to_next_load():
+    srv = PrologServer(restart_every=3)
     try:
         srv.ping()  # request 1
         first_pid = srv._proc.pid
         srv.ping()  # request 2
-        assert srv._proc.pid == first_pid
-        srv.ping()  # request 3 -> periodic restart (lazy terminate)
-        assert srv._proc is None
-        srv.ping()  # request 4 -> relaunched
-        assert srv._proc.pid != first_pid
+        srv.ping()  # request 3 -> threshold crossed
+        srv.ping()  # request 4
+        assert srv._proc.pid == first_pid  # no load: restart deferred
     finally:
         srv.close()
 
