@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] — 2026-08-11
+
+### Changed
+- **Persistent SWI-Prolog engine**: replaces the per-call subprocess model. A
+  single long-lived `swipl` process is started once and kept alive, connected
+  to the server by a JSON-lines pipe (`euclid_mcp/prolog_server.py`,
+  `euclid_mcp/prolog_engine.pl`). Each request reloads only the workspace
+  (dynamic predicates are cleared and re-asserted over the pipe) instead of
+  booting Prolog and consulting a temp file, and the meta-interpreter and
+  proof serializer stay resident. Same external API and identical solution
+  ordering — pure performance work.
+- **Streaming query results**: the generated query snippet writes the JSON
+  array of solutions directly to the engine's output via `forall/2` +
+  `json_write/3` instead of collecting them in a `findall/3` term, and the
+  engine returns the array as a string that the client decodes. No
+  double-serialization, low memory on large result sets.
+- **Benchmark**: `benchmarks/persistent_engine_benchmark.py` compares the
+  stateless (pre-0.3.0) path against the persistent engine across KB sizes
+  (100/1k/10k facts) and query shapes (ground / full scan). Measured on the
+  reference machine: ~3×–42× steady-state speedup, mean ~14× across cases;
+  the persistent path is faster in every measured configuration.
+
 ## [0.2.0] — 2026-08-10
 
 ### Added
