@@ -16,7 +16,8 @@ def show_proof(node: ProofNode, indent: int = 0) -> None:
     if node.type == "fact":
         print(f"{pad}├─ FACT: {node.goal}")
     elif node.type == "rule":
-        print(f"{pad}├─ RULE: {node.goal}")
+        rid = f" [{node.rule_id}]" if node.rule_id else ""
+        print(f"{pad}├─ RULE{rid}: {node.goal}")
         print(f"{pad}│  └─ body: {node.body}")
         if node.subproof:
             show_proof(node.subproof, indent + 2)
@@ -56,22 +57,22 @@ good_credit(thomas)
 # thomas is not employed and is a senior
 
 # ── Individual eligibility rules ──
-meets_age($p) IF adult($p)
-meets_income($p) IF good_income($p)
-meets_credit($p) IF good_credit($p)
-meets_credit($p) IF excellent_credit($p)
-meets_employment($p) IF employed($p)
+meets_age($p) IF adult($p)  # RULE: LOAN-1
+meets_income($p) IF good_income($p)  # RULE: LOAN-2
+meets_credit($p) IF good_credit($p)  # RULE: LOAN-3
+meets_credit($p) IF excellent_credit($p)  # RULE: LOAN-4
+meets_employment($p) IF employed($p)  # RULE: LOAN-5
 
 # ── Overall eligibility: ALL four conditions must hold ──
-eligible($p) IF meets_age($p) AND meets_income($p) AND meets_credit($p) AND meets_employment($p)
+eligible($p) IF meets_age($p) AND meets_income($p) AND meets_credit($p) AND meets_employment($p)  # RULE: LOAN-6
 
 # ── Conditional: meets all but employment ──
-conditional($p) IF meets_age($p) AND meets_income($p) AND meets_credit($p)
+conditional($p) IF meets_age($p) AND meets_income($p) AND meets_credit($p)  # RULE: LOAN-7
 
 # ── Reason for rejection (separate checks) ──
-rejected($p, poor_credit) IF adult($p) AND good_income($p) AND employed($p) AND fair_credit($p)
-rejected($p, low_income) IF adult($p) AND employed($p) AND good_credit($p) AND low_income($p)
-rejected($p, unemployed) IF adult($p) AND good_income($p) AND good_credit($p)
+rejected($p, poor_credit) IF adult($p) AND good_income($p) AND employed($p) AND fair_credit($p)  # RULE: LOAN-8
+rejected($p, low_income) IF adult($p) AND employed($p) AND good_credit($p) AND low_income($p)  # RULE: LOAN-9
+rejected($p, unemployed) IF adult($p) AND good_income($p) AND good_credit($p)  # RULE: LOAN-10
 
 # ── Queries ──
 ? eligible($who)

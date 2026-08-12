@@ -18,7 +18,8 @@ def show_proof(node: ProofNode, indent: int = 0) -> None:
     if node.type == "fact":
         print(f"{pad}├─ FACT: {node.goal}")
     elif node.type == "rule":
-        print(f"{pad}├─ RULE: {node.goal}")
+        rid = f" [{node.rule_id}]" if node.rule_id else ""
+        print(f"{pad}├─ RULE{rid}: {node.goal}")
         print(f"{pad}│  └─ body: {node.body}")
         if node.subproof:
             show_proof(node.subproof, indent + 2)
@@ -62,8 +63,8 @@ property(bird_of_prey, sharp_beak)
 property(felinae, cannot_roar)
 
 # ── Rule: inherit properties through is_a chain ──
-has_property($x, $prop) IF property($x, $prop)
-has_property($x, $prop) IF is_a($x, $parent) AND has_property($parent, $prop)
+has_property($x, $prop) IF property($x, $prop)  # RULE: TAX-1
+has_property($x, $prop) IF is_a($x, $parent) AND has_property($parent, $prop)  # RULE: TAX-2
 
 # ── Queries ──
 ? has_property(siamese, $what)
