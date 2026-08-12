@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.3.0] — 2026-08-12
 
 ### Added
 - **Unicode atoms** (`\p{L}`): predicate names, arguments, and rule IDs can now
@@ -14,16 +14,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Non-ASCII and uppercase-initial atoms are single-quoted on the Prolog side so
   the engine can never misread them as variables. Covered end-to-end in
   `tests/test_unicode_atoms.py`.
-
-### Changed
-- **Canonical rule-ID marker is now `# RULE:`** (uppercase). The parser remains
-  case-insensitive (`# rule:`, `# Rule:` all work), but documentation and
-  examples now use `# RULE: <id>` to match the Euclid-IR keyword convention.
-  Tests keep exercising the lowercase forms to pin case-insensitivity.
-- **README**: new "Scalability" section — persistent engine, stateless
-  requests, horizontal scale-out behind a load balancer.
-
-## [0.3.0] — 2026-08-11
 
 ### Changed
 - **Persistent SWI-Prolog engine**: replaces the per-call subprocess model. A
@@ -44,6 +34,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (100/1k/10k facts) and query shapes (ground / full scan). Measured on the
   reference machine: ~3×–42× steady-state speedup, mean ~14× across cases;
   the persistent path is faster in every measured configuration.
+- **Canonical rule-ID marker is now `# RULE:`** (uppercase). The parser remains
+  case-insensitive (`# rule:`, `# Rule:` all work), but documentation and
+  examples now use `# RULE: <id>` to match the Euclid-IR keyword convention.
+  Tests keep exercising the lowercase forms to pin case-insensitivity.
+- **README**: new "Scalability" section — persistent engine, stateless
+  requests, horizontal scale-out behind a load balancer.
 
 ## [0.2.0] — 2026-08-10
 
