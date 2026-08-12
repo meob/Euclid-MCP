@@ -111,6 +111,9 @@ Earlier session notes claiming "no time limit / no watchdog / placeholder
   - rate limiting at the edge
   - backend timeouts + circuit breaking on `status:timeout`
   - per-container CPU/memory limits; max body size on the HTTP API
+- **DONE (2026-08-12)**: consolidated as `docs/PRODUCTION.md` (deployment,
+  HAProxy reference config, security hardening, monitoring, troubleshooting);
+  README "Scalability" links to it. No in-repo code beyond the doc.
 - **HAProxy is NOT a substitute for P1**: a pathological query still ties up
   one backend; P1 (timeout + solution cap + restart) is what makes each backend
   recoverable. With P1 in place, a replica battery behind HAProxy is a
