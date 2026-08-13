@@ -2,10 +2,6 @@
 
 Deterministic logical reasoning engine. Write facts/rules in **Euclid IR**, engine translates to Prolog, returns solutions with **proof trees**.
 
-> Session handoff: if a previous session ended, read `docs/RESUME.md` first —
-> it records the repo state, the resume point, and any pending plans
-> (see also `docs/PLANS/security-hardening.md` for P1/P2 work items).
-
 Tools: `euclid-mcp_reason`, `euclid-mcp_explain`, `euclid-mcp_diagnose`, `euclid-mcp_what_if`, `euclid-mcp_check_kb`
 
 ## Workflow

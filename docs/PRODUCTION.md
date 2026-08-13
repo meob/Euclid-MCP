@@ -88,9 +88,10 @@ into the image or mount the same read-only file everywhere.
 
 ## Load balancing (HAProxy reference)
 
-`docs/PLANS/security-hardening.md` defines P2 as: health check on the engine
-`ping`/`/health`, rate limiting at the edge, backend timeouts + circuit breaking
-on `status:timeout`, per-container CPU/memory limits, and a max body size.
+The edge hardening — health checks on `/health`, rate limiting, backend
+timeouts + circuit breaking on `status:timeout`, per-container CPU/memory
+limits, and a max body size — is documented in the sections above and the
+reference config below.
 
 Reference `haproxy.cfg`:
 

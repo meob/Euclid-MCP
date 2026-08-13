@@ -11,11 +11,10 @@ KB that is "polluted" by the previous one can never verify.
 Modes
 -----
 direct (default) — hammers the persistent engine (``PrologServer``) directly.
-    ``--workers 1`` matches the shipped single-threaded architecture and must
-    always pass. ``--workers N>1`` currently surfaces the known load+query
-    atomicity gap (``prolog_bridge.execute`` loads then queries as two
-    separately-locked pipe exchanges), so a FAIL there is the *expected*
-    current behaviour — this benchmark is the regression detector for the fix.
+    ``--workers N`` must always pass: ``load``+``query`` run as a single
+    atomically-locked exchange (``PrologServer.load_and_query``), so concurrent
+    workers cannot interleave one workspace between another request's load and
+    query. This benchmark is the regression detector for that atomicity.
 api              — stresses the real HTTP API (``HTTPServer``, single-threaded).
     Concurrent clients are serialized by the accept loop, so queuing is
     exercised and correctness must hold at any ``--workers`` value.
@@ -108,11 +107,14 @@ class DirectRunner:
         kb_hash = hashlib.sha256(
             ("\n".join(decls) + "\0" + "\n".join(clauses)).encode()
         ).hexdigest()
-        self.server.load(decls, clauses, timeout=TIMEOUT, kb_hash=kb_hash)
         snippet = build_query_snippet(
             "answer($t,$x)", max_depth=30, max_solutions=MAX_SOLUTIONS
         )
-        resp = self.server.query(snippet, timeout=TIMEOUT)
+        # load+query is one atomic (locked) exchange — no workspace mixing
+        # between concurrent requests.
+        resp = self.server.load_and_query(
+            decls, clauses, snippet, timeout=TIMEOUT, kb_hash=kb_hash
+        )
         got = {
             (s["solution"]["t"], s["solution"]["x"])
             for s in resp.get("solutions", [])
@@ -257,13 +259,7 @@ def _print_report(
         print(f"    - {err}")
     print("  " + "─" * 68)
 
-    if ok and args.mode == "direct" and args.workers > 1:
-        print(
-            "  NOTE: PASS under concurrency is expected only after the load+query\n"
-            "  atomicity gap is fixed (prolog_bridge.execute). A FAIL here with\n"
-            "  --workers>1 is the current, documented behaviour.\n"
-        )
-    elif ok:
+    if ok:
         print("  No response mixing, no KB pollution, no engine errors.\n")
     else:
         print(

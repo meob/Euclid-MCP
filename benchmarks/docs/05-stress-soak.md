@@ -22,9 +22,10 @@ never verify.
 
 Modes:
 
-- `direct` — hammers the persistent engine (`PrologServer`) directly.
-  `--workers 1` matches the shipped single-threaded architecture.
-  `--workers N>1` surfaces the known load+query atomicity gap (see below).
+- `direct` — hammers the persistent engine (`PrologServer`) directly. `load` +
+  `query` run as a single atomically-locked exchange
+  (`PrologServer.load_and_query`), so concurrent workers cannot interleave
+  workspaces — `--workers N` must always pass.
 - `api` — stresses the real HTTP API (single-threaded `HTTPServer`);
   concurrent clients are serialized by the accept loop, so correctness must
   hold at any `--workers` value.
@@ -43,17 +44,17 @@ mismatches=0    exceptions=0    engine_restarts=2
 The soak crosses the restart threshold twice (2 400 `_request` calls ≈ 2
 periodic restarts at `restart_every=1000`) with **zero failures**.
 
-### Run 2 — `direct`, workers=4, 10 s (expected FAIL)
+### Run 2 — `direct`, workers=4, 12 s (v0.3.1, after the atomicity fix)
 
 ```
-RESULT: FAIL
-iterations=2,925    throughput=286.7 req/s
-latency   mean=13.7ms   p50=12.9ms   p95=14.0ms   p99=14.8ms
-mismatches=1,464    exceptions=0    engine_restarts=5
+RESULT: PASS
+iterations=5,324    throughput=442.9 req/s
+latency   mean=9.0ms   p50=8.2ms   p95=9.1ms   p99=10.1ms
+mismatches=0    exceptions=0    engine_restarts=10
 ```
 
-~50% of requests return solutions from the **wrong tag**. This is the
-documented load+query atomicity gap, not a new regression.
+Before the fix (2026-08-12) the same run failed with ~50% response mixing
+(1 464 mismatches over 2 925 iterations) — see the atomicity-gap note below.
 
 ### Run 3 — `api`, workers=4, 10 s (expected PASS)
 
@@ -90,30 +91,34 @@ added in `tests/test_prolog_server.py`
 (`test_restart_after_request_count`,
 `test_periodic_restart_defers_to_next_load`), and the server suite passes.
 
-## Known gap (documented, not yet fixed)
+## Atomicity gap — found 2026-08-12, fixed in v0.3.1
 
-**Direct mode with `--workers N>1`.** `prolog_bridge.execute` performs `load`
-and `query` as two **separately-locked** pipe exchanges. Concurrent worker
-threads can interleave the two steps of different requests: worker A loads its
-KB, worker B loads its KB, worker A queries → A reads the solutions of B's KB.
-The result is the ~50% response-mixing seen in Run 2.
+**Symptom.** Direct mode with `--workers 4` produced ~50% response mixing:
+requests returned solutions from the **wrong tag** (Run 2 above, before the
+fix).
 
-- The **production path is unaffected**: the MCP/API servers are
-  single-threaded and serialize every request, and `--workers 1` matches that
-  architecture.
-- The fix is to make load+query a **single atomic exchange** (one engine
-  command that loads and queries, or a held lock across both steps). Until
-  then, a FAIL at `--workers>1` in `direct` mode is the *expected* outcome,
-  and this benchmark is the regression detector for the fix.
+**Root cause.** `prolog_bridge.execute` performed `load` and `query` as two
+**separately-locked** pipe exchanges. Concurrent worker threads interleaved
+the two steps of different requests: worker A loads its KB, worker B loads its
+KB, worker A queries → A reads the solutions of B's KB.
+
+**Fix (v0.3.1).** `PrologServer.load_and_query` holds the server lock across
+`load` + `query`, making them a **single atomic exchange**. `execute` and the
+direct benchmark use it, so concurrent workers can no longer interleave one
+workspace between another request's load and query. Regression test:
+`tests/test_prolog_server.py::test_load_and_query_is_atomic_under_concurrency`
+(150 iterations × 2 threads on different tagged KBs, must return zero
+mismatches).
 
 ## Consequent implementation choices
 
 1. **Periodic-restart placement** (fixed): restart fires only before a `load`,
    so the engine that answers a query always has the workspace from its own
    paired load.
-2. **Regression detection:** `euclid_bench.py` is the gate for the atomicity
-   fix — it must flip from FAIL to PASS at `--workers 4` once load+query
-   becomes atomic.
-3. **KB-persistence work item (planned)**: the residual per-request reload
-   cost measured here motivated the A+B decision (cache parse+translate +
-   engine fingerprint skip), recorded 2026-08-12, not yet implemented.
+2. **Load+query atomicity** (fixed in v0.3.1): `load_and_query` makes the
+   pair a single locked exchange; `euclid_bench.py` is the regression gate and
+   must stay PASS at `--workers 4`.
+3. **KB-persistence work item** (implemented in v0.3.1): the residual
+   per-request reload cost measured here motivated the A+B decision (cache
+   parse+translate + engine fingerprint skip). A repeated identical 20 000-fact
+   KB drops from ~196 ms to ~18 ms per load.

@@ -227,6 +227,25 @@ class PrologServer:
             resp["skipped"] = bool(resp["skipped"])
         return resp
 
+    def load_and_query(
+        self,
+        decls: list[str],
+        clauses: list[str],
+        snippet: str,
+        timeout: float = 30,
+        kb_hash: str | None = None,
+    ) -> dict[str, Any]:
+        """Run ``load`` and ``query`` as one atomic exchange.
+
+        Holding the server lock across both requests prevents another thread
+        from interleaving its own load between ours and the query, which used
+        to mix workspaces (the load+query atomicity gap). The lock is
+        reentrant, so ``load``/``query`` re-acquire it without deadlock.
+        """
+        with self._lock:
+            self.load(decls, clauses, timeout=timeout, kb_hash=kb_hash)
+            return self.query(snippet, timeout=timeout)
+
     def query(self, snippet: str, timeout: float = 30) -> dict[str, Any]:
         resp = self._request(
             {"command": "query", "snippet": snippet, "timeout": timeout}, timeout

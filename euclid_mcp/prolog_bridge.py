@@ -68,9 +68,12 @@ def execute(
         return []
 
     server = _get_server()
-    server.load(decls=decls, clauses=clauses, timeout=timeout, kb_hash=kb_hash)
-    snippet = build_query_snippet(query, max_depth=max_depth, max_solutions=max_solutions)
-    response = server.query(snippet, timeout=timeout)
+    snippet = build_query_snippet(
+        query, max_depth=max_depth, max_solutions=max_solutions
+    )
+    response = server.load_and_query(
+        decls, clauses, snippet, timeout=timeout, kb_hash=kb_hash
+    )
 
     solutions: list[Solution] = []
     for item in response.get("solutions") or []:

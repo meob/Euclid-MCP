@@ -15,7 +15,7 @@ in [`docs/`](docs/).
 | 2 | `rbac_1000.py` | Same comparison at scale (1 000 users, 1 053 facts) | LLMs 2/5, Euclid 5/5, faster (963 ms) and fewer output tokens | [02](docs/02-rbac-at-scale.md) |
 | 3 | `persistent_engine_benchmark.py` | Stateless subprocess vs persistent engine | **12.1×** mean steady-state speedup | [03](docs/03-persistent-engine.md) |
 | 4 | `solution_cap_benchmark.py` | Engine-side `max_solutions` cap stops work early | Capped time flat (0.6→23 ms); ratio vs uncapped grows 19×→54× | [04](docs/04-solution-cap.md) |
-| 5 | `euclid_bench.py` | Stress & soak: mixing, pollution, restart, API under load | workers=1 & API **PASS**; direct workers=4 FAIL (known gap) | [05](docs/05-stress-soak.md) |
+| 5 | `euclid_bench.py` | Stress & soak: mixing, pollution, restart, API under load | workers=1, workers=4 & API **PASS** | [05](docs/05-stress-soak.md) |
 
 ## Summary of results
 
@@ -32,22 +32,23 @@ in [`docs/`](docs/).
 3. **Persistent engine vs stateless (2026-08-12).** Reusing one long-lived
    `swipl` process instead of spawning one per call is **12.1×** faster in
    steady state. The gap narrows at large KBs because the per-call workspace
-   reload dominates. **→** Persistent engine is the default path; reload cost
-   motivates KB persistence (see work items).
+   reload dominates. **→** Persistent engine is the default path; the reload
+   cost motivated the v0.3.1 KB memoization (see "KB reload cost").
 
 4. **Solution cap (2026-08-12).** The Prolog-side cap keeps a capped query at
    ~flat cost (0.6 → 23.4 ms) while the uncapped cost scales with solutions
    (12 → 1 254 ms). **→** Cap enforced engine-side (`count_limit/2`), so
    dense queries cannot degenerate into full scans.
 
-5. **Stress & soak (2026-08-12).**
+5. **Stress & soak (2026-08-12 → v0.3.1).**
    - `direct workers=1`, 1 200 it., restart_every=1000: **PASS**, 280 req/s,
      mean 3.4 ms, 2 restarts, 0 failures.
-   - `direct workers=4`, 10 s: **FAIL**, 1 464/2 925 mismatches (~50%) — the
-     known load+query atomicity gap.
+   - `direct workers=4`: **FAIL** on 2026-08-12 (1 464/2 925 mismatches, ~50%)
+     — the load+query atomicity gap, **fixed in v0.3.1**; the same run is now
+     **PASS** (5 324 it., 442.9 req/s, 0 failures).
    - `api workers=4`, 10 s: **PASS**, 194 req/s, 0 failures.
-   **→** Found and fixed a real restart bug (see below); the direct
-   multi-worker gap is documented and tracked.
+   **→** Found and fixed a real restart bug (see below) and the load+query
+   atomicity gap; `euclid_bench.py` stays as the regression detector for both.
 
 ## Consequent implementation choices
 
@@ -61,10 +62,15 @@ in [`docs/`](docs/).
   (`existence_error` on the per-load `prove/3`). It now fires at the start of
   the next `load` (`euclid_mcp/prolog_server.py`), with regression tests in
   `tests/test_prolog_server.py`.
-- **Documented, not yet fixed:** direct-mode `--workers>1` load+query
-  atomicity gap (~50% response mixing). `euclid_bench.py` is the regression
-  detector — it must flip to PASS once load+query becomes a single atomic
-  exchange.
+- **Load+query atomicity gap fixed** (Benchmark 5, v0.3.1): `load` and `query`
+  were two separately-locked pipe exchanges, so concurrent workers mixed
+  workspaces (~50% response mixing at `--workers 4`). `load_and_query` now
+  holds the lock across both — a single atomic exchange — and the direct
+  workers=4 run flips to PASS (regression test
+  `test_load_and_query_is_atomic_under_concurrency`).
+- **KB memoization** (v0.3.1): repeated loads of the same KB skip re-parsing,
+  re-translation, and the engine workspace rebuild — see "KB reload cost"
+  below.
 
 ## Exploratory measurement — KB reload cost (2026-08-12)
 
@@ -80,8 +86,12 @@ a hot engine, to decide whether persisting the KB is worthwhile:
 The engine reload is only ~17–25% of the cost; **Python-side parse dominates**
 (~55%). Every tool call reloads the whole KB, and `what_if` does it twice.
 
-**Decision (A+B, planned — not implemented):** cache parse+translate in Python
-keyed by KB fingerprint, and skip the engine reload when the fingerprint is
-unchanged. Target: repeated identical KB at 20 000 facts from ~260 ms to
-~5 ms. The delta-based approach (keep base resident, apply/remove only session
-facts) is deferred.
+**Decision (A+B) — implemented in v0.3.1.** Cache parse+translate in Python
+keyed by KB fingerprint (`euclid_mcp/server.py` `_translate_cached`), and
+skip the engine reload when the fingerprint is unchanged (the `load` carries
+the `kb_hash`; the engine replies `skipped:true` with the stored stats).
+Measured on a repeated identical 20 000-fact KB: **~196 ms → ~18 ms per load**
+(the rebuild is also skipped, not just the Python side; the query still
+runs). The delta-based approach (keep base resident, apply/remove only session
+facts) stays deferred, as does the two-phase conditional load that would drop
+the unchanged-KB cost to ~1 ms by not shipping the clauses over the pipe.

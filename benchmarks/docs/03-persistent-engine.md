@@ -48,7 +48,10 @@ path.
 - The scan cases are the motivation behind the engine-side solution cap (see
   Benchmark 4): a full scan over 10 000 facts costs ~216 ms even on the
   persistent path, so unbounded solution enumeration must be capped.
-- The residual reload cost is the motivation for the **KB-persistence
-  work item (planned, not yet implemented)**: cache parse+translate in Python
-  and skip the engine reload when the KB fingerprint is unchanged (decision
-  A+B, recorded 2026-08-12).
+- The residual reload cost motivated the **KB-persistence work item,
+  implemented in v0.3.1**: Python caches parse+translate per KB source
+  (`euclid_mcp/server.py` `_translate_cached`) and the engine skips the
+  workspace rebuild when the `load` carries the same `kb_hash`
+  (`euclid_mcp/prolog_engine.pl`). A repeated identical KB at 20 000 facts
+  drops from ~196 ms to ~18 ms per load (see
+  `benchmarks/BENCHMARKS.md` → "KB reload cost").

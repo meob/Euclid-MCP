@@ -1,4 +1,5 @@
 import shutil
+import threading
 
 import pytest
 
@@ -213,3 +214,42 @@ def test_skip_does_not_leak_previous_workspace(server):
     resp = server.query(build_query_snippet("parent($who, bob)", max_solutions=5))
     assert len(resp["solutions"]) == 1
     assert resp["solutions"][0]["solution"]["who"] == "tom"
+
+
+def test_load_and_query_is_atomic_under_concurrency(server):
+    """Concurrent load+query must not mix workspaces between requests."""
+
+    def make_kb(tag):
+        kb = KB(
+            facts=[f"item({tag},{i})" for i in range(10)],
+            rules=["answer($t,$x) IF item($t,$x)"],
+        )
+        return kb_to_decls_clauses(kb)
+
+    decls_a, clauses_a = make_kb("a")
+    decls_b, clauses_b = make_kb("b")
+    snippet = build_query_snippet("answer($t,$x)", max_solutions=50)
+
+    failures: list[str] = []
+
+    def worker(tag, decls, clauses):
+        expected = {(tag, i) for i in range(10)}
+        for _ in range(150):
+            resp = server.load_and_query(decls, clauses, snippet, kb_hash=tag)
+            got = {
+                (s["solution"]["t"], s["solution"]["x"])
+                for s in resp.get("solutions", [])
+            }
+            if got != expected:
+                failures.append(f"{tag}: got {sorted(got)} != {sorted(expected)}")
+                return
+
+    threads = [
+        threading.Thread(target=worker, args=("a", decls_a, clauses_a)),
+        threading.Thread(target=worker, args=("b", decls_b, clauses_b)),
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=90)
+    assert failures == []

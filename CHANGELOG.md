@@ -23,6 +23,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`existence_error` on the per-load `prove/3` → `engine_error`). It now
   fires before the next `load`, so a relaunched engine always receives its
   workspace first. Regression coverage in `tests/test_prolog_server.py`.
+- **Load+query atomicity gap**: `prolog_bridge.execute` ran `load` and `query`
+  as two separately-locked pipe exchanges, so concurrent workers could
+  interleave one request's workspace into another's query (~50% response
+  mixing at `--workers 4` in `euclid_bench.py`). `PrologServer.load_and_query`
+  now holds the server lock across both steps — a single atomic exchange.
+  Regression coverage in `tests/test_prolog_server.py` and the benchmark
+  flips from FAIL to PASS at `--workers 4`.
 
 ### Added
 - **Python 3.13 and 3.14 support**: verified end-to-end (lint, mypy, and the
