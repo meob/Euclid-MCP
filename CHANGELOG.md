@@ -4,7 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.3.1] — 2026-08-12
+## [0.3.1] — 2026-08-13
+
+### Added
+- **HTTP API authentication & TLS** (`integrations/euclid_api.py`): opt-in
+  `EUCLID_API_KEY` (or `--api-key`) requires `Authorization: Bearer <key>` on
+  every POST (constant-time check, `401` otherwise, `/health` stays open for
+  load balancers), and `EUCLID_TLS_CERT` / `EUCLID_TLS_KEY` (or
+  `--certfile` / `--keyfile`) serve HTTPS directly. Setup and posture
+  documented in `docs/PRODUCTION.md` → "Authentication & TLS".
+- **Python 3.13 and 3.14 support**: verified end-to-end (lint, mypy, and the
+  full test suite) on CPython 3.13 and 3.14. New PyPI classifiers advertise
+  both, and the CI matrix now runs on Python 3.10–3.14.
+- **Stress & soak benchmark** (`benchmarks/euclid_bench.py`): detects response
+  mixing, KB pollution, and engine errors across periodic restarts; it is the
+  regression detector for the load+query atomicity and the periodic-restart
+  policy (must stay PASS at `--workers 4`).
+- **Benchmark documentation**: one detail page per benchmark
+  (`benchmarks/docs/`) plus a catalog of results and consequent
+  implementation choices (`benchmarks/BENCHMARKS.md`).
 
 ### Performance
 - **KB preload optimization**: repeated loads of the same knowledge base now
@@ -30,24 +48,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   now holds the server lock across both steps — a single atomic exchange.
   Regression coverage in `tests/test_prolog_server.py` and the benchmark
   flips from FAIL to PASS at `--workers 4`.
-
-### Added
-- **Python 3.13 and 3.14 support**: verified end-to-end (lint, mypy, and the
-  full test suite) on CPython 3.13 and 3.14. New PyPI classifiers advertise
-  both, and the CI matrix now runs on Python 3.10–3.14.
-- **Stress & soak benchmark** (`benchmarks/euclid_bench.py`): detects response
-  mixing, KB pollution, and engine errors across periodic restarts; it is the
-  regression detector for the load+query atomicity and the periodic-restart
-  policy (must stay PASS at `--workers 4`).
-- **Benchmark documentation**: one detail page per benchmark
-  (`benchmarks/docs/`) plus a catalog of results and consequent
-  implementation choices (`benchmarks/BENCHMARKS.md`).
-- **HTTP API authentication & TLS** (`integrations/euclid_api.py`): opt-in
-  `EUCLID_API_KEY` (or `--api-key`) requires `Authorization: Bearer <key>` on
-  every POST (constant-time check, `401` otherwise, `/health` stays open for
-  load balancers), and `EUCLID_TLS_CERT` / `EUCLID_TLS_KEY` (or
-  `--certfile` / `--keyfile`) serve HTTPS directly. Setup and posture
-  documented in `docs/PRODUCTION.md` → "Authentication & TLS".
 
 ## [0.3.0] — 2026-08-12
 
