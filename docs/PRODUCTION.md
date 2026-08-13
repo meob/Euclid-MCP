@@ -166,10 +166,94 @@ At the network edge, additionally:
 
 - Terminate TLS at the load balancer; use `X-Request-Id` (echoed on responses)
   to correlate requests across replicas and logs.
-- Authenticate clients (API key / mTLS) if the API is reachable outside a
-  trusted network; the HTTP API itself has no auth by design — it is meant for
-  internal automation (n8n, Zapier, Make).
+- **Authenticate every client.** The HTTP API ships with opt-in API-key auth
+  and TLS (see [Authentication & TLS](#authentication--tls) below). Plain HTTP
+  with no auth is only safe on a trusted loopback, never over the network.
 - Keep `CORS` as needed: the API sets `Access-Control-Allow-Origin: *`.
+
+## Authentication & TLS
+
+Plain HTTP is **not sufficient** for remote access: anyone who can reach the
+port can query any KB or hammer the engine, and credentials (or the KBs
+themselves) travel in cleartext. Remote exposure requires **HTTPS
+(encryption) + strong authentication**. SWI-Prolog needs no extra protection:
+it only listens on the container's local JSON-lines pipe, so guarding the API
+boundary guards the whole engine.
+
+The API (`integrations/euclid_api.py`) supports both directly, or you can
+terminate TLS at the load balancer (HAProxy) and keep the API on plain HTTP
+inside the trusted network.
+
+### API-key authentication (opt-in)
+
+Set `EUCLID_API_KEY` (or `--api-key`):
+
+```bash
+export EUCLID_API_KEY="$(openssl rand -hex 32)"
+python3 integrations/euclid_api.py --api-key "$EUCLID_API_KEY" --port 8080
+```
+
+Every POST must then carry the key; otherwise the API answers `401`:
+
+```bash
+curl -s https://host:8080/reason \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $EUCLID_API_KEY" \
+  -d '{"knowledge": "red(apple)\n? red($x)"}'
+```
+
+- The comparison is **constant-time** (`hmac.compare_digest`), so timing cannot
+  leak the key.
+- `GET /health` stays open so load balancers can probe replicas.
+- Without a key the API logs a startup warning and runs open — fine on a
+  trusted loopback, not when exposed.
+- **An API key over plain HTTP is not enough**: it can be read in transit.
+  Always pair it with HTTPS (below).
+
+### TLS
+
+Terminate TLS at the load balancer (the reference `haproxy.cfg` already binds
+`:443 ssl`), **or** let the API serve HTTPS directly:
+
+```bash
+python3 integrations/euclid_api.py \
+    --certfile /etc/euclid/cert.pem \
+    --keyfile  /etc/euclid/key.pem \
+    --port 8080
+```
+
+Env-var equivalent: `EUCLID_TLS_CERT` / `EUCLID_TLS_KEY`. Use a certificate
+from your internal CA (or Let's Encrypt); self-signed certs force clients to
+disable verification. In Docker:
+
+```yaml
+services:
+  euclid-api:
+    image: euclid-mcp:latest
+    command: ["python3", "integrations/euclid_api.py", "--port", "8080"]
+    environment:
+      EUCLID_API_KEY: ${EUCLID_API_KEY}
+      EUCLID_TLS_CERT: /etc/euclid/cert.pem
+      EUCLID_TLS_KEY: /etc/euclid/key.pem
+    volumes:
+      - ./certs:/etc/euclid:ro
+```
+
+### Stronger alternatives (edge)
+
+- **mTLS** at the load balancer: the HAProxy terminates TLS and validates the
+  client certificate before the request reaches the API. With mTLS you can
+  leave the API-key off (the LB is the only allowed client) or keep both.
+- **OIDC / SSO** at the edge (Authelia, Keycloak) for human users; the API
+  itself stays API-key-only.
+
+### Recommended production posture
+
+| Exposure | HTTPS | Auth | Notes |
+|----------|-------|------|-------|
+| Loopback only (`localhost`) | optional | optional | default; safe for local automation |
+| Trusted internal network | optional | API key | terminate TLS at the LB if in place |
+| Internet / untrusted network | **required** | API key **and/or mTLS** | never plain HTTP, never no-auth |
 
 ## Monitoring & observability
 
@@ -196,6 +280,7 @@ The HTTP API access log includes `request_id=...` when the client sent
 | Engine restarts (`restart_every=1000`, after-timeout) | expected, cheap | frequent timeouts → fix queries, not restart policy |
 | `/health` failures at the proxy | all replicas up | replica crash / swipl not launched |
 | HTTP 429 at the edge | none for legitimate traffic | tighten rate limit or scale out |
+| HTTP 401 from the API | none (clients hold the key) | check the client secret / key rotation |
 | Replica memory (e.g. `mem_limit`) | well under limit | long-lived drift → rely on restart policy |
 
 ## Troubleshooting

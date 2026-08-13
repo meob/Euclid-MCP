@@ -8,6 +8,9 @@ Tools to integrate Euclid-MCP into automation platforms and agent frameworks.
 python3 integrations/euclid_api.py --port 8080
 # Preload a knowledge base so requests can omit the "knowledge" field:
 python3 integrations/euclid_api.py --kb-path /path/to/policies.euclid --port 8080
+# Require an API key on every POST and serve HTTPS:
+python3 integrations/euclid_api.py --api-key "$(openssl rand -hex 32)" \
+    --certfile /etc/euclid/cert.pem --keyfile /etc/euclid/key.pem --port 8080
 ```
 
 | Endpoint | Method | Description |
@@ -19,20 +22,28 @@ python3 integrations/euclid_api.py --kb-path /path/to/policies.euclid --port 808
 | `/check-kb` | POST | Validate a knowledge base for consistency |
 | `/health` | GET | Health check |
 
-**POST /reason** — Request body:
+### Authentication & TLS
 
-```json
-{
-  "knowledge": "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)",
-  "max_solutions": 5,
-  "max_depth": 30
-}
-```
+The API is **open by default** (no auth, plain HTTP) — intended for a trusted
+loopback. Before exposing it beyond a trusted network, protect it:
+
+- **API key** — set `EUCLID_API_KEY` (or `--api-key`). Every POST then requires
+  the header `Authorization: Bearer <key>`; requests without a valid key get
+  `401`. Comparison is constant-time. `GET /health` stays open so load
+  balancers can probe it. Generate a strong key with
+  `openssl rand -hex 32`.
+- **TLS** — set `EUCLID_TLS_CERT` / `EUCLID_TLS_KEY` (or
+  `--certfile` / `--keyfile`) to serve HTTPS directly, or terminate TLS at the
+  load balancer and keep the API on plain HTTP inside the trusted network.
+
+An API key sent over plain HTTP is **not** sufficient — always pair it with
+HTTPS so the credential cannot be read in transit. See
+`docs/PRODUCTION.md` → "Authentication & TLS" for the full setup.
 
 **n8n setup:**
 1. Add an **HTTP Request** node
-2. Method: `POST`, URL: `http://localhost:8080/reason`
-3. Headers: `Content-Type: application/json`
+2. Method: `POST`, URL: `https://host:8080/reason`
+3. Headers: `Content-Type: application/json`, `Authorization: Bearer <api-key>`
 4. Body (JSON): `{{ $json }}` with `knowledge`, `query`, etc.
 
 **POST /explain** — Request body:

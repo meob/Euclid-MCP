@@ -2,17 +2,26 @@
 
 import http.client
 import json
+import shutil
+import ssl
+import subprocess
 import threading
 from http.server import HTTPServer
 
-from integrations.euclid_api import ReasonHandler
+import pytest
+
+from integrations.euclid_api import ReasonHandler, _tls_server_context
 
 KB = "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
 
 
 class _TestServer:
-    def __init__(self):
+    def __init__(self, tls_context: ssl.SSLContext | None = None):
         self.server = HTTPServer(("127.0.0.1", 0), ReasonHandler)
+        if tls_context is not None:
+            self.server.socket = tls_context.wrap_socket(
+                self.server.socket, server_side=True
+            )
         self.port = self.server.server_address[1]
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
 
@@ -32,18 +41,24 @@ def _request(
     path: str,
     body: dict | None = None,
     raw_body: bytes | None = None,
+    headers: dict | None = None,
+    tls: bool = False,
 ):
-    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    conn_cls = http.client.HTTPSConnection if tls else http.client.HTTPConnection
+    kwargs = {"timeout": 10}
+    if tls:
+        kwargs["context"] = ssl._create_unverified_context()
+    conn = conn_cls("127.0.0.1", port, **kwargs)
+    hdrs = dict(headers or {})
     if body is not None:
         payload = json.dumps(body).encode()
-        headers = {"Content-Type": "application/json"}
+        hdrs.setdefault("Content-Type", "application/json")
     elif raw_body is not None:
         payload = raw_body
-        headers = {"Content-Type": "application/json"}
+        hdrs.setdefault("Content-Type", "application/json")
     else:
         payload = None
-        headers = {}
-    conn.request(method, path, body=payload, headers=headers)
+    conn.request(method, path, body=payload, headers=hdrs)
     resp = conn.getresponse()
     data = json.loads(resp.read().decode())
     conn.close()
@@ -161,3 +176,88 @@ class TestApi:
         with _TestServer() as s:
             status, data = _request(s.port, "GET", "/nope")
             assert status == 404
+
+
+class TestApiAuth:
+    """EUCLID_API_KEY gates every POST; /health stays open for the LB."""
+
+    def test_open_without_key(self, monkeypatch):
+        monkeypatch.delenv("EUCLID_API_KEY", raising=False)
+        with _TestServer() as s:
+            status, _ = _request(s.port, "POST", "/reason", {"knowledge": KB})
+            assert status == 200
+
+    def test_reject_missing_key(self, monkeypatch):
+        monkeypatch.setenv("EUCLID_API_KEY", "secret-123")
+        with _TestServer() as s:
+            status, data = _request(s.port, "POST", "/reason", {"knowledge": KB})
+            assert status == 401
+            assert "Authorization" in data["error"]
+
+    def test_reject_wrong_key(self, monkeypatch):
+        monkeypatch.setenv("EUCLID_API_KEY", "secret-123")
+        with _TestServer() as s:
+            status, _ = _request(
+                s.port,
+                "POST",
+                "/reason",
+                {"knowledge": KB},
+                headers={"Authorization": "Bearer wrong-key"},
+            )
+            assert status == 401
+
+    def test_reject_wrong_scheme(self, monkeypatch):
+        monkeypatch.setenv("EUCLID_API_KEY", "secret-123")
+        with _TestServer() as s:
+            status, _ = _request(
+                s.port,
+                "POST",
+                "/reason",
+                {"knowledge": KB},
+                headers={"Authorization": "Basic c2VjcmV0"},
+            )
+            assert status == 401
+
+    def test_accept_valid_key(self, monkeypatch):
+        monkeypatch.setenv("EUCLID_API_KEY", "secret-123")
+        with _TestServer() as s:
+            status, data = _request(
+                s.port,
+                "POST",
+                "/reason",
+                {"knowledge": KB},
+                headers={"Authorization": "Bearer secret-123"},
+            )
+            assert status == 200
+            assert data["solutions"][0]["substitutions"]["who"] == "socrates"
+
+    def test_health_stays_open(self, monkeypatch):
+        monkeypatch.setenv("EUCLID_API_KEY", "secret-123")
+        with _TestServer() as s:
+            status, data = _request(s.port, "GET", "/health")
+            assert status == 200
+            assert data["status"] == "ok"
+
+
+class TestApiTls:
+    def test_https_serves(self, tmp_path):
+        openssl = shutil.which("openssl")
+        if not openssl:
+            pytest.skip("openssl not installed")
+        cert, key = tmp_path / "cert.pem", tmp_path / "key.pem"
+        subprocess.run(
+            [
+                openssl, "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                "-keyout", str(key), "-out", str(cert), "-days", "1",
+                "-subj", "/CN=localhost",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        ctx = _tls_server_context(str(cert), str(key))
+        with _TestServer(tls_context=ctx) as s:
+            status, data = _request(
+                s.port, "GET", "/health", tls=True
+            )
+            assert status == 200
+            assert data["status"] == "ok"

@@ -15,6 +15,14 @@ services:
     command: ["python3", "integrations/euclid_api.py", "--port", "8080"]
     ports:
       - "8080:8080"
+    environment:
+      # Require `Authorization: Bearer <key>` on every POST (see docs/PRODUCTION.md):
+      EUCLID_API_KEY: ${EUCLID_API_KEY:-}
+      # Serve HTTPS directly (uncomment + mount ./certs):
+      # EUCLID_TLS_CERT: /certs/cert.pem
+      # EUCLID_TLS_KEY: /certs/key.pem
+    # volumes:
+    #   - ./certs:/certs:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
