@@ -5,7 +5,8 @@ the implementation choices that followed. One detail page per benchmark lives
 in [`docs/`](docs/).
 
 **Environment (2026-08-12 runs):** SWI-Prolog 10.0.2 (arm64-darwin), Python
-3.12.11, `.venv`.
+3.12.11, `.venv`. The SWI-Prolog compatibility matrix (benchmark 6) spans
+8.4.2/9.0.4/9.2.9/10.0.2.
 
 ## Index
 
@@ -16,6 +17,7 @@ in [`docs/`](docs/).
 | 3 | `persistent_engine_benchmark.py` | Stateless subprocess vs persistent engine | **12.1×** mean steady-state speedup | [03](docs/03-persistent-engine.md) |
 | 4 | `solution_cap_benchmark.py` | Engine-side `max_solutions` cap stops work early | Capped time flat (0.6→23 ms); ratio vs uncapped grows 19×→54× | [04](docs/04-solution-cap.md) |
 | 5 | `euclid_bench.py` | Stress & soak: mixing, pollution, restart, API under load | workers=1, workers=4 & API **PASS** | [05](docs/05-stress-soak.md) |
+| 6 | — (full suite + CI) | Engine correctness across SWI-Prolog 8.4.2/9.0.4/9.2.9/10.0.2 | **256/256 PASS** on all versions | [06](docs/06-swi-prolog-versions.md) |
 
 ## Summary of results
 
@@ -47,8 +49,17 @@ in [`docs/`](docs/).
      — the load+query atomicity gap, **fixed in v0.3.1**; the same run is now
      **PASS** (5 324 it., 442.9 req/s, 0 failures).
    - `api workers=4`, 10 s: **PASS**, 194 req/s, 0 failures.
-   **→** Found and fixed a real restart bug (see below) and the load+query
-   atomicity gap; `euclid_bench.py` stays as the regression detector for both.
+    **→** Found and fixed a real restart bug (see below) and the load+query
+    atomicity gap; `euclid_bench.py` stays as the regression detector for both.
+
+6. **SWI-Prolog version compatibility (2026-08-13, v0.3.1).** The full suite
+   passes on SWI-Prolog 8.4.2 (Ubuntu 22.04), 9.0.4 (CI), 9.2.9 (Debian), and
+   10.0.2 (macOS). The first CI run on the 9.x line exposed a real engine bug:
+   `clear_workspace` retracted SWI-Prolog's own dynamic bookkeeping and
+   corrupted the autoloader (`domain_error(file_type, prolog)`). The registry
+   fix is ~19% faster (513 vs 429 req/s), not slower. **→** The engine is
+   portable across the supported SWI-Prolog releases; the 9.x CI matrix keeps
+   guarding it.
 
 ## Consequent implementation choices
 
@@ -71,6 +82,10 @@ in [`docs/`](docs/).
 - **KB memoization** (v0.3.1): repeated loads of the same KB skip re-parsing,
   re-translation, and the engine workspace rebuild — see "KB reload cost"
   below.
+- **SWI-Prolog 9.x safety** (v0.3.1, Benchmark 6): `clear_workspace` now
+  retracts only the registered workspace predicates (`workspace_predicate/1`)
+  instead of every dynamic predicate, keeping the engine correct on
+  SWI-Prolog 8.x–10.x (see `benchmarks/docs/06-swi-prolog-versions.md`).
 
 ## Exploratory measurement — KB reload cost (2026-08-12)
 
