@@ -150,6 +150,17 @@ command_handler(Other, _Request) :-
 % write ','. Clear-on-load keeps the flag consistent after timeouts.
 :- dynamic euclid_array_first/0.
 
+% Registry of predicates that belong to the loaded workspace (declared dynamic
+% via declare_dynamic/1, plus the engine-internal euclid_array_first flag).
+% clear_workspace/0 retracts ONLY these. A broad sweep of every dynamic
+% predicate is unsafe: on SWI-Prolog 9.x several internal bookkeeping
+% predicates (e.g. $search_path_file_cache/3, prolog_file_type/2,
+% $autoload_nesting/1) are dynamic too, and retracting them corrupts the
+% autoloader — the next library autoload (e.g. maplist/2) dies with
+% domain_error(file_type, prolog).
+:- dynamic workspace_predicate/1.
+:- assertz(workspace_predicate(euclid_array_first/0)).
+
 % Fingerprint of the currently-loaded workspace. record_workspace/3 stores it
 % on load; assert/retract retract it so the next load rebuilds the workspace.
 % current_kb_stats/2 keeps the facts/rules counts so a skipped load can reply
@@ -165,17 +176,24 @@ array_separator :-
 % ── load helpers ──────────────────────────────────────────────────────────
 
 clear_workspace :-
-    current_predicate(Name/Arity),
-    functor(Probe, Name, Arity),
-    predicate_property(Probe, dynamic),
-    catch(retractall(Probe), _, true),
-    fail.
-clear_workspace.
+    ( retract(workspace_predicate(Name/Arity))
+    -> functor(Probe, Name, Arity),
+       catch(retractall(Probe), _, true),
+       clear_workspace
+    ;  true ),
+    ( workspace_predicate(euclid_array_first/0)
+    -> true
+    ;  assertz(workspace_predicate(euclid_array_first/0))
+    ).
 
 declare_dynamic(Sig) :-
     term_string(SigTerm, Sig),
     ( SigTerm = Name/Arity
-    -> ( catch(dynamic(Name/Arity), _, true) -> true ; true )
+    -> ( catch(dynamic(Name/Arity), _, true) -> true ; true ),
+       ( workspace_predicate(Name/Arity)
+       -> true
+       ;  assertz(workspace_predicate(Name/Arity))
+       )
     ; true ).
 
 load_clauses(Clauses) :-
@@ -209,6 +227,7 @@ assert_clause(Term) :-
     ( Term = (Head :- _Body) -> true ; Head = Term ),
     functor(Head, Name, Arity),
     ( catch(dynamic(Name/Arity), _, true) -> true ; true ),
+    ( workspace_predicate(Name/Arity) -> true ; assertz(workspace_predicate(Name/Arity)) ),
     assertz(Term).
 
 count_retract(Term, Count) :-
@@ -223,29 +242,33 @@ stats(Facts, Rules) :-
     findall(T, dynamic_rule(T), RuleTerms),
     length(RuleTerms, Rules).
 
+% Stats count the loaded workspace only: enumerate the registered
+% workspace predicates (never a broad sweep of every dynamic predicate —
+% SWI-Prolog 9.x keeps internal bookkeeping dynamic with clauses), then
+% exclude the engine-internal meta-interpreter predicates.
 dynamic_fact(Term) :-
-    current_predicate(Name/Arity),
-    functor(Probe, Name, Arity),
-    predicate_property(Probe, dynamic),
+    workspace_predicate(Name/Arity),
     user_predicate(Name/Arity),
+    functor(Probe, Name, Arity),
     clause(Probe, true),
     ground(Probe),
     Term = Probe.
 
 dynamic_rule(Term) :-
-    current_predicate(Name/Arity),
-    functor(Probe, Name, Arity),
-    predicate_property(Probe, dynamic),
+    workspace_predicate(Name/Arity),
     user_predicate(Name/Arity),
+    functor(Probe, Name, Arity),
     clause(Probe, Body),
     Body \= true,
     Term = (Probe :- Body).
 
+% Engine-internal predicates (meta-interpreter, proof serializer, array
+% streaming flag, workspace fingerprint): excluded from the user stats.
 user_predicate(Name/Arity) :-
     \+ member(Name/Arity, [
         prove/3, is_arith_goal/1, decompose_rule_id/3,
         proof_to_json/2, euclid_rule_id/1,
-        current_kb_hash/1, current_kb_stats/2
+        euclid_array_first/0, current_kb_hash/1, current_kb_stats/2
     ]).
 
 % ── response helpers ──────────────────────────────────────────────────────

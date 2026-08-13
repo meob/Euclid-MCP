@@ -36,6 +36,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   fingerprint so the next load rebuilds the workspace.
 
 ### Fixed
+- **Engine workspace sweep is SWI-Prolog 9.x-safe**: `clear_workspace/0`
+  retracted every dynamic predicate, including SWI-Prolog's own dynamic
+  bookkeeping (e.g. `$search_path_file_cache/3`, `prolog_file_type/2`,
+  `$autoload_nesting/1`). On SWI-Prolog 9.x those are dynamic too, so the
+  sweep corrupted the autoloader and the next library autoload (e.g.
+  `maplist/2`) died with `domain_error(file_type, prolog)` — every tool call
+  failed with "Euclid engine error". The engine now tracks the loaded
+  workspace in an explicit predicate registry (`workspace_predicate/1`) and
+  clears only that; `stats` counts only the registered user predicates. The
+  engine is now portable across SWI-Prolog 9.x (CI/Ubuntu) and 10.x.
 - **Periodic engine restart**: the restart fired at the end of the request
   that crossed the threshold, stranding the paired query on a bare engine
   (`existence_error` on the per-load `prove/3` → `engine_error`). It now
