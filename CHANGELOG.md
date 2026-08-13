@@ -4,6 +4,98 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.1] — 2026-08-13
+
+### Added
+- **HTTP API authentication & TLS** (`integrations/euclid_api.py`): opt-in
+  `EUCLID_API_KEY` (or `--api-key`) requires `Authorization: Bearer <key>` on
+  every POST (constant-time check, `401` otherwise, `/health` stays open for
+  load balancers), and `EUCLID_TLS_CERT` / `EUCLID_TLS_KEY` (or
+  `--certfile` / `--keyfile`) serve HTTPS directly. Setup and posture
+  documented in `docs/PRODUCTION.md` → "Authentication & TLS".
+- **Python 3.13 and 3.14 support**: verified end-to-end (lint, mypy, and the
+  full test suite) on CPython 3.13 and 3.14. New PyPI classifiers advertise
+  both, and the CI matrix now runs on Python 3.10–3.14.
+- **Stress & soak benchmark** (`benchmarks/euclid_bench.py`): detects response
+  mixing, KB pollution, and engine errors across periodic restarts; it is the
+  regression detector for the load+query atomicity and the periodic-restart
+  policy (must stay PASS at `--workers 4`).
+- **Benchmark documentation**: one detail page per benchmark
+  (`benchmarks/docs/`) plus a catalog of results and consequent
+  implementation choices (`benchmarks/BENCHMARKS.md`).
+
+### Performance
+- **KB preload optimization**: repeated loads of the same knowledge base now
+  skip re-parsing and re-asserting. Python-side parse+translate results are
+  cached per KB source (`_translate_cached`), and the engine skips the
+  workspace rebuild when the `load` carries the same `kb_hash` (reply
+  `skipped:true` with the stored stats). A repeated identical KB at 20 000
+  facts drops from ~196 ms to ~18 ms per load (and the query still runs);
+  `explain`, `diagnose`, and `what_if` inherit the win through `reason`, and
+  the HTTP API benefits as well. `assert`/`retract` invalidate the
+  fingerprint so the next load rebuilds the workspace.
+
+### Fixed
+- **Engine workspace sweep is SWI-Prolog 9.x-safe**: `clear_workspace/0`
+  retracted every dynamic predicate, including SWI-Prolog's own dynamic
+  bookkeeping (e.g. `$search_path_file_cache/3`, `prolog_file_type/2`,
+  `$autoload_nesting/1`). On SWI-Prolog 9.x those are dynamic too, so the
+  sweep corrupted the autoloader and the next library autoload (e.g.
+  `maplist/2`) died with `domain_error(file_type, prolog)` — every tool call
+  failed with "Euclid engine error". The engine now tracks the loaded
+  workspace in an explicit predicate registry (`workspace_predicate/1`) and
+  clears only that; `stats` counts only the registered user predicates. The
+  engine is now portable across SWI-Prolog 9.x (CI/Ubuntu) and 10.x.
+- **Periodic engine restart**: the restart fired at the end of the request
+  that crossed the threshold, stranding the paired query on a bare engine
+  (`existence_error` on the per-load `prove/3` → `engine_error`). It now
+  fires before the next `load`, so a relaunched engine always receives its
+  workspace first. Regression coverage in `tests/test_prolog_server.py`.
+- **Load+query atomicity gap**: `prolog_bridge.execute` ran `load` and `query`
+  as two separately-locked pipe exchanges, so concurrent workers could
+  interleave one request's workspace into another's query (~50% response
+  mixing at `--workers 4` in `euclid_bench.py`). `PrologServer.load_and_query`
+  now holds the server lock across both steps — a single atomic exchange.
+  Regression coverage in `tests/test_prolog_server.py` and the benchmark
+  flips from FAIL to PASS at `--workers 4`.
+
+## [0.3.0] — 2026-08-12
+
+### Added
+- **Unicode atoms** (`\p{L}`): predicate names, arguments, and rule IDs can now
+  be any Unicode letter (CJK, Cyrillic, Greek, …), e.g. `父(张三)` or
+  `Бог(Иван)`. Case folding is ASCII-only — `Parent(TOM)` still normalizes to
+  `parent(tom)`, while `БОГ(иван)` and `бог(иван)` stay distinct predicates.
+  Non-ASCII and uppercase-initial atoms are single-quoted on the Prolog side so
+  the engine can never misread them as variables. Covered end-to-end in
+  `tests/test_unicode_atoms.py`.
+
+### Changed
+- **Persistent SWI-Prolog engine**: replaces the per-call subprocess model. A
+  single long-lived `swipl` process is started once and kept alive, connected
+  to the server by a JSON-lines pipe (`euclid_mcp/prolog_server.py`,
+  `euclid_mcp/prolog_engine.pl`). Each request reloads only the workspace
+  (dynamic predicates are cleared and re-asserted over the pipe) instead of
+  booting Prolog and consulting a temp file, and the meta-interpreter and
+  proof serializer stay resident. Same external API and identical solution
+  ordering — pure performance work.
+- **Streaming query results**: the generated query snippet writes the JSON
+  array of solutions directly to the engine's output via `forall/2` +
+  `json_write/3` instead of collecting them in a `findall/3` term, and the
+  engine returns the array as a string that the client decodes. No
+  double-serialization, low memory on large result sets.
+- **Benchmark**: `benchmarks/persistent_engine_benchmark.py` compares the
+  stateless (pre-0.3.0) path against the persistent engine across KB sizes
+  (100/1k/10k facts) and query shapes (ground / full scan). Measured on the
+  reference machine: ~3×–42× steady-state speedup, mean ~14× across cases;
+  the persistent path is faster in every measured configuration.
+- **Canonical rule-ID marker is now `# RULE:`** (uppercase). The parser remains
+  case-insensitive (`# rule:`, `# Rule:` all work), but documentation and
+  examples now use `# RULE: <id>` to match the Euclid-IR keyword convention.
+  Tests keep exercising the lowercase forms to pin case-insensitivity.
+- **README**: new "Scalability" section — persistent engine, stateless
+  requests, horizontal scale-out behind a load balancer.
+
 ## [0.2.0] — 2026-08-10
 
 ### Added

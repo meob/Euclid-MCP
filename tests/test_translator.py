@@ -1,5 +1,13 @@
 from euclid_mcp.models import KB
-from euclid_mcp.translator import to_prolog
+from euclid_mcp.translator import build_query_snippet, to_prolog
+
+
+def test_snippet_caps_solutions_in_prolog():
+    snip = build_query_snippet("mortal($who)", max_solutions=7)
+    assert "MaxSolutions = 7," in snip
+    assert "nb_setval(euclid_solution_count, 0)" in snip
+    assert "C0 < MaxSolutions" in snip
+    assert "C1 is C0 + 1" in snip
 
 
 def test_translate_socrates():

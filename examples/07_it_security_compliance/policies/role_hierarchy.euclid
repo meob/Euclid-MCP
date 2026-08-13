@@ -62,12 +62,12 @@ department_role(product, business_analyst)
 
 # ── Recursive permission inheritance ──
 # A role has a permission if it's directly assigned OR inherited from a parent role.
-role_has_permission($role, $perm) IF role_permission($role, $perm)  # rule: RBAC-ROLE-PERM-1
-role_has_permission($role, $perm) IF inherits($role, $parent) AND role_has_permission($parent, $perm)  # rule: RBAC-ROLE-PERM-2
+role_has_permission($role, $perm) IF role_permission($role, $perm)  # RULE: RBAC-ROLE-PERM-1
+role_has_permission($role, $perm) IF inherits($role, $parent) AND role_has_permission($parent, $perm)  # RULE: RBAC-ROLE-PERM-2
 
 # ── User-role assignment ──
 # A user has a permission if they hold a role that has that permission.
-user_has_permission($user, $perm) IF user($user) AND has_role($user, $role) AND role_has_permission($role, $perm)  # rule: RBAC-USER-PERM-1
+user_has_permission($user, $perm) IF user($user) AND has_role($user, $role) AND role_has_permission($role, $perm)  # RULE: RBAC-USER-PERM-1
 
 # ── Role-level access for deployments ──
 # Higher roles can deploy to more sensitive environments.
@@ -81,5 +81,5 @@ deploy_role_level(director, 6)
 deploy_role_level(vp_engineering, 7)
 deploy_role_level(cto, 8)
 
-role_level($role, $level) IF deploy_role_level($role, $level)  # rule: RBAC-ROLE-LEVEL-1
-role_level($role, $level) IF inherits($role, $parent) AND role_level($parent, $parent_level) AND $level is $parent_level + 1  # rule: RBAC-ROLE-LEVEL-2
+role_level($role, $level) IF deploy_role_level($role, $level)  # RULE: RBAC-ROLE-LEVEL-1
+role_level($role, $level) IF inherits($role, $parent) AND role_level($parent, $parent_level) AND $level is $parent_level + 1  # RULE: RBAC-ROLE-LEVEL-2

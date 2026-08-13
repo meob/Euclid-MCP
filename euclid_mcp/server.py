@@ -1,4 +1,5 @@
 import functools
+import hashlib
 import logging
 import os
 import re
@@ -13,6 +14,7 @@ from euclid_mcp.kb_summary import build_kb_summary
 from euclid_mcp.language import parse
 from euclid_mcp.linter import lint_rule
 from euclid_mcp.models import (
+    KB,
     DiagnosisFinding,
     DiagnosisResult,
     Explanation,
@@ -23,7 +25,8 @@ from euclid_mcp.models import (
     WhatIfResult,
 )
 from euclid_mcp.prolog_bridge import execute as prolog_execute
-from euclid_mcp.translator import to_prolog
+from euclid_mcp.sanitizer import sanitize
+from euclid_mcp.translator import kb_to_decls_clauses
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +90,7 @@ def _is_not_goal(goal: str) -> bool:
 
 # Security limits
 MAX_KNOWLEDGE_LENGTH = 500_000  # 500 KB
+MAX_QUERY_LENGTH = 5_000  # 5 KB, for the query parameter
 MAX_DEPTH_LIMIT = 500
 MAX_SOLUTIONS_LIMIT = 1000
 
@@ -96,11 +100,11 @@ _KB_PATH_ENV = "EUCLID_KB_PATH"
 def _extract_predicate(text: str) -> tuple[str, str] | None:
     """Extract predicate name and args from a term like 'parent(tom, bob)'."""
     text = text.strip()
-    match = re.match(r"([a-z_]\w*)\s*\((.*)\)\s*$", text)
+    match = re.match(r"([^\W\d_]\w*)\s*\((.*)\)\s*$", text)
     if match:
         return match.group(1), match.group(2)
     # Zero-arity fact
-    match = re.match(r"([a-z_]\w*)\s*$", text)
+    match = re.match(r"([^\W\d_]\w*)\s*$", text)
     if match:
         return match.group(1), ""
     return None
@@ -371,6 +375,35 @@ def _resolve_knowledge(knowledge: str | None) -> str | None:
     return _PRELOADED_KB
 
 
+@functools.lru_cache(maxsize=8)
+def _parse_cached(kb_source: str) -> KB:
+    """Parse a KB source, cached by source text.
+
+    The returned KB is shared between callers: never mutate it in place.
+    Parse errors are not cached (an lru_cache does not store exceptions).
+    """
+    return parse(kb_source)
+
+
+@functools.lru_cache(maxsize=8)
+def _translate_cached(
+    kb_source: str,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Parse and translate a KB source, cached by source text.
+
+    Repeated requests with the same KB skip both parsing and Prolog-code
+    generation. Tuples are returned so callers cannot accidentally mutate a
+    cached payload shared across requests.
+    """
+    decls, clauses = kb_to_decls_clauses(parse(kb_source))
+    return tuple(decls), tuple(clauses)
+
+
+def _kb_fingerprint(kb_source: str) -> str:
+    """Fingerprint of a KB source; the engine skips unchanged workspaces."""
+    return hashlib.sha256(kb_source.encode("utf-8")).hexdigest()
+
+
 @mcp.tool(
     description="Perform logical deduction on a knowledge base "
     "and return solutions with proof trees for each result",
@@ -403,6 +436,12 @@ def reason(
             error=f"max_depth must be between 1 and {MAX_DEPTH_LIMIT}",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+    if query is not None and len(query) > MAX_QUERY_LENGTH:
+        return ReasonResult(
+            error=f"Query exceeds maximum allowed size "
+            f"({len(query):,} > {MAX_QUERY_LENGTH:,} characters)",
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
 
     # Security: reject oversized input
     if len(kb_source) > MAX_KNOWLEDGE_LENGTH:
@@ -413,7 +452,7 @@ def reason(
         )
 
     try:
-        kb = parse(kb_source)
+        kb = _parse_cached(kb_source)
     except Exception as exc:
         return ReasonResult(
             error=f"Knowledge parsing error: {exc}",
@@ -421,7 +460,15 @@ def reason(
         )
 
     if query:
-        kb.query = query
+        try:
+            sanitize(query)
+        except ValueError as exc:
+            return ReasonResult(
+                error=str(exc),
+                elapsed_ms=(time.monotonic() - start) * 1000,
+            )
+        # The cached KB is shared: copy before overriding the query.
+        kb = kb.model_copy(update={"query": query})
 
     if not kb.query:
         return ReasonResult(
@@ -432,7 +479,7 @@ def reason(
         )
 
     try:
-        prolog_code = to_prolog(kb, max_depth=max_depth, max_solutions=max_solutions)
+        decls, clauses = (list(x) for x in _translate_cached(kb_source))
     except Exception as exc:
         return ReasonResult(
             error=f"Prolog code generation error: {exc}",
@@ -440,7 +487,15 @@ def reason(
         )
 
     try:
-        solutions = prolog_execute(prolog_code, timeout=30)
+        solutions = prolog_execute(
+            decls,
+            clauses,
+            kb.query,
+            max_depth=max_depth,
+            max_solutions=max_solutions,
+            timeout=30,
+            kb_hash=_kb_fingerprint(kb_source),
+        )
     except RuntimeError as exc:
         return ReasonResult(
             error=str(exc),

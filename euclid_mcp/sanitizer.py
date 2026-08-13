@@ -29,6 +29,17 @@ _DANGEROUS_PATTERNS = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 
+# Quoted string literals (double or single quote, with escape support).
+# Masked before pattern scanning so dangerous-looking tokens inside
+# legitimate string data ("write a review", use_module notes, ...) are not
+# rejected: quoted atoms are inert, never parsed as directives/calls.
+_STRING_RE = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'')
+
+
+def _mask_strings(text: str) -> str:
+    """Replace quoted string literals with empty quoted atoms."""
+    return _STRING_RE.sub("''", text)
+
 
 def sanitize(text: str) -> None:
     """Validate Euclid-IR input for dangerous Prolog patterns.
@@ -49,8 +60,8 @@ def sanitize(text: str) -> None:
         # Skip @version directive
         if stripped.startswith("@version"):
             continue
-        # Check for dangerous patterns
-        if _DANGEROUS_PATTERNS.search(stripped):
+        # Check for dangerous patterns (string literals masked: inert data)
+        if _DANGEROUS_PATTERNS.search(_mask_strings(stripped)):
             raise ValueError(
                 f"Rejected dangerous pattern in input: {stripped!r}. "
                 "Euclid-IR does not support Prolog directives (:- ...) "

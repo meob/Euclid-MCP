@@ -50,6 +50,27 @@ class TestReason:
         assert r.error is None
         assert len(r.solutions) >= 1
 
+    def test_repeated_same_kb_is_consistent(self):
+        kb = (
+            "parent(tom, bob)\nparent(bob, ann)\n"
+            "ancestor($x, $y) IF parent($x, $y)\n"
+            "ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)\n"
+        )
+        r1 = reason(knowledge=kb, query="ancestor(tom, $who)", max_solutions=10)
+        r2 = reason(knowledge=kb, query="ancestor(tom, $who)", max_solutions=10)
+        assert r1.error is None and r2.error is None
+        assert [
+            s.substitutions for s in r1.solutions
+        ] == [s.substitutions for s in r2.solutions]
+
+    def test_query_param_overrides_embedded_query_on_cached_kb(self):
+        kb = "parent(tom, bob)\nparent(tom, liz)\n? parent(tom, $who)"
+        embedded = reason(knowledge=kb, max_solutions=10)
+        overridden = reason(knowledge=kb, query="parent($who, bob)", max_solutions=10)
+        assert embedded.error is None and overridden.error is None
+        assert {s.substitutions.get("who") for s in embedded.solutions} == {"bob", "liz"}
+        assert overridden.solutions[0].substitutions["who"] == "tom"
+
     def test_max_solutions(self):
         r = reason(
             "parent(tom, bob)\nparent(tom, liz)\nparent(tom, ann)\n? parent(tom, $who)",

@@ -21,15 +21,15 @@ Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable interme
 ## How it works
 
 ```
-┌──────────────┐     ┌──────────────────┐     ┌──────────────┐     ┌──────────────┐
-│  LLM/Agent   │────▶│  Euclid-MCP      │────▶│  Translator  │────▶│  SWI-Prolog  │
-│  (MCP Client)│◀────│  (MCPServer)     │◀────│  + Meta-IP   │◀────│ (subprocess) │
-└──────────────┘     └──────────────────┘     └──────────────┘     └──────────────┘
+┌──────────────┐     ┌──────────────────┐     ┌──────────────┐     ┌─────────────────┐
+│  LLM/Agent   │────▶│  Euclid-MCP      │────▶│  Translator  │────▶│  SWI-Prolog     │
+│  (MCP Client)│◀────│  (MCPServer)     │◀────│  + Meta-IP   │◀────│ (persistent)    │
+└──────────────┘     └──────────────────┘     └──────────────┘     └─────────────────┘
 ```
 
 1. Receive facts, rules, and a query in a simple intermediate language
 2. Translate into Prolog with a meta-interpreter for proof tree capture
-3. Execute via SWI-Prolog subprocess
+3. Execute via a persistent SWI-Prolog engine process (JSON-lines protocol on stdin/stdout; the workspace is reloaded per call, no process spawn overhead)
 4. Return solutions + proof trees as structured JSON
 
 Additional tools (`explain`, `diagnose`, `what_if`, `check_kb`) extend this core flow with natural-language explanations, analysis, scenario testing, and validation.
@@ -180,7 +180,7 @@ Main tool for verifiable deterministic reasoning.
 
 Deterministic proof-tree → natural-language reasoning steps. No LLM involved: it
 walks the proof tree of each solution and renders every step in plain language,
-citing the rule ID (`# rule: <id>`) when a rule has one. Use it to turn a proof
+citing the rule ID (`# RULE: <id>`) when a rule has one. Use it to turn a proof
 into an auditable, human-readable explanation.
 
 | Parameter | Type | Default | Description |
@@ -340,7 +340,7 @@ for sol in result.solutions:
 
 # Explanation — readable reasoning steps (cites rule IDs when present)
 expl = explain(
-    knowledge="human(socrates)\nmortal($x) IF human($x)  # rule: BIO-001",
+    knowledge="human(socrates)\nmortal($x) IF human($x)  # RULE: BIO-001",
     query="mortal($who)"
 )
 for e in expl.explanations:
@@ -407,7 +407,7 @@ print(f"Valid: {check.valid}, Errors: {check.errors}")
 }
 ```
 
-Rules can carry an audit-trail ID via a trailing `# rule: <id>` comment; the ID
+Rules can carry an audit-trail ID via a trailing `# RULE: <id>` comment; the ID
 is surfaced as `rule_id` on the `rule` nodes of the proof tree, so a decision
 can be cited ("this derives from rule GEN-2").
 
@@ -605,6 +605,33 @@ echo '{"knowledge": "red(apple)\\n? red($x)"}' | python3 integrations/euclid_cli
 See `integrations/README.md` for full details.
 
 
+## Scalability
+
+The engine is **persistent** since v0.3.0 — a single long-lived SWI-Prolog
+process per server instance, reloaded per request over a JSON-lines pipe
+instead of booting Prolog for every call. Requests stay **stateless**: each one
+brings its own knowledge base (or uses the preloaded one), so instances share
+nothing.
+
+This makes Euclid-MCP horizontally scalable:
+
+- **HTTP API** — run any number of instances behind a load balancer (nginx, a
+  Kubernetes Service, …). No session affinity needed: any instance can serve any
+  request.
+- **MCP stdio** — each MCP client spawns its own instance by design, giving
+  natural isolation and parallelism across clients.
+- **Resource footprint** — one `swipl` process per instance (~tens of MB)
+  instead of one short-lived process per request, so a single instance serves
+  many requests cheaply.
+
+A single instance handles one request at a time; an in-process engine pool for
+concurrent requests is on the roadmap (see `IDEAS.md`).
+
+Reference production architecture — load balancing, resource limits, security
+hardening, and monitoring for a replica battery behind HAProxy:
+[`docs/PRODUCTION.md`](docs/PRODUCTION.md).
+
+
 ## Development
 
 Requirements: Python ≥ 3.10, SWI-Prolog.
@@ -625,7 +652,7 @@ pytest --cov=euclid_mcp --cov=integrations
 ```
 
 The CI workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs these
-same checks on push and pull request, across Python 3.10–3.12.
+same checks on push and pull request, across Python 3.10–3.14.
 
 ### Logging & tracing
 

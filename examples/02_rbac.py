@@ -17,7 +17,8 @@ def show_proof(node: ProofNode, indent: int = 0) -> None:
     if node.type == "fact":
         print(f"{pad}├─ FACT: {node.goal}")
     elif node.type == "rule":
-        print(f"{pad}├─ RULE: {node.goal}")
+        rid = f" [{node.rule_id}]" if node.rule_id else ""
+        print(f"{pad}├─ RULE{rid}: {node.goal}")
         print(f"{pad}│  └─ body: {node.body}")
         if node.subproof:
             show_proof(node.subproof, indent + 2)
@@ -56,14 +57,14 @@ permission(editor, write)
 permission(admin, delete)
 
 # ── Rule: a role gets all permissions from roles it inherits ──
-role_has_permission($role, $perm) IF permission($role, $perm)
-role_has_permission($role, $perm) IF inherits($role, $sub) AND role_has_permission($sub, $perm)
+role_has_permission($role, $perm) IF permission($role, $perm)  # RULE: RBAC-1
+role_has_permission($role, $perm) IF inherits($role, $sub) AND role_has_permission($sub, $perm)  # RULE: RBAC-2
 
 # ── Rule: user has permission if their role has it ──
-user_has_permission($user, $perm) IF has_role($user, $role) AND role_has_permission($role, $perm)
+user_has_permission($user, $perm) IF has_role($user, $role) AND role_has_permission($role, $perm)  # RULE: RBAC-3
 
 # ── Complex permission: "edit" requires both read and write ──
-can_edit($user) IF user_has_permission($user, read) AND user_has_permission($user, write)
+can_edit($user) IF user_has_permission($user, read) AND user_has_permission($user, write)  # RULE: RBAC-4
 
 # ── Queries ──
 ? user_has_permission($who, $perm)

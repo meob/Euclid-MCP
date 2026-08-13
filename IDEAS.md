@@ -32,11 +32,41 @@ Euclid is not trying to:
 
 ## Future ideas
 
+### Security (P3 — from 2026-08-12 hardening review)
+
+- **Structural allowlist validation (post-parse)**: after translating a KB,
+  validate that every predicate/arg conforms to the Euclid-IR grammar
+  (predicates `\p{L}\w*`, args = atom/variable/number/string, only supported
+  operators). Makes the contract explicit instead of relying on the blacklist;
+  the blacklist stays as an early-reject/UX layer, not the security boundary.
+
 ### Backend
 
 - Z3
 - Soufflé
 - ASP
+- **Custom engine (SWI-Euclid)**: a self-contained Prolog engine embedded in the
+  Euclid-MCP process (compile or distribute the SWI-Prolog runtime), removing the
+  external `swipl` dependency for deployment (Docker images, standalone binaries).
+
+### Performance
+
+- **Conditional load (skip shipping clauses on unchanged KB)**: v0.3.1 already
+  skips the workspace rebuild for repeated KBs, but the Python side still
+  serializes the full clause text over the pipe (~17.8 ms at 20 000 facts). A
+  two-phase exchange — send only the fingerprint, let the engine ask for the
+  clauses only on mismatch — would cut the unchanged-KB case to ~1 ms.
+
+### Scaling & parallelism
+
+- **In-process engine pool**: run N persistent engines per instance and dispatch
+  each request to an idle one (round-robin), enabling concurrent requests on a
+  single process / HTTP API without cross-process coordination.
+- **Threaded HTTP API**: serve parallel requests via `ThreadingHTTPServer` so one
+  instance can translate a new request while the engine works on another.
+- **Horizontal scale-out**: stateless replicas behind a load balancer — no session
+  affinity, any instance serves any request (see README "Scalability"). Document
+  a reference architecture with nginx / Kubernetes.
 
 ### Knowledge
 
@@ -45,7 +75,13 @@ Euclid is not trying to:
 
 #### Persistent Prolog Engine (game-changer — needs enterprise project to validate)
 
-**Status**: Planned
+**Status**: Done — implemented in v0.3.0 (`euclid_mcp/prolog_server.py`,
+`euclid_mcp/prolog_engine.pl`), single persistent `swipl` process with
+JSON-lines protocol, workspace reloaded per request. Benchmarks show ~3×–42×
+steady-state speedup. In v0.3.1 the workspace is **skipped on unchanged
+KBs**: Python caches parse+translate per source and the engine skips the
+rebuild when the `load` carries the same `kb_hash` (repeated 20 000-fact KB:
+~196 ms → ~18 ms per load). Roadmap items below.
 
 **Motivation**: Each `reason()` call spawns a new SWI-Prolog process, loads the entire KB, and exits. For large KBs or repeated queries, this overhead is prohibitive.
 

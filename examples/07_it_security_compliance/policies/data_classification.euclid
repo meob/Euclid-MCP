@@ -29,15 +29,15 @@ role_clearance(vp_engineering, secret)
 role_clearance(cto, secret)
 
 # ── Recursive clearance: higher roles inherit lower clearance ──
-user_clearance($user, $level) IF user($user) AND has_role($user, $role) AND role_clearance($role, $cls) AND classification($cls, $level, _)  # rule: DATA-CLEARANCE-1
+user_clearance($user, $level) IF user($user) AND has_role($user, $role) AND role_clearance($role, $cls) AND classification($cls, $level, _)  # RULE: DATA-CLEARANCE-1
 
 user_max_clearance($user, $max_level) IF
-    user($user) AND has_role($user, $role) AND role_clearance($role, $cls) AND classification($cls, $max_level, _)  # rule: DATA-CLEARANCE-2
+    user($user) AND has_role($user, $role) AND role_clearance($role, $cls) AND classification($cls, $max_level, _)  # RULE: DATA-CLEARANCE-2
 
 # ── Access check: user can access resource if clearance >= resource classification ──
 can_access_resource($user, $resource) IF
-    user($user) AND resource($resource, _, _, _, _, $res_class) AND classification($res_class, $res_level, _) AND user_max_clearance($user, $user_level) AND $user_level >= $res_level  # rule: DATA-ACCESS-1
+    user($user) AND resource($resource, _, _, _, _, $res_class) AND classification($res_class, $res_level, _) AND user_max_clearance($user, $user_level) AND $user_level >= $res_level  # RULE: DATA-ACCESS-1
 
 # ── Violation: user accesses data above their clearance ──
 clearance_violation($user, $resource) IF
-    user($user) AND resource($resource, _, _, _, _, $res_class) AND classification($res_class, $res_level, _) AND user_max_clearance($user, $user_level) AND $user_level < $res_level  # rule: DATA-VIOLATION-1
+    user($user) AND resource($resource, _, _, _, _, $res_class) AND classification($res_class, $res_level, _) AND user_max_clearance($user, $user_level) AND $user_level < $res_level  # RULE: DATA-VIOLATION-1

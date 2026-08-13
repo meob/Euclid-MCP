@@ -17,7 +17,8 @@ def show_proof(node: ProofNode, indent: int = 0) -> None:
     if node.type == "fact":
         print(f"{pad}├─ FACT: {node.goal}")
     elif node.type == "rule":
-        print(f"{pad}├─ RULE: {node.goal}")
+        rid = f" [{node.rule_id}]" if node.rule_id else ""
+        print(f"{pad}├─ RULE{rid}: {node.goal}")
         print(f"{pad}│  └─ body: {node.body}")
         if node.subproof:
             show_proof(node.subproof, indent + 2)
@@ -45,9 +46,9 @@ person(pat, "pat@example.com")
 person(liz, "liz@example.com")
 person(mia, "mia@example.com")
 
-# Ancestor: direct or through chain
-ancestor($x, $y) IF parent($x, $y)
-ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)
+# Ancestor: direct or through chain (audit-trail rule IDs)
+ancestor($x, $y) IF parent($x, $y)  # RULE: GEN-1
+ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)  # RULE: GEN-2
 
 ? ancestor(tom, $who)
 """
@@ -88,4 +89,31 @@ print("\n── BONUS: String Literals ──")
 print("  Emails preserved as UTF-8 strings:")
 for sol in result2.solutions:
     print(f"   {sol.substitutions['who']:6s} → {sol.substitutions['email']}")
+print("─" * 55)
+
+# ── Bonus: Unicode atoms ──
+# Predicate names and arguments can be any Unicode letter (CJK, Cyrillic,
+# Greek, …). Case folding stays ASCII-only: `БОГ(иван)` and `бог(иван)`
+# are distinct predicates, while `Parent(TOM)` still normalizes to
+# `parent(tom)`. Here the family tree runs on Chinese atoms.
+unicode_kb = """
+# 家谱 — Chinese family tree
+父(张三, 张伟)
+父(张伟, 张海)
+父(张海, 张明)
+父(李四, 李五)
+
+# 祖先: direct or through chain (rule IDs in Unicode are fine too)
+祖先($x, $y) IF 父($x, $y)  # RULE: CN-1
+祖先($x, $y) IF 父($x, $z) AND 祖先($z, $y)  # RULE: CN-2
+
+? 祖先(张三, $who)
+"""
+
+result3 = reason(knowledge=unicode_kb, max_solutions=10)
+print("\n── BONUS: Unicode Atoms (Chinese family tree) ──")
+print("  祖先(张三, $who) — who are Zhang San's ancestors?")
+for sol in result3.solutions:
+    print(f"   → 祖先(张三, {sol.substitutions['who']})")
+    show_proof(sol.proof)
 print("─" * 55)

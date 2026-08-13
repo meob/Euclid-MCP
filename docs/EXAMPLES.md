@@ -61,7 +61,7 @@ The most advanced example demonstrating:
 - **Multi-line rules**: Complex policies split across lines
 - **Conjunction queries**: Combining multiple predicates
 - **Negative tests**: Verifying empty results for invalid access patterns
-- **Rule IDs**: policy rules tagged with `# rule: <id>` and cited in proofs
+- **Rule IDs**: policy rules tagged with `# RULE: <id>` and cited in proofs
 - **Explanations**: `--mode explain` renders readable reasoning steps with
   rule ID citations for a full audit trail
 
@@ -91,6 +91,7 @@ python3 examples/10_llm_vs_euclid/demo.py
 python3 examples/10_llm_vs_euclid/demo.py --model llama3.1:8b   # Explicit model
 python3 examples/10_llm_vs_euclid/demo.py --bot-a-only           # Plain LLM only
 python3 examples/10_llm_vs_euclid/demo.py --bot-b-only           # Euclid bot only
+python3 examples/10_llm_vs_euclid/demo.py --verbose              # Show proof chains
 
 # Scripted mode — run preset questions in sequence, then exit (ideal for demos)
 python3 examples/10_llm_vs_euclid/demo.py --scripted
