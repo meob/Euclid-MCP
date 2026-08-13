@@ -23,6 +23,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Benchmark documentation**: one detail page per benchmark
   (`benchmarks/docs/`) plus a catalog of results and consequent
   implementation choices (`benchmarks/BENCHMARKS.md`).
+- **SWI-Prolog compatibility matrix** (`benchmarks/docs/06-swi-prolog-versions.md`):
+  the full suite passes on SWI-Prolog 8.4.2, 9.0.4, 9.2.9, and 10.0.2 —
+  verified after the 9.x autoloader bug below was fixed.
 
 ### Performance
 - **KB preload optimization**: repeated loads of the same knowledge base now
