@@ -37,6 +37,9 @@ python examples/10_llm_vs_euclid/demo.py
 
 # KB validation — check_kb on valid and broken knowledge bases
 python examples/12_kb_check/demo.py
+
+# Policy Compiler — document → Euclid-IR KB → reasoning (policy + EU AI Act art. 6(3))
+python examples/13_policy_compiler/demo.py
 ```
 
 Each example runs a complete reasoning session and prints solutions with proof trees — no LLM required.  
@@ -107,4 +110,40 @@ python3 examples/10_llm_vs_euclid/generate_kb_markdown.py
 - **Bot B** (Euclid): short system prompt + tool calling via `reason`, `diagnose`, `what_if`, `check_kb`
 - Language-agnostic: speak in any language, the engine translates to Euclid-IR automatically
 - Demonstrates proof trees, deterministic answers, and query diagnosis vs LLM hallucination
+
+### Example 13: Policy Compiler — document → Euclid-IR KB → reasoning
+
+The first example that starts from a **source document in natural language**
+and derives a Euclid-IR knowledge base from it, then loads and uses that KB
+with Euclid-MCP. Two committed KBs are provided:
+
+- `kb/access_control_policy.euclid` — fictional access-control policy
+  (environments, role levels, deployment rights, data classification,
+  emergency access, derogations)
+- `kb/ai_act_art6_3.euclid` — official extract of the EU AI Act
+  (Reg. (UE) 2024/1689) art. 6(3): high-risk derogation, conditions a–d, and
+  the profiling counter-exception
+
+The extraction pipeline (`extract/`) has three stages: deterministic document
+parsing (stage 1), optional LLM formalization via Ollama (stage 2), and KB
+assembly + `check_kb` validation (stage 3), followed by human curation
+(stage 4). Every rule carries `# RULE: <id>` and a `# src: <section>` anchor.
+
+```bash
+# Validate the committed KBs, then reason over them
+python3 examples/13_policy_compiler/extract/extract.py check --kb examples/13_policy_compiler/kb/access_control_policy.euclid
+python3 examples/13_policy_compiler/demo.py
+python3 examples/13_policy_compiler/demo.py --kb ai_act
+python3 examples/13_policy_compiler/demo.py --preload --query P2
+
+# Regenerate a KB from its source (Ollama optional; default model llama3.1:8b)
+python3 examples/13_policy_compiler/extract/extract.py compile \
+  --source examples/13_policy_compiler/source/access_control_policy.md \
+  --out examples/13_policy_compiler/kb/access_control_policy.euclid
+```
+
+Engine constraints surfaced and encoded in the example: `==` is arithmetic
+only (atom equality crashes the engine, so self-approval is a denormalized
+flag), rule ids must be trailing comments, and every body predicate must be
+defined or `check_kb` rejects the KB.
 

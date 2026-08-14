@@ -32,6 +32,58 @@ Euclid is not trying to:
 
 ## Future ideas
 
+### Pending: v0.3.1 production feedback (before v0.4.0 work)
+
+v0.3.1 (released 2026-08-13: GitHub `aa1e72ba`, PyPI `0.3.1`) is the first
+version released for real production use. **Gather user feedback before
+starting v0.4.0**; if a bug surfaces, ship a **v0.3.2 fix release** first.
+
+### Observability — v0.4.0 (plan confirmed 2026-08-13, NOT implemented)
+
+Approved plan, deferred to a later session. Full record in the session notes;
+executable summary:
+
+1. **`euclid_mcp/metrics.py` (new)** — stdlib, zero dependencies:
+   `Counter` / `Gauge` / `Histogram` (fixed buckets) + `render()` in
+   Prometheus text exposition format. No change to `pyproject.toml` deps.
+2. **Instrumentation**
+   - `prolog_server.py`: `euclid_engine_requests_total{command}`,
+     `euclid_engine_restarts_total` (periodic + post-timeout),
+     `euclid_engine_timeouts_total`, `euclid_kb_skipped_loads_total`,
+     gauge `euclid_kb_size{facts,rules}`.
+   - `server.py` (`_log_call`): `euclid_tool_calls_total{tool}`,
+     `euclid_tool_errors_total{tool}`, `euclid_tool_call_duration_seconds{tool}`
+     (also covers MCP stdio mode).
+   - `integrations/euclid_api.py`: `GET /metrics` (open like `/health`,
+     read-only, never carries KB data) + per-request
+     `euclid_http_requests_total{method,path,status}`, duration histogram per
+     path, `euclid_solutions_total{path}`, `euclid_auth_failures_total`.
+3. **Deep `/health` + graceful shutdown** — `/health` pings the engine and
+   returns `stats` (`facts`, `rules`, `requests_since_restart`): `200` with an
+   `engine` section, `503` when the ping fails. SIGTERM/SIGINT handler:
+   `server.shutdown()` + `server_close()` + new `prolog_bridge.close()` so no
+   `swipl` process is orphaned.
+4. **`monitoring/` stack** — `docker-compose.monitoring.yml`
+   (prometheus + grafana + cadvisor, attached to the `euclid-api` network);
+   `prometheus/prometheus.yml` (scrape euclid-api:8080/metrics + cadvisor) and
+   `rules.yml` alerts (EuclidDown, error rate, p99 latency, engine restart
+   spike, memory near limit, 401 burst); `grafana/provisioning/` datasource +
+   `euclid.json` dashboard with HTTP API / Engine / Container (cAdvisor
+   CPU-mem-net-IO) rows; `monitoring/README.md` (production + benchmark use;
+   note: with `--scale` every replica exposes its own `/metrics`).
+5. **`euclid_bench.py`**: new `--api-url http://host:port` so `ApiRunner`
+   hammers the real (containerized) API instead of the in-process server —
+   scrapable by Prometheus during long soak runs; final report reads
+   restarts/uptime from `/metrics` when `--api-url` is given.
+6. **Tests (coverage 80% gate)**: new `tests/test_metrics.py`; extend
+   `tests/test_api.py` (`/metrics`, deep `/health`, graceful shutdown) and
+   `tests/test_prolog_server.py` (restart/timeout/skipped counters).
+7. **Docs & version**: `docs/MONITORING.md` Mode C, `docs/PRODUCTION.md`,
+   new `benchmarks/docs/07-monitoring.md`, `benchmarks/BENCHMARKS.md`,
+   `CHANGELOG.md` 0.4.0, `pyproject.toml` 0.4.0, `uv.lock`, README.
+8. **Release**: `ruff check .`, `mypy`, `pytest` → branch + PR → CI green →
+   merge to `main` → tag `v0.4.0` (+ PyPI publish on request).
+
 ### Security (P3 — from 2026-08-12 hardening review)
 
 - **Structural allowlist validation (post-parse)**: after translating a KB,
