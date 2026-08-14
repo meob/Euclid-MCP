@@ -141,6 +141,11 @@ can_deploy($user, $env) IF
 1. `reason` returns unexpected → `diagnose(mode="why_not")` → find missing facts
 2. `diagnose(mode="what_needs")` → suggest what to add
 
+**KB identity**: every result carries `content_hash` (sha256 of the KB text
+payload) and `version` (from the `@version` directive) — on every return path,
+including error branches. Use the hash to pin a result to the exact KB text it
+was computed from (e.g. before storing it in an audit log).
+
 ## Development
 
 Standard verification commands (run before committing changes):

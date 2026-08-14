@@ -151,6 +151,8 @@ class ReasonHandler(BaseHTTPRequestHandler):
                 "query": result.query,
                 "solutions": [s.model_dump() for s in result.solutions],
                 "elapsed_ms": result.elapsed_ms,
+                "content_hash": result.content_hash,
+                "version": result.version,
             })
         except Exception as e:
             self._send(500, {"error": str(e)})
@@ -186,6 +188,8 @@ class ReasonHandler(BaseHTTPRequestHandler):
                     for e in result.explanations
                 ],
                 "elapsed_ms": result.elapsed_ms,
+                "content_hash": result.content_hash,
+                "version": result.version,
             })
         except Exception as e:
             self._send(500, {"error": str(e)})
@@ -224,6 +228,8 @@ class ReasonHandler(BaseHTTPRequestHandler):
                 "conclusion": result.conclusion,
                 "solutions": [s.model_dump() for s in result.solutions],
                 "elapsed_ms": result.elapsed_ms,
+                "content_hash": result.content_hash,
+                "version": result.version,
             })
         except Exception as e:
             self._send(500, {"error": str(e)})
@@ -268,6 +274,8 @@ class ReasonHandler(BaseHTTPRequestHandler):
                 "solutions_before": [s.model_dump() for s in result.solutions_before],
                 "solutions_after": [s.model_dump() for s in result.solutions_after],
                 "elapsed_ms": result.elapsed_ms,
+                "content_hash": result.content_hash,
+                "version": result.version,
             })
         except Exception as e:
             self._send(500, {"error": str(e)})
@@ -296,6 +304,8 @@ class ReasonHandler(BaseHTTPRequestHandler):
                 "rules_count": result.rules_count,
                 "predicates_count": result.predicates_count,
                 "elapsed_ms": result.elapsed_ms,
+                "content_hash": result.content_hash,
+                "version": result.version,
             })
         except Exception as e:
             self._send(500, {"error": str(e)})

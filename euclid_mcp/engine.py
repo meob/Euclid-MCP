@@ -53,7 +53,7 @@ def resolve_backend() -> str:
     return BACKEND_NATIVE if shutil.which("swipl") is None else BACKEND_PROLOG
 
 
-def _kb_fingerprint(kb_source: str) -> str:
+def kb_fingerprint(kb_source: str) -> str:
     """Fingerprint of a KB source; the engine skips unchanged workspaces."""
     return hashlib.sha256(kb_source.encode("utf-8")).hexdigest()
 
@@ -103,5 +103,5 @@ def execute(
         max_depth=max_depth,
         max_solutions=max_solutions,
         timeout=timeout,
-        kb_hash=_kb_fingerprint(kb_source),
+        kb_hash=kb_fingerprint(kb_source),
     )

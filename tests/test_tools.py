@@ -1,12 +1,13 @@
 """Unit tests for all 5 MCP tools: reason, explain, diagnose, what_if, check_kb."""
 
 import asyncio
+import hashlib
 import json
 import logging
 
 from mcp import Client
 
-from euclid_mcp.server import check_kb, diagnose, mcp, reason, what_if
+from euclid_mcp.server import check_kb, diagnose, explain, mcp, reason, what_if
 
 # =============================================================================
 # reason
@@ -317,6 +318,73 @@ ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)
         assert len(r.errors) == 0
         assert r.facts_count == 3
         assert r.rules_count == 2
+
+
+# =============================================================================
+# KB identity (C4): content_hash + version on every result
+# =============================================================================
+
+
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+class TestKBIdentity:
+    def test_reason_returns_content_hash(self):
+        kb = "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
+        r = reason(kb)
+        assert r.error is None
+        assert r.content_hash == _sha256(kb)
+
+    def test_reason_version_from_directive(self):
+        kb = "@version 2.5\nhuman(socrates)\n? human(socrates)"
+        r = reason(kb)
+        assert r.error is None
+        assert r.version == "2.5"
+
+    def test_reason_version_none_without_directive(self):
+        r = reason("human(socrates)\n? human(socrates)")
+        assert r.error is None
+        assert r.version is None
+
+    def test_identity_present_on_error_branch(self):
+        kb = "human(socrates)"
+        r = reason(kb)  # no query -> error branch
+        assert r.error is not None
+        assert r.content_hash == _sha256(kb)
+        assert r.version is None
+
+    def test_explain_identity(self):
+        kb = "@version 1.3\nhuman(socrates)\n? human(socrates)"
+        r = explain(kb)
+        assert r.error is None
+        assert r.content_hash == _sha256(kb)
+        assert r.version == "1.3"
+
+    def test_diagnose_identity(self):
+        kb = "human(socrates)\nmortal($x) IF human($x)"
+        r = diagnose(kb, query="mortal(socrates)")
+        assert r.error is None
+        assert r.content_hash == _sha256(kb)
+
+    def test_what_if_identity_of_base_knowledge(self):
+        base = "human(socrates)\nmortal($x) IF human($x)"
+        r = what_if(base, "+ human(plato)", "mortal($who)")
+        assert r.error is None
+        assert r.content_hash == _sha256(base)
+
+    def test_check_kb_identity(self):
+        kb = "@version 4.2\nhuman(socrates)"
+        r = check_kb(kb)
+        assert r.valid is True
+        assert r.content_hash == _sha256(kb)
+        assert r.version == "4.2"
+
+    def test_check_kb_identity_on_invalid(self):
+        kb = "mortal($x) IF ghost($x)"
+        r = check_kb(kb)
+        assert r.valid is False
+        assert r.content_hash == _sha256(kb)
 
 
 # =============================================================================

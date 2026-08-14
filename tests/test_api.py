@@ -1,5 +1,6 @@
 """Integration tests for the HTTP API (integrations/euclid_api.py)."""
 
+import hashlib
 import http.client
 import json
 import shutil
@@ -13,6 +14,7 @@ import pytest
 from integrations.euclid_api import ReasonHandler, _tls_server_context
 
 KB = "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
+KB_HASH = hashlib.sha256(KB.encode("utf-8")).hexdigest()
 
 
 class _TestServer:
@@ -97,6 +99,8 @@ class TestApi:
             assert len(data["solutions"]) == 1
             assert data["solutions"][0]["substitutions"]["who"] == "socrates"
             assert "elapsed_ms" in data
+            assert data["content_hash"] == KB_HASH
+            assert "version" in data
 
     def test_reason_missing_knowledge(self):
         with _TestServer() as s:
@@ -152,6 +156,8 @@ class TestApi:
             assert data["valid"] is True
             assert data["facts_count"] == 1
             assert data["rules_count"] == 1
+            assert data["content_hash"] == KB_HASH
+            assert "version" in data
 
     def test_check_kb_invalid(self):
         with _TestServer() as s:
@@ -176,6 +182,48 @@ class TestApi:
         with _TestServer() as s:
             status, data = _request(s.port, "GET", "/nope")
             assert status == 404
+
+
+class TestApiIdentity:
+    """KB identity (C4): content_hash/version exposed on every endpoint."""
+
+    def test_explain_exposes_identity(self):
+        with _TestServer() as s:
+            status, data = _request(s.port, "POST", "/explain", {"knowledge": KB})
+            assert status == 200
+            assert data["content_hash"] == KB_HASH
+            assert "version" in data
+
+    def test_diagnose_exposes_identity(self):
+        with _TestServer() as s:
+            body = {"knowledge": KB, "query": "mortal(plato)"}
+            status, data = _request(s.port, "POST", "/diagnose", body)
+            assert status == 200
+            assert data["content_hash"] == KB_HASH
+            assert "version" in data
+
+    def test_what_if_exposes_identity(self):
+        with _TestServer() as s:
+            body = {
+                "base_knowledge": KB,
+                "modifications": "+ human(plato)",
+                "query": "mortal($who)",
+            }
+            status, data = _request(s.port, "POST", "/what-if", body)
+            assert status == 200
+            assert data["content_hash"] == KB_HASH
+            assert "version" in data
+
+    def test_identity_present_on_error_branch(self):
+        with _TestServer() as s:
+            # KB without a query -> tool-level error (no solutions), the
+            # response still carries the content hash of the payload
+            body = {"knowledge": "human(socrates)"}
+            status, data = _request(s.port, "POST", "/reason", body)
+            assert status == 200
+            assert data["solutions"] == []
+            expected = hashlib.sha256("human(socrates)".encode("utf-8")).hexdigest()
+            assert data["content_hash"] == expected
 
 
 class TestApiAuth:

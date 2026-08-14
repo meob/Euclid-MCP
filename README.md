@@ -239,6 +239,32 @@ Knowledge base validator — check for consistency before running deduction.
 
 **Returns** `KBCheckResult` with `valid`, `errors[]`, `warnings[]`, `facts_count`, `rules_count`, `predicates_count`.
 
+#### KB identity in results
+
+Every tool result — `ReasonResult`, `ExplanationResult`, `DiagnosisResult`,
+`WhatIfResult`, and `KBCheckResult` — carries two identity fields:
+
+| Field | Value |
+|-------|-------|
+| `content_hash` | sha256 of the **KB text payload** (the exact source that was reasoned over) |
+| `version` | the `@version` directive of the KB, or `null` when absent |
+
+The fields are present on **every** return path, including error branches, so a
+result can always be pinned to the exact KB it was computed from: anyone with
+the `.euclid` text and Euclid-MCP can recompute the hash and verify it. This is
+the foundation for KB versioning, signatures, and audit trails built on top of
+the engine.
+
+```json
+{
+  "query": "mortal($who)",
+  "solutions": [...],
+  "elapsed_ms": 12.4,
+  "content_hash": "a3f9c1e4b82d55f0…",
+  "version": "1.0"
+}
+```
+
 
 #### KB Preload (v0.2.0)
 

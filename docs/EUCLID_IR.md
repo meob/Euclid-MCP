@@ -66,6 +66,11 @@ parent(tom, bob)
 - **Optional** — if omitted, version `1.0` is assumed
 - **Retrocompatible** — future versions will maintain backward compatibility
 - **Parsed as a directive** — not treated as a fact or comment
+- **Surfaced in results** — every tool result (`reason`, `explain`, `diagnose`,
+  `what_if`, `check_kb`) exposes `version` (the value of `@version`) together
+  with `content_hash` (sha256 of the KB text payload), on success and on error
+  branches. Anyone holding the `.euclid` text and Euclid-MCP can recompute the
+  hash and verify that a result was computed from that exact knowledge base.
 
 ---
 

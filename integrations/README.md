@@ -22,6 +22,12 @@ python3 integrations/euclid_api.py --api-key "$(openssl rand -hex 32)" \
 | `/check-kb` | POST | Validate a knowledge base for consistency |
 | `/health` | GET | Health check |
 
+**KB identity:** every response from the five POST endpoints includes
+`content_hash` (sha256 of the KB text payload the result was computed from) and
+`version` (the KB's `@version` directive, or `null` when absent) — present even
+on tool-level error branches (a `200` with no solutions). Consumers can use the
+hash to pin a result to the exact KB text, e.g. for audit logs or signatures.
+
 ### Authentication & TLS
 
 The API is **open by default** (no auth, plain HTTP) — intended for a trusted

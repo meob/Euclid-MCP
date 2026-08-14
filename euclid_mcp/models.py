@@ -23,6 +23,8 @@ class ReasonResult(BaseModel):
     query: str = ""
     elapsed_ms: float = 0.0
     error: Optional[str] = None
+    content_hash: Optional[str] = None
+    version: Optional[str] = None
 
 
 class KB(BaseModel):
@@ -48,6 +50,8 @@ class ExplanationResult(BaseModel):
     explanations: list[Explanation] = Field(default_factory=list)
     elapsed_ms: float = 0.0
     error: Optional[str] = None
+    content_hash: Optional[str] = None
+    version: Optional[str] = None
 
 
 # ── Diagnosis models ──
@@ -71,6 +75,8 @@ class DiagnosisResult(BaseModel):
     conclusion: str = ""
     elapsed_ms: float = 0.0
     error: Optional[str] = None
+    content_hash: Optional[str] = None
+    version: Optional[str] = None
 
 
 # ── What-if models ──
@@ -88,6 +94,8 @@ class WhatIfResult(BaseModel):
     conclusion: str = ""
     elapsed_ms: float = 0.0
     error: Optional[str] = None
+    content_hash: Optional[str] = None
+    version: Optional[str] = None
 
 
 # ── KB check models ──
@@ -111,3 +119,5 @@ class KBCheckResult(BaseModel):
     predicates_count: int = 0
     elapsed_ms: float = 0.0
     error: Optional[str] = None
+    content_hash: Optional[str] = None
+    version: Optional[str] = None

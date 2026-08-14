@@ -9,6 +9,7 @@ from typing import Any, Callable, TypeVar, cast
 from mcp.server.mcpserver import MCPServer
 
 from euclid_mcp.engine import execute as engine_execute
+from euclid_mcp.engine import kb_fingerprint
 from euclid_mcp.explain import explain_solution
 from euclid_mcp.kb_summary import build_kb_summary
 from euclid_mcp.language import parse
@@ -166,6 +167,8 @@ def _run_check_kb(knowledge: str) -> KBCheckResult:
             valid=False,
             errors=[KBError(type="parse_error", message=str(exc))],
             elapsed_ms=(time.monotonic() - start) * 1000,
+            content_hash=kb_fingerprint(knowledge),
+            version=None,
         )
 
     # Collect all defined predicates
@@ -295,6 +298,8 @@ def _run_check_kb(knowledge: str) -> KBCheckResult:
         rules_count=len(kb.rules),
         predicates_count=len(defined),
         elapsed_ms=elapsed,
+        content_hash=kb_fingerprint(knowledge),
+        version=kb.version,
     )
 
 
@@ -383,6 +388,20 @@ def _parse_cached(kb_source: str) -> KB:
     return parse(kb_source)
 
 
+def _fill_identity(result: Any, kb_source: str) -> None:
+    """Set KB identity (content_hash, version) on a tool result.
+
+    Called after knowledge resolution on every return path — including error
+    branches — so consumers can always pin a result to the exact KB text it
+    was computed from. The hash is the sha256 of the KB payload; the version
+    comes from the `@version` directive when present.
+    """
+    result.content_hash = kb_fingerprint(kb_source)
+    try:
+        result.version = _parse_cached(kb_source).version
+    except Exception:
+        result.version = None
+
 
 @mcp.tool(
     description="Perform logical deduction on a knowledge base "
@@ -407,56 +426,70 @@ def reason(
 
     # Security: validate limits
     if not (1 <= max_solutions <= MAX_SOLUTIONS_LIMIT):
-        return ReasonResult(
+        result = ReasonResult(
             error=f"max_solutions must be between 1 and {MAX_SOLUTIONS_LIMIT}",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(result, kb_source)
+        return result
     if not (1 <= max_depth <= MAX_DEPTH_LIMIT):
-        return ReasonResult(
+        result = ReasonResult(
             error=f"max_depth must be between 1 and {MAX_DEPTH_LIMIT}",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(result, kb_source)
+        return result
     if query is not None and len(query) > MAX_QUERY_LENGTH:
-        return ReasonResult(
+        result = ReasonResult(
             error=f"Query exceeds maximum allowed size "
             f"({len(query):,} > {MAX_QUERY_LENGTH:,} characters)",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(result, kb_source)
+        return result
 
     # Security: reject oversized input
     if len(kb_source) > MAX_KNOWLEDGE_LENGTH:
-        return ReasonResult(
+        result = ReasonResult(
             error=f"Knowledge exceeds maximum allowed size "
             f"({len(kb_source):,} > {MAX_KNOWLEDGE_LENGTH:,} bytes)",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(result, kb_source)
+        return result
 
     try:
         kb = _parse_cached(kb_source)
     except Exception as exc:
-        return ReasonResult(
+        result = ReasonResult(
             error=f"Knowledge parsing error: {exc}",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(result, kb_source)
+        return result
 
     if query:
         try:
             sanitize(query)
         except ValueError as exc:
-            return ReasonResult(
+            result = ReasonResult(
                 error=str(exc),
                 elapsed_ms=(time.monotonic() - start) * 1000,
             )
+            _fill_identity(result, kb_source)
+            return result
         # The cached KB is shared: copy before overriding the query.
         kb = kb.model_copy(update={"query": query})
 
     if not kb.query:
-        return ReasonResult(
+        result = ReasonResult(
             error="No query specified. "
             "Add ? query or query: in the knowledge, "
             "or pass the query parameter.",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(result, kb_source)
+        return result
 
     try:
         solutions = engine_execute(
@@ -467,17 +500,21 @@ def reason(
             timeout=30,
         )
     except RuntimeError as exc:
-        return ReasonResult(
+        result = ReasonResult(
             error=str(exc),
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(result, kb_source)
+        return result
 
     elapsed = (time.monotonic() - start) * 1000
-    return ReasonResult(
+    result = ReasonResult(
         solutions=solutions[:max_solutions],
         query=kb.query,
         elapsed_ms=elapsed,
     )
+    _fill_identity(result, kb_source)
+    return result
 
 
 # ── explain() ───────────────────────────────────────────────────────────────
@@ -510,22 +547,26 @@ def explain(
         kb_source, query=query, max_solutions=max_solutions, max_depth=max_depth
     )
     if result.error:
-        return ExplanationResult(
+        explanation_result = ExplanationResult(
             query=query or "",
             error=result.error,
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(explanation_result, kb_source)
+        return explanation_result
 
     explanations = [
         Explanation(substitutions=sol.substitutions, steps=explain_solution(sol))
         for sol in result.solutions
     ]
 
-    return ExplanationResult(
+    explanation_result = ExplanationResult(
         query=result.query,
         explanations=explanations,
         elapsed_ms=(time.monotonic() - start) * 1000,
     )
+    _fill_identity(explanation_result, kb_source)
+    return explanation_result
 
 
 # ── diagnose() ──────────────────────────────────────────────────────────────
@@ -555,18 +596,22 @@ def diagnose(
         )
 
     if mode not in ("why", "why_not", "what_needs"):
-        return DiagnosisResult(
+        result = DiagnosisResult(
             error=f"Invalid mode '{mode}'. Use 'why', 'why_not', or 'what_needs'",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(result, kb_source)
+        return result
 
     # First: check if the query holds or not
     base_result = reason(kb_source, query=query, max_solutions=max_solutions, max_depth=max_depth)
     if base_result.error:
-        return DiagnosisResult(
+        result = DiagnosisResult(
             error=base_result.error,
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(result, kb_source)
+        return result
 
     holds = len(base_result.solutions) > 0
 
@@ -574,10 +619,12 @@ def diagnose(
     try:
         kb = parse(kb_source)
     except Exception as exc:
-        return DiagnosisResult(
+        result = DiagnosisResult(
             error=f"Knowledge parsing error: {exc}",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(result, kb_source)
+        return result
 
     findings = _analyze_query(kb, query, holds)
 
@@ -609,7 +656,7 @@ def diagnose(
                 conclusion = "Cannot determine what is needed. Review rule definitions."
 
     elapsed = (time.monotonic() - start) * 1000
-    return DiagnosisResult(
+    result = DiagnosisResult(
         query=query,
         mode=mode,
         holds=holds,
@@ -619,6 +666,8 @@ def diagnose(
         conclusion=conclusion,
         elapsed_ms=elapsed,
     )
+    _fill_identity(result, kb_source)
+    return result
 
 
 def _analyze_query(kb, query: str, holds: bool) -> list[DiagnosisFinding]:
@@ -730,10 +779,12 @@ def what_if(
 
     # Validate input
     if not modifications.strip():
-        return WhatIfResult(
+        result = WhatIfResult(
             error="No modifications specified. Use + to add or - to remove facts.",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(result, kb_source)
+        return result
 
     # Parse modifications
     add_facts: list[str] = []
@@ -753,10 +804,12 @@ def what_if(
             for part in re.split(r"\s+and\s+", content, flags=re.IGNORECASE):
                 remove_facts.append(part.strip())
         else:
-            return WhatIfResult(
+            result = WhatIfResult(
                 error=f"Invalid modification line: '{line}'. Use + or - prefix.",
                 elapsed_ms=(time.monotonic() - start) * 1000,
             )
+            _fill_identity(result, kb_source)
+            return result
 
     # Build modified knowledge
     modified_lines: list[str] = []
@@ -784,15 +837,19 @@ def what_if(
     )
 
     if base_result.error:
-        return WhatIfResult(
+        result = WhatIfResult(
             error=f"Base knowledge error: {base_result.error}",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(result, kb_source)
+        return result
     if mod_result.error:
-        return WhatIfResult(
+        result = WhatIfResult(
             error=f"Modified knowledge error: {mod_result.error}",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
+        _fill_identity(result, kb_source)
+        return result
 
     before_count = len(base_result.solutions)
     after_count = len(mod_result.solutions)
@@ -833,7 +890,7 @@ def what_if(
     conclusion = ". ".join(conclusion_parts) + "."
 
     elapsed = (time.monotonic() - start) * 1000
-    return WhatIfResult(
+    result = WhatIfResult(
         query=query,
         modifications=mod_label,
         before_count=before_count,
@@ -844,6 +901,8 @@ def what_if(
         conclusion=conclusion,
         elapsed_ms=elapsed,
     )
+    _fill_identity(result, kb_source)
+    return result
 
 
 def _facts_match(line: str, pattern: str) -> bool:

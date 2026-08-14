@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.4.0] — 2026-08-14
 
 ### Added
+- **Exposed KB identity (C4)** — every tool result (`ReasonResult`,
+  `ExplanationResult`, `DiagnosisResult`, `WhatIfResult`, `KBCheckResult`) now
+  carries `content_hash` (sha256 of the KB text payload) and `version` (from the
+  `@version` directive, when present), on **every** return path including error
+  branches. `kb_fingerprint` (`euclid_mcp/engine.py`) is now public. The HTTP
+  API exposes both fields on `/reason`, `/explain`, `/diagnose`, `/what-if`,
+  and `/check-kb`. Anyone with the `.euclid` text can recompute the hash and
+  verify which exact KB a result was computed from — the foundation for KB
+  versioning, signatures, and audit trails.
 - **Native Euclid-IR engine** (`euclid_mcp/ir_parser.py`, `euclid_mcp/ir_engine.py`):
   a pure-Python engine that interprets Euclid-IR directly — facts, rules,
   recursive rules, conjunctions, negation as failure (`NOT`), arithmetic
