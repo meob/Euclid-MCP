@@ -63,8 +63,10 @@ HTTPS so the credential cannot be read in transit. See
 }
 ```
 
-Returns `explanations[]`, each with `substitutions` and an ordered list of
-natural-language `steps` that cite rule IDs when present.
+Returns `explanations[]`, each with `substitutions`, an ordered list of
+natural-language `steps` that cite rule IDs when present, and language-independent
+`structured_steps` (typed `kind`/`goal`/`rule_id`/`body`) for localized
+rendering in a UI.
 
 **POST /diagnose** — Request body:
 

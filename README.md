@@ -194,7 +194,9 @@ into an auditable, human-readable explanation.
 | `max_depth` | `int` | `30` | Max proof tree depth |
 
 **Returns** `ExplanationResult` with `explanations[]` — each containing variable
-bindings and an ordered list of natural-language `steps`.
+bindings, an ordered list of natural-language `steps`, and language-independent
+`structured_steps` (typed `kind`/`goal`/`rule_id`/`body`, ready for localized
+rendering in a UI).
 
 ### `diagnose`
 
@@ -374,6 +376,7 @@ expl = explain(
 )
 for e in expl.explanations:
     print(e.substitutions, e.steps)
+    print(e.structured_steps)  # typed, language-independent steps
 
 # Diagnosis — why does a query fail?
 diag = diagnose(

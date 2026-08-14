@@ -10,7 +10,7 @@ from mcp.server.mcpserver import MCPServer
 
 from euclid_mcp.engine import execute as engine_execute
 from euclid_mcp.engine import kb_fingerprint
-from euclid_mcp.explain import explain_solution
+from euclid_mcp.explain import explain_solution, explain_solution_typed
 from euclid_mcp.kb_summary import build_kb_summary
 from euclid_mcp.language import parse
 from euclid_mcp.linter import lint_rule
@@ -556,7 +556,11 @@ def explain(
         return explanation_result
 
     explanations = [
-        Explanation(substitutions=sol.substitutions, steps=explain_solution(sol))
+        Explanation(
+            substitutions=sol.substitutions,
+            steps=explain_solution(sol),
+            structured_steps=explain_solution_typed(sol),
+        )
         for sol in result.solutions
     ]
 

@@ -34,7 +34,9 @@ Main deduction. Returns solutions with variable bindings and proof trees.
 
 ### `explain`
 Deterministic proof-tree → natural-language reasoning steps. Cites `rule_id`
-when a rule has one.
+when a rule has one. Each explanation also carries `structured_steps`: typed,
+language-independent steps (`kind`/`goal`/`rule_id`/`body`) from which the
+English `steps` are derived — use them for localized rendering.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|

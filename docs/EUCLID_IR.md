@@ -482,12 +482,21 @@ mortal($x) IF human($x)
   {"substitutions": {"who": "socrates"}, "steps": [
     "mortal(socrates) is derived by a rule from: human(socrates).",
     "human(socrates) is asserted as a fact in the knowledge base."
+  ], "structured_steps": [
+    {"kind": "rule", "goal": "mortal(socrates)", "rule_id": null,
+     "body": ["human(socrates)"]},
+    {"kind": "fact", "goal": "human(socrates)", "rule_id": null, "body": []}
   ]}
 ]}
 ```
 
+The `structured_steps` are language-independent: typed steps (`kind`,
+`goal`, `rule_id`, `body` conjuncts) from which the English `steps` are
+derived, so a UI can render them with localized templates.
+
 If the rules carry `# RULE:` IDs, `explain` cites them: *"mortal(socrates) is
-derived by rule BIO-001 from: human(socrates)."*
+derived by rule BIO-001 from: human(socrates)."* and the `structured_steps`
+`rule_id` fields carry the ID.
 
 ---
 

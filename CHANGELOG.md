@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.4.0] — 2026-08-14
 
 ### Added
+- **Structured explain (C5)** — each `Explanation` now also carries
+  `structured_steps`: typed, language-independent reasoning steps (`kind`
+  `fact`/`rule`/`neg`/`true`/`unknown`, plus `goal`, `rule_id`, and `body`
+  conjuncts). The English `steps: list[str]` remain unchanged and are now
+  derived from the same typed steps, so existing consumers are fully backward
+  compatible while a UI (e.g. Euclid-Studio) can render localized explanations
+  without re-walking the proof tree. Exposed on the MCP tool and `POST /explain`.
 - **Exposed KB identity (C4)** — every tool result (`ReasonResult`,
   `ExplanationResult`, `DiagnosisResult`, `WhatIfResult`, `KBCheckResult`) now
   carries `content_hash` (sha256 of the KB text payload) and `version` (from the

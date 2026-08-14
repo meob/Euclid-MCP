@@ -38,10 +38,26 @@ class KB(BaseModel):
 # ── Explanation models ──
 
 
+class ExplainStep(BaseModel):
+    """A single typed reasoning step, independent of any natural language.
+
+    ``kind`` is one of ``fact``, ``rule``, ``neg``, ``true``, ``unknown``.
+    ``body`` holds the rule-body conjuncts already split (the ``euclid_rule_id``
+    marker stripped, ``\\+`` rendered as ``NOT``). Studio renders these with its
+    own localized templates; the English ``steps`` strings are derived from the
+    same steps.
+    """
+    kind: str
+    goal: Optional[str] = None
+    rule_id: Optional[str] = None
+    body: list[str] = Field(default_factory=list)
+
+
 class Explanation(BaseModel):
     """Natural-language explanation of a single solution's proof."""
     substitutions: dict[str, Any] = Field(default_factory=dict)
     steps: list[str] = Field(default_factory=list)
+    structured_steps: list[ExplainStep] = Field(default_factory=list)
 
 
 class ExplanationResult(BaseModel):

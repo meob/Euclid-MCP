@@ -1,6 +1,6 @@
 # Plan: Euclid-MCP core integration for Euclid-Studio (semantic phase)
 
-**Status**: approved plan, not started.
+**Status**: in progress — FASE 1 (C4) and FASE 2 (C5) done & committed; FASE 3 (C3) next.
 **References**: `staff/euclid-studio-design.md`, `staff/euclid-studio-mockup.html`, `README.md`,
 `AGENTS.md`, `docs/EUCLID_IR.md`, `euclid_mcp/` (engine source).
 **Scope**: the three core-side items agreed with the Euclid-Studio designer — named KBs
@@ -14,6 +14,38 @@ i18n labels (C2 — arity-only, later phase).
 
 > Updated at the end of each working session so a fresh (context-reduced) session
 > can resume without re-reading the whole repo.
+
+- **Session 2 (2026-08-14) — FASE 2 (C5: structured explain): DONE & COMMITTED.**
+  - Same version decision as FASE 1: ships inside **v0.4.0**, no `uv.lock` bump;
+    CHANGELOG entry folded into the existing `[0.4.0]` section.
+  - Commit: parent of this session log line was **86449152** (the C4 commit);
+    the C5 commit is the one created in this session — verify with
+    `git log --oneline -3`.
+  - What was done: `models.py` (`ExplainStep` + `Explanation.structured_steps`),
+    `explain.py` (two-layer refactor: `explain_solution_typed` + `_render_step`;
+    `explain_solution` is now `[_render_step(s) for s in explain_solution_typed(...)]`
+    — English strings byte-identical; `_humanize_body` split into
+    `_humanize_parts`), `server.py` (`explain()` populates `structured_steps`),
+    `integrations/euclid_api.py` (`/explain` adds `structured_steps`), tests
+    (`tests/test_explain.py::TestExplainStructured`, `tests/test_api.py`
+    `test_explain_structured_steps`), docs (README, AGENTS.md,
+    integrations/README.md, docs/EUCLID_IR.md, CHANGELOG under `[0.4.0]`).
+  - Structured steps verified identical on **both** backends (SWI-Prolog and
+    native `EUCLID_BACKEND=native`): kinds `rule`/`fact`/`neg`/`true`, `rule_id`
+    on rule nodes, `body` as conjunct list (marker stripped, `\+`→NOT),
+    typed count == English count.
+  - Verification (all green at commit time): `ruff check .`, `mypy euclid_mcp integrations`,
+    `pytest --cov=euclid_mcp --cov=integrations -k "not TestApiAuth"`.
+  - **Next up — FASE 3 (C3: named KBs `kb_id` + `delta_knowledge`)**, per the
+    order C4 → C5 → C3. Files to touch: new `euclid_mcp/kb_store.py`
+    (`KbStore`, `KBRecord`, `KB_ID_PATTERN`, `max_kbs`), `euclid_mcp/server.py`
+    (3 new tools `register_kb`/`unregister_kb`/`list_kbs` + `_resolve`
+    resolver with `kb_id`/`delta_knowledge` on all 5 tools),
+    `integrations/euclid_api.py` (3 new endpoints + param forwarding),
+    tests (`test_kb_store.py`, `test_security.py` kb_id/delta injection,
+    `test_tools.py` precedence + `Unknown kb_id`, `test_api.py`),
+    docs (README, AGENTS.md, integrations/README.md, EUCLID_IR.md, CHANGELOG
+    under `[0.4.0]`). Standard verification + coverage ≥ 80.
 
 - **Session 1 (2026-08-14) — FASE 1 (C4: exposed KB identity): DONE & COMMITTED.**
   - **Version decision (user, binding)**: all phases of this plan ship inside

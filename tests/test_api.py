@@ -118,6 +118,19 @@ class TestApi:
             assert any("mortal(socrates)" in s for s in exp["steps"])
             assert "elapsed_ms" in data
 
+    def test_explain_structured_steps(self):
+        with _TestServer() as s:
+            status, data = _request(s.port, "POST", "/explain", {"knowledge": KB})
+            assert status == 200
+            exp = data["explanations"][0]
+            assert len(exp["structured_steps"]) == len(exp["steps"])
+            kinds = [step["kind"] for step in exp["structured_steps"]]
+            assert kinds == ["rule", "fact"]
+            rule_step = exp["structured_steps"][0]
+            assert rule_step["goal"] == "mortal(socrates)"
+            assert rule_step["body"] == ["human(socrates)"]
+            assert exp["structured_steps"][1]["goal"] == "human(socrates)"
+
     def test_explain_missing_knowledge(self):
         with _TestServer() as s:
             status, data = _request(s.port, "POST", "/explain", {"knowledge": "  "})

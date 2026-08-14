@@ -184,6 +184,7 @@ class ReasonHandler(BaseHTTPRequestHandler):
                     {
                         "substitutions": e.substitutions,
                         "steps": e.steps,
+                        "structured_steps": [s.model_dump() for s in e.structured_steps],
                     }
                     for e in result.explanations
                 ],
