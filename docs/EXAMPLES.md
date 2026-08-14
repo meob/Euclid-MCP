@@ -79,6 +79,33 @@ python3 examples/07_it_security_compliance/demo.py
 python3 examples/07_it_security_compliance/demo.py --small --mode explain
 ```
 
+### Example 08: Cluedo Detective
+
+A detective agent that solves Cluedo mysteries by deductive elimination: given
+a game state (cards in hands, cards shown during suggestions) the engine
+determines who, with what weapon, and in which room is in the envelope —
+guaranteed to be consistent with every clue. Features `what-if` scenarios to
+test the effect of learning a new clue.
+
+![Euclid-Owl — the detective mascot of example 08](../examples/08_cluedo/euclid_owl.png)
+
+```bash
+# Run both scenarios (early + late game)
+python3 examples/08_cluedo/cluedo.py
+
+# Single scenario, or what-if analysis
+python3 examples/08_cluedo/cluedo.py --scenario early
+python3 examples/08_cluedo/cluedo.py --scenario late
+python3 examples/08_cluedo/cluedo.py --scenario what-if
+
+# Custom game state file
+python3 examples/08_cluedo/cluedo.py --custom my_game.txt
+```
+
+The demo prints a detective-themed banner (magnifying glass ASCII art) with
+ANSI colors: suspects in magenta, weapons in red, rooms in cyan, and a final
+"CASE RESOLVED" verdict.
+
 ### Example 10: LLM vs Euclid-MCP
 
 Interactive side-by-side comparison: a plain LLM vs the same LLM augmented with Euclid-MCP's reasoning engine. Same model, same knowledge base, dramatically different results.

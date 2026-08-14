@@ -19,6 +19,49 @@ from euclid_mcp.server import reason, what_if
 RULES_FILE = Path(__file__).parent / "cluedo_rules.euclid"
 
 
+class C:
+    """ANSI color codes — same palette as example 10."""
+
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    RESET = "\033[0m"
+    CYAN = "\033[36m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    MAGENTA = "\033[95m"
+
+
+MAGNIFIER = [
+    "      .--.     ",
+    "     |o_o|     ",
+    "     |:_/|     ",
+    "    //   \\\\   ",
+    "   (|     | )  ",
+    "  /'\\\\_   _/`\\\\ ",
+    "  \\\\___)=(___/  ",
+]
+
+
+def print_banner():
+    """Print the detective-themed opening banner."""
+    for row in MAGNIFIER:
+        print(f"{C.BOLD}{C.CYAN}{row}{C.RESET}")
+
+    inner = 60
+    text_width = inner - 4
+    lines = [
+        "╔" + "═" * inner + "╗",
+        "║" + "CLUEDO DETECTIVE".center(inner) + "║",
+        "║" + " " * inner + "║",
+        "║  " + "Euclid-MCP Deduction Engine".ljust(text_width) + "  ║",
+        "║  " + "Solve the case by elimination: who, with what, where.".ljust(text_width) + "  ║",
+        "╚" + "═" * inner + "╝",
+    ]
+    print(f"{C.BOLD}{C.CYAN}" + "\n".join(lines) + f"{C.RESET}")
+    print()
+
+
 def load_rules() -> str:
     return RULES_FILE.read_text()
 
@@ -29,59 +72,65 @@ def detective(question: str, game_state: str):
     return reason(knowledge=knowledge, max_solutions=20, max_depth=30)
 
 
+def colorize_triple(subs) -> str:
+    """Render a suspect/weapon/room solution with per-category colors."""
+    suspect = subs.get("s", "?")
+    weapon = subs.get("w", "?")
+    room = subs.get("r", "?")
+    return (
+        f"{C.MAGENTA}{suspect}{C.RESET} + "
+        f"{C.RED}{weapon}{C.RESET} + "
+        f"{C.CYAN}{room}{C.RESET}"
+    )
+
+
 def print_solutions(name: str, result):
     """Pretty-print deduction results."""
-    print(f"\n{'='*55}")
-    print(f"  {name}")
-    print(f"{'='*55}")
+    print(f"\n{C.BOLD}{'=' * 55}{C.RESET}")
+    print(f"  {C.BOLD}{C.YELLOW}{name}{C.RESET}")
+    print(f"{C.BOLD}{'=' * 55}{C.RESET}")
 
     if result.error:
-        print(f"  Error: {result.error}")
+        print(f"  {C.RED}Error: {result.error}{C.RESET}")
         return
 
     if not result.solutions:
-        print("  No solution found - need more clues!")
+        print(f"  {C.YELLOW}No solution found — need more clues!{C.RESET}")
         return
 
-    print(f"  Query: {result.query}")
-    print(f"  Solutions found: {len(result.solutions)}")
-    print(f"  Time: {result.elapsed_ms:.1f}ms\n")
+    print(f"  {C.CYAN}Query:{C.RESET} {result.query}")
+    print(f"  {C.GREEN}Solutions found:{C.RESET} {C.BOLD}{len(result.solutions)}{C.RESET}"
+          f"  {C.DIM}({result.elapsed_ms:.1f}ms){C.RESET}\n")
 
     for i, sol in enumerate(result.solutions, 1):
-        subs = sol.substitutions
-        suspect = subs.get("s", "?")
-        weapon = subs.get("w", "?")
-        room = subs.get("r", "?")
-        print(f"  {i}. {suspect:12s} + {weapon:12s} + {room}")
+        print(f"  {C.BOLD}{i}.{C.RESET} {colorize_triple(sol.substitutions)}")
         if sol.proof:
-            print(f"     Proof: {sol.proof.type}")
+            print(f"     {C.DIM}Proof: {sol.proof.type}{C.RESET}")
+
+    print(f"\n  {C.BOLD}{C.GREEN}CASE RESOLVED{C.RESET}")
 
 
 def print_what_if(name: str, result):
     """Pretty-print what-if results."""
-    print(f"\n{'='*55}")
-    print(f"  {name}")
-    print(f"{'='*55}")
+    print(f"\n{C.BOLD}{'=' * 55}{C.RESET}")
+    print(f"  {C.BOLD}{C.YELLOW}{name}{C.RESET}")
+    print(f"{C.BOLD}{'=' * 55}{C.RESET}")
 
     if result.error:
-        print(f"  Error: {result.error}")
+        print(f"  {C.RED}Error: {result.error}{C.RESET}")
         return
 
-    print(f"  Modification: {result.modifications}")
-    print(f"  Before: {result.before_count} solution(s)")
-    print(f"  After:  {result.after_count} solution(s)")
-    print(f"  Time: {result.elapsed_ms:.1f}ms\n")
+    print(f"  {C.DIM}Modification:{C.RESET} {result.modifications}")
+    print(f"  Before: {C.BOLD}{result.before_count}{C.RESET} solution(s)  "
+          f"After: {C.BOLD}{result.after_count}{C.RESET} solution(s)  "
+          f"{C.DIM}({result.elapsed_ms:.1f}ms){C.RESET}\n")
 
     if result.after_count > 0 and result.before_count == 0:
-        print("  *** New solution(s) appeared! ***")
+        print(f"  {C.BOLD}{C.GREEN}*** New solution(s) appeared! ***{C.RESET}")
         for i, sol in enumerate(result.solutions_after[:5], 1):
-            subs = sol.substitutions
-            suspect = subs.get("s", "?")
-            weapon = subs.get("w", "?")
-            room = subs.get("r", "?")
-            print(f"  {i}. {suspect:12s} + {weapon:12s} + {room}")
+            print(f"  {C.BOLD}{i}.{C.RESET} {colorize_triple(sol.substitutions)}")
     elif result.after_count == 0 and result.before_count > 0:
-        print("  *** All solutions eliminated! ***")
+        print(f"  {C.BOLD}{C.RED}*** All solutions eliminated! ***{C.RESET}")
     else:
         print(f"  {result.conclusion}")
 
@@ -97,8 +146,8 @@ def main():
     args = parser.parse_args()
 
     rules = load_rules()
-    print("Cluedo Detective - Euclid-MCP Deduction Engine")
-    print(f"Rules loaded: {len(rules.splitlines())} lines")
+    print_banner()
+    print(f"  Rules loaded: {C.BOLD}{len(rules.splitlines())}{C.RESET} lines\n")
 
     # Query for full envelope: 1 suspect + 1 weapon + 1 room
     query = "envelope_suspect($s) AND envelope_weapon($w) AND envelope_room($r)"
