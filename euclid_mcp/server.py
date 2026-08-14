@@ -1,5 +1,4 @@
 import functools
-import hashlib
 import logging
 import os
 import re
@@ -9,6 +8,7 @@ from typing import Any, Callable, TypeVar, cast
 
 from mcp.server.mcpserver import MCPServer
 
+from euclid_mcp.engine import execute as engine_execute
 from euclid_mcp.explain import explain_solution
 from euclid_mcp.kb_summary import build_kb_summary
 from euclid_mcp.language import parse
@@ -24,9 +24,7 @@ from euclid_mcp.models import (
     ReasonResult,
     WhatIfResult,
 )
-from euclid_mcp.prolog_bridge import execute as prolog_execute
 from euclid_mcp.sanitizer import sanitize
-from euclid_mcp.translator import kb_to_decls_clauses
 
 logger = logging.getLogger(__name__)
 
@@ -385,24 +383,6 @@ def _parse_cached(kb_source: str) -> KB:
     return parse(kb_source)
 
 
-@functools.lru_cache(maxsize=8)
-def _translate_cached(
-    kb_source: str,
-) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Parse and translate a KB source, cached by source text.
-
-    Repeated requests with the same KB skip both parsing and Prolog-code
-    generation. Tuples are returned so callers cannot accidentally mutate a
-    cached payload shared across requests.
-    """
-    decls, clauses = kb_to_decls_clauses(parse(kb_source))
-    return tuple(decls), tuple(clauses)
-
-
-def _kb_fingerprint(kb_source: str) -> str:
-    """Fingerprint of a KB source; the engine skips unchanged workspaces."""
-    return hashlib.sha256(kb_source.encode("utf-8")).hexdigest()
-
 
 @mcp.tool(
     description="Perform logical deduction on a knowledge base "
@@ -479,22 +459,12 @@ def reason(
         )
 
     try:
-        decls, clauses = (list(x) for x in _translate_cached(kb_source))
-    except Exception as exc:
-        return ReasonResult(
-            error=f"Prolog code generation error: {exc}",
-            elapsed_ms=(time.monotonic() - start) * 1000,
-        )
-
-    try:
-        solutions = prolog_execute(
-            decls,
-            clauses,
-            kb.query,
+        solutions = engine_execute(
+            kb_source,
+            kb,
             max_depth=max_depth,
             max_solutions=max_solutions,
             timeout=30,
-            kb_hash=_kb_fingerprint(kb_source),
         )
     except RuntimeError as exc:
         return ReasonResult(

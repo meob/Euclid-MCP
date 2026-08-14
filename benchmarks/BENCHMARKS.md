@@ -4,7 +4,7 @@ Catalog of the benchmark suite: what each script measures, the results, and
 the implementation choices that followed. One detail page per benchmark lives
 in [`docs/`](docs/).
 
-**Environment (2026-08-12 runs):** SWI-Prolog 10.0.2 (arm64-darwin), Python
+**Environment (2026-08-12/08-14 runs):** SWI-Prolog 10.0.2 (arm64-darwin), Python
 3.12.11, `.venv`. The SWI-Prolog compatibility matrix (benchmark 6) spans
 8.4.2/9.0.4/9.2.9/10.0.2.
 
@@ -18,6 +18,7 @@ in [`docs/`](docs/).
 | 4 | `solution_cap_benchmark.py` | Engine-side `max_solutions` cap stops work early | Capped time flat (0.6→23 ms); ratio vs uncapped grows 19×→54× | [04](docs/04-solution-cap.md) |
 | 5 | `euclid_bench.py` | Stress & soak: mixing, pollution, restart, API under load | workers=1, workers=4 & API **PASS** | [05](docs/05-stress-soak.md) |
 | 6 | — (full suite + CI) | Engine correctness across SWI-Prolog 8.4.2/9.0.4/9.2.9/10.0.2 | **256/256 PASS** on all versions | [06](docs/06-swi-prolog-versions.md) |
+| 7 | `native_vs_prolog_benchmark.py` | Native Euclid-IR engine vs SWI-Prolog on example 07 (10 queries, 2 KB sizes) | **Parity** (all solution counts match); native ~7× slower aggregate, ~1.3–2.5× on typical queries, up to 17–32× on high-solution joins & exhaustive-failure `NOT` queries | [07](docs/07-native-vs-prolog.md) |
 
 ## Summary of results
 
@@ -60,6 +61,16 @@ in [`docs/`](docs/).
    fix is ~19% faster (513 vs 429 req/s), not slower. **→** The engine is
    portable across the supported SWI-Prolog releases; the 9.x CI matrix keeps
    guarding it.
+
+7. **Native engine vs SWI-Prolog (2026-08-14, v0.4.0).** The first head-to-head
+   between the pure-Python native engine and SWI-Prolog on example 07 (10
+   queries, small + full KB). **Result parity**: every solution count matches.
+   Native is ~7× slower aggregate (53 → 390 ms small, 564 → 3 777 ms full), but
+   only ~1.3–2.5× on typical queries; it blows up (17–32×) precisely on
+   high-solution wildcard joins and exhaustive-failure `NOT` queries — the
+   compliance-audit workloads of example 07. **→** Confirms native is for small
+   interactive KBs; heavy audits stay on SWI-Prolog; a native Program cache
+   (mirroring `_translate_cached`) is the next optimization.
 
 ## Consequent implementation choices
 

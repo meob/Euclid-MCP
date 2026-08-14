@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] — 2026-08-14
+
+### Added
+- **Native Euclid-IR engine** (`euclid_mcp/ir_parser.py`, `euclid_mcp/ir_engine.py`):
+  a pure-Python engine that interprets Euclid-IR directly — facts, rules,
+  recursive rules, conjunctions, negation as failure (`NOT`), arithmetic
+  (`> >= < <= == != is =` with `+ - * /`), rule ids, string literals and
+  wildcards — and produces the same proof trees as the Prolog backend.
+  Designed for small knowledge bases where SWI-Prolog cannot be installed
+  (e.g. minimal containers); full semantics, limitations and the supported
+  test matrix are documented in `docs/NATIVE_ENGINE.md`.
+- **Inference-backend dispatcher** (`euclid_mcp/engine.py`): a single `execute`
+  dispatch point selects the backend via `EUCLID_BACKEND` (`auto` | `prolog` |
+  `native`, default `auto` → SWI-Prolog when on `PATH`, otherwise native) or
+  the new `--backend` CLI flag. All tools (`reason`, `explain`, `diagnose`,
+  `what_if`, `check_kb`) route through it, so swapping the engine never
+  touches the tool layer.
+- **Native engine tests** (`tests/test_native_engine.py`): 23 tests covering
+  deduction, recursion, negation, arithmetic, strings, wildcards, limits
+  (`max_solutions`, depth, timeout) and the dispatcher — run in every CI matrix
+  even without SWI-Prolog.
+- **First native-vs-Prolog benchmark** (`benchmarks/native_vs_prolog_benchmark.py`
+  + `benchmarks/docs/07-native-vs-prolog.md`): head-to-head on example 07 with
+  result parity (all solution counts match); native ~7× slower aggregate but
+  only ~1.3–2.5× on typical queries, blowing up (17–32×) on high-solution
+  wildcard joins and exhaustive-failure `NOT` queries.
+
+### Fixed
+- Example 08 (Cluedo) game-state KB rewritten from Prolog-style
+  `.`-terminated facts (one per line) to idiomatic Euclid-IR, so it also runs
+  on the native engine.
+
 ## [0.3.1] — 2026-08-13
 
 ### Added

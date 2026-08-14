@@ -15,7 +15,7 @@ Euclid-MCP is a hybrid cognitive architecture: a lightweight LLM describes the w
 
 With Euclid-MCP, an 8B model can solve reasoning tasks that stump even 400B+ cloud models — because the engine handles deduction deterministically. Every answer comes with a proof tree, so you can trace *why* a conclusion holds, not just *what* it is. Use it to enforce RBAC policies, audit cloud compliance, validate loan eligibility rules, or reason over any domain where answers must be explainable and verifiable.
 
-Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable intermediate language designed for both AI agents and humans. It currently uses **SWI-Prolog** as its inference engine and can be consumed in multiple ways: via **MCP** by AI agents (OpenCode, Claude, Cursor), via **HTTP** by tools and automation platforms (n8n, Zapier, Make), and via **Python API** for direct integration. Euclid-IR rules can also be used to **augment RAG** pipelines with deterministic policy enforcement.
+Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable intermediate language designed for both AI agents and humans. It uses **SWI-Prolog** as its primary inference engine — and, where SWI-Prolog is not available (e.g. minimal containers), a pure-Python **native engine** that interprets Euclid-IR directly for small knowledge bases (see `docs/NATIVE_ENGINE.md`). It can be consumed in multiple ways: via **MCP** by AI agents (OpenCode, Claude, Cursor), via **HTTP** by tools and automation platforms (n8n, Zapier, Make), and via **Python API** for direct integration. Euclid-IR rules can also be used to **augment RAG** pipelines with deterministic policy enforcement.
 
 
 ## How it works
@@ -31,6 +31,9 @@ Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable interme
 2. Translate into Prolog with a meta-interpreter for proof tree capture
 3. Execute via a persistent SWI-Prolog engine process (JSON-lines protocol on stdin/stdout; the workspace is reloaded per call, no process spawn overhead)
 4. Return solutions + proof trees as structured JSON
+
+The backend is selected through a single dispatch point (`EUCLID_BACKEND`): `auto`
+(SWI-Prolog when available, otherwise the native engine), `prolog`, or `native`.
 
 Additional tools (`explain`, `diagnose`, `what_if`, `check_kb`) extend this core flow with natural-language explanations, analysis, scenario testing, and validation.
 
