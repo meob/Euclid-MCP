@@ -665,6 +665,23 @@ The HTTP API also supports request tracing: send an `X-Request-Id` header and
 it is echoed back on the response and included in the access logs.
 
 
+## What is Prolog?
+
+**Prolog** (from *PROgrammation en LOGique*) is a declarative logic programming
+language: instead of telling the machine *how* to compute an answer, you state
+**facts** and **rules** and let it find *what* follows from them, using
+unification and backtracking. Born in the early 1970s, it remains one of the
+most battle-tested tools for symbolic reasoning.
+
+Euclid-MCP uses **SWI-Prolog** as its inference engine. SWI-Prolog is a mature
+**open-source** implementation — continuously developed and freely available
+since **1987** — widely used in industry, academia, and research. You write
+your rules in Euclid-IR; the translator compiles them to Prolog, and SWI-Prolog
+performs the deduction and produces the proof trees that make every Euclid-MCP
+answer verifiable.
+
+![SWI-Prolog](docs/swipl.png)
+
 ## How is Euclid?
 
 **Euclid** was an ancient Greek mathematician. Living and teaching in Alexandria, he built the foundations of geometry and number theory using rigorous logical proofs.
