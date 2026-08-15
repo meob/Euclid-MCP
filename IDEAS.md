@@ -32,13 +32,9 @@ Euclid is not trying to:
 
 ## Future ideas
 
-### Pending: v0.3.1 production feedback (before v0.4.0 work)
+The following ideas are not approved and maybe they will not be implemented
 
-v0.3.1 (released 2026-08-13: GitHub `aa1e72ba`, PyPI `0.3.1`) is the first
-version released for real production use. **Gather user feedback before
-starting v0.4.0**; if a bug surfaces, ship a **v0.3.2 fix release** first.
-
-### Observability — v0.4.0 (plan confirmed 2026-08-13, NOT implemented)
+### Observability — (plan confirmed 2026-08-13, NOT implemented YET)
 
 Approved plan, deferred to a later session. Full record in the session notes;
 executable summary:
@@ -80,9 +76,9 @@ executable summary:
    `tests/test_prolog_server.py` (restart/timeout/skipped counters).
 7. **Docs & version**: `docs/MONITORING.md` Mode C, `docs/PRODUCTION.md`,
    new `benchmarks/docs/07-monitoring.md`, `benchmarks/BENCHMARKS.md`,
-   `CHANGELOG.md` 0.4.0, `pyproject.toml` 0.4.0, `uv.lock`, README.
+   `CHANGELOG.md`, `pyproject.toml`, `uv.lock`, README.
 8. **Release**: `ruff check .`, `mypy`, `pytest` → branch + PR → CI green →
-   merge to `main` → tag `v0.4.0` (+ PyPI publish on request).
+   merge to `main` → new tag (+ PyPI publish on request).
 
 ### Security (P3 — from 2026-08-12 hardening review)
 
@@ -114,6 +110,7 @@ executable summary:
 - **In-process engine pool**: run N persistent engines per instance and dispatch
   each request to an idle one (round-robin), enabling concurrent requests on a
   single process / HTTP API without cross-process coordination.
+  I'm not sure it is a good idea... maybe
 - **Threaded HTTP API**: serve parallel requests via `ThreadingHTTPServer` so one
   instance can translate a new request while the engine works on another.
 - **Horizontal scale-out**: stateless replicas behind a load balancer — no session
@@ -196,13 +193,14 @@ Python (PrologServer) ←── stdin/stdout (JSON lines) ──→ SWI-Prolog (
 
 ### IR
 
-- Typed predicates
+It is important to keep Euclid-IR as simple as possible... 
+
+- **Rule IDs** — `@rule <id>` directive attached to a rule, surfaced in the proof
+  tree (see Explainability)- Typed predicates - Already implemented as trailing comments # RULE: id
 - Temporal predicates
 - **Schema / arity declarations** — `@predicate has_role(person, role)`; validator
   checks arity/args against the schema and gives the LLM a clear "contract" of
   available predicates (check_kb already collects arities internally)
-- **Rule IDs** — `@rule <id>` directive attached to a rule, surfaced in the proof
-  tree (see Explainability)
 - **`@use "kb_name"`** — reference a pre-loaded named KB from within Euclid-IR
   (complements the `kb_id` / `delta_knowledge` tool params)
 - **Namespaces** — `rbac.user(alice)` to avoid collisions in large KBs
