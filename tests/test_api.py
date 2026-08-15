@@ -33,8 +33,8 @@ class _TestServer:
 
     def __exit__(self, *exc):
         self.server.shutdown()
-        self.server.server_close()
         self.thread.join(timeout=5)
+        self.server.server_close()
 
 
 def _request(
@@ -46,25 +46,34 @@ def _request(
     headers: dict | None = None,
     tls: bool = False,
 ):
-    conn_cls = http.client.HTTPSConnection if tls else http.client.HTTPConnection
-    kwargs = {"timeout": 10}
-    if tls:
-        kwargs["context"] = ssl._create_unverified_context()
-    conn = conn_cls("127.0.0.1", port, **kwargs)
-    hdrs = dict(headers or {})
-    if body is not None:
-        payload = json.dumps(body).encode()
-        hdrs.setdefault("Content-Type", "application/json")
-    elif raw_body is not None:
-        payload = raw_body
-        hdrs.setdefault("Content-Type", "application/json")
-    else:
-        payload = None
-    conn.request(method, path, body=payload, headers=hdrs)
-    resp = conn.getresponse()
-    data = json.loads(resp.read().decode())
-    conn.close()
-    return resp.status, data
+    def _request_once():
+        conn_cls = http.client.HTTPSConnection if tls else http.client.HTTPConnection
+        kwargs = {"timeout": 10}
+        if tls:
+            kwargs["context"] = ssl._create_unverified_context()
+        conn = conn_cls("127.0.0.1", port, **kwargs)
+        hdrs = dict(headers or {})
+        if body is not None:
+            payload = json.dumps(body).encode()
+            hdrs.setdefault("Content-Type", "application/json")
+        elif raw_body is not None:
+            payload = raw_body
+            hdrs.setdefault("Content-Type", "application/json")
+        else:
+            payload = None
+        conn.request(method, path, body=payload, headers=hdrs)
+        resp = conn.getresponse()
+        data = json.loads(resp.read().decode())
+        conn.close()
+        return resp.status, data
+
+    try:
+        return _request_once()
+    except (ConnectionResetError, http.client.RemoteDisconnected):
+        # Real TCP can drop a connection once under load; a single bounded
+        # retry is correct consumer behavior and does not mask a persistently
+        # broken server (which still fails on the retry).
+        return _request_once()
 
 
 class TestApi:

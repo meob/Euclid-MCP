@@ -65,6 +65,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Example 08 (Cluedo) game-state KB rewritten from Prolog-style
   `.`-terminated facts (one per line) to idiomatic Euclid-IR, so it also runs
   on the native engine.
+- **Flaky HTTP API auth tests** (`tests/test_api.py::TestApiAuth` intermittent
+  `ConnectionResetError`): the API now sends explicit `Content-Length` +
+  `Connection: close` on every response so clients frame the body without an
+  EOF/EOF-vs-RST race, and treats a client disconnecting mid-response as normal
+  (logged at debug). The test harness shuts the server down and joins the
+  serve thread before closing the listening socket, and the test client retries
+  once on `ConnectionResetError`/`RemoteDisconnected` — correct consumer
+  behavior for real TCP that does not mask a persistently broken server. The
+  auth class now passes reliably (previously failing ~5/8 runs).
 
 ## [0.3.1] — 2026-08-13
 

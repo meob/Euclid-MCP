@@ -393,13 +393,23 @@ class ReasonHandler(BaseHTTPRequestHandler):
         body = json.dumps(data, indent=2).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
         self.send_header("Access-Control-Allow-Origin", "*")
         if status == 401:
             self.send_header("WWW-Authenticate", "Bearer")
         if getattr(self, "_request_id", None):
             self.send_header("X-Request-Id", self._request_id)
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            # A client disconnecting mid-response is normal on real TCP
+            # (e.g. it timed out or moved on); not a server error.
+            logger.debug(
+                "client disconnected mid-response (request_id=%s)",
+                getattr(self, "_request_id", None),
+            )
 
     def log_message(self, fmt, *args):
         request_id = getattr(self, "_request_id", None) or "-"

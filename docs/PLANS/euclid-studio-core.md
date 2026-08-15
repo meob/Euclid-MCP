@@ -52,6 +52,39 @@ i18n labels (C2 — arity-only, later phase).
     C2 (`@predicate` arity) remains scheduled as a later phase (FASE 4, not in
     the confirmed order).
 
+- **Session 4 (2026-08-15) — flaky `TestApiAuth`: FIXED & COMMITTED.**
+  - Ships inside **v0.4.0** (no version/lock bump, same policy as F1–F3);
+    CHANGELOG `Fixed` entry added under the existing `[0.4.0]` section.
+  - Commit: the one created in this session — verify with
+    `git log --oneline -3` (parent was the C3 commit **c6c5f15b**).
+  - Reproduced first: `TestApiAuth` failed **5/8** consecutive runs with
+    `ConnectionResetError: [Errno 54]` on `resp.read()` (confirmed pre-existing
+    on the clean tree in earlier sessions).
+  - Applied the agreed three-level defense in depth:
+    1. **Server `_send`** (`integrations/euclid_api.py`): added explicit
+       `Content-Length` + `Connection: close` (client frames the body without
+       the EOF-vs-RST ambiguity) and wrapped `self.wfile.write(body)` in
+       `try/except (BrokenPipeError, ConnectionResetError, OSError)` logged at
+       debug — a client dropping mid-response is normal TCP, not an error.
+    2. **Teardown** (`_TestServer.__exit__` in `tests/test_api.py`): reordered
+       to `shutdown()` → `thread.join(timeout=5)` → `server_close()`, so the
+       serve loop fully drains before the listening socket closes (kills the
+       RST window on the accept backlog / in-flight handler).
+    3. **Test client `_request`** (`tests/test_api.py`): single bounded retry on
+       `ConnectionResetError`/`RemoteDisconnected` (correct consumer behavior;
+       a persistently broken server still fails on the retry).
+  - Verification: `TestApiAuth` **15/15** consecutive green (was 5/8 failing),
+    `tests/test_api.py` 5/5 green, then the full suite **without** the
+    `-k "not TestApiAuth"` skip → **375 passed**, coverage **85.17%**
+    (fail_under 80 ok). `ruff check .` and `mypy euclid_mcp integrations`
+    both clean.
+  - **Plan complete**: all three confirmed phases (C4 → C5 → C3) shipped in
+    v0.4.0 and the pre-existing auth flake is fixed. C2 (`@predicate` arity)
+    remains scheduled as FASE 4 (not in the confirmed order).
+
+- **Next up — FASE 4 (later, NOT in the confirmed order) — C2 `@predicate`
+  arity**, per the FASE 4 stub below. Standard verification + coverage ≥ 80.
+
 - **Session 2 (2026-08-14) — FASE 2 (C5: structured explain): DONE & COMMITTED.**
   - Same version decision as FASE 1: ships inside **v0.4.0**, no `uv.lock` bump;
     CHANGELOG entry folded into the existing `[0.4.0]` section.
