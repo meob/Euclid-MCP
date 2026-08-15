@@ -300,6 +300,93 @@ class TestApiAuth:
             assert data["status"] == "ok"
 
 
+class TestApiNamedKbs:
+    """Named KBs (C3): /register-kb, /unregister-kb, /list-kbs + kb_id params."""
+
+    def test_register_kb(self):
+        with _TestServer() as s:
+            body = {"kb_id": "rbac", "knowledge": KB}
+            status, data = _request(s.port, "POST", "/register-kb", body)
+            assert status == 200
+            assert data["registered"] is True
+            assert data["kb_id"] == "rbac"
+            assert data["content_hash"] == KB_HASH
+            assert data["facts"] == 1
+            assert data["rules"] == 1
+            assert "version" in data
+
+    def test_register_kb_invalid(self):
+        with _TestServer() as s:
+            body = {"kb_id": "../admin", "knowledge": KB}
+            status, data = _request(s.port, "POST", "/register-kb", body)
+            assert status == 200
+            assert data["registered"] is False
+            assert "Invalid kb_id" in data["error"]
+
+    def test_unregister_kb(self):
+        with _TestServer() as s:
+            _request(s.port, "POST", "/register-kb", {"kb_id": "rbac", "knowledge": KB})
+            status, data = _request(s.port, "POST", "/unregister-kb", {"kb_id": "rbac"})
+            assert status == 200
+            assert data["removed"] is True
+            status, data = _request(
+                s.port, "POST", "/unregister-kb", {"kb_id": "rbac"}
+            )
+            assert data["removed"] is False
+
+    def test_list_kbs(self):
+        with _TestServer() as s:
+            _request(s.port, "POST", "/register-kb", {"kb_id": "rbac", "knowledge": KB})
+            status, data = _request(s.port, "POST", "/list-kbs", {})
+            assert status == 200
+            assert data["count"] == 1
+            assert data["kbs"][0]["kb_id"] == "rbac"
+            assert "source" not in data["kbs"][0]
+
+    def test_reason_by_kb_id(self):
+        with _TestServer() as s:
+            _request(s.port, "POST", "/register-kb", {"kb_id": "rbac", "knowledge": KB})
+            status, data = _request(s.port, "POST", "/reason", {"kb_id": "rbac"})
+            assert status == 200
+            assert data["solutions"][0]["substitutions"]["who"] == "socrates"
+            assert data["content_hash"] == KB_HASH
+
+    def test_reason_by_kb_id_with_delta(self):
+        with _TestServer() as s:
+            _request(s.port, "POST", "/register-kb", {"kb_id": "rbac", "knowledge": KB})
+            body = {"kb_id": "rbac", "delta_knowledge": "human(plato)"}
+            status, data = _request(s.port, "POST", "/reason", body)
+            assert status == 200
+            assert len(data["solutions"]) == 2
+
+    def test_reason_unknown_kb_id(self):
+        with _TestServer() as s:
+            status, data = _request(s.port, "POST", "/reason", {"kb_id": "nope"})
+            assert status == 200
+            assert data["solutions"] == []
+            # resolution failed before a KB source existed: no identity
+            assert data["content_hash"] is None
+
+    def test_explain_by_kb_id(self):
+        with _TestServer() as s:
+            _request(s.port, "POST", "/register-kb", {"kb_id": "rbac", "knowledge": KB})
+            status, data = _request(
+                s.port, "POST", "/explain", {"kb_id": "rbac"}
+            )
+            assert status == 200
+            assert data["explanations"][0]["substitutions"]["who"] == "socrates"
+
+    def test_kb_id_accepted_when_no_preload(self):
+        # knowledge empty + kb_id present must not trigger the 400 guard
+        with _TestServer() as s:
+            _request(s.port, "POST", "/register-kb", {"kb_id": "rbac", "knowledge": KB})
+            status, data = _request(
+                s.port, "POST", "/reason", {"kb_id": "rbac", "knowledge": "  "}
+            )
+            assert status == 200
+            assert data["solutions"][0]["substitutions"]["who"] == "socrates"
+
+
 class TestApiTls:
     def test_https_serves(self, tmp_path):
         openssl = shutil.which("openssl")

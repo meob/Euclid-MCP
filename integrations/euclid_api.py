@@ -4,14 +4,21 @@ Euclid-MCP HTTP API — for n8n / Zapier / automation workflows
 Run:  python3 integrations/euclid_api.py [--port 8080]
 
 Endpoints:
-  POST /reason    —  {"knowledge": "...", "query": "...", "max_solutions": 5, "max_depth": 30}
-  POST /explain   —  {"knowledge": "...", "query": "...", "max_solutions": 5, "max_depth": 30}
-  POST /diagnose  —  {"knowledge": "...", "query": "...", "mode": "why",
-                      "max_solutions": 5, "max_depth": 30}
-  POST /what-if   —  {"base_knowledge": "...", "modifications": "...", "query": "...",
-                      "max_solutions": 5, "max_depth": 30}
-  POST /check-kb  —  {"knowledge": "..."}
-  GET  /health    —  Returns {"status": "ok"}
+  POST /reason       —  {"knowledge": "...", "query": "...", "max_solutions": 5, "max_depth": 30}
+  POST /explain      —  {"knowledge": "...", "query": "...", "max_solutions": 5, "max_depth": 30}
+  POST /diagnose     —  {"knowledge": "...", "query": "...", "mode": "why",
+                         "max_solutions": 5, "max_depth": 30}
+  POST /what-if      —  {"base_knowledge": "...", "modifications": "...", "query": "...",
+                         "max_solutions": 5, "max_depth": 30}
+  POST /check-kb     —  {"knowledge": "..."}
+  POST /register-kb  —  {"kb_id": "...", "knowledge": "..."}
+  POST /unregister-kb—  {"kb_id": "..."}
+  POST /list-kbs     —  {}
+  GET  /health       —  Returns {"status": "ok"}
+
+Named KBs (kb_id): register a KB once with /register-kb, then pass `kb_id`
+(and optionally `delta_knowledge` for a session-specific overlay) on any of
+the five reasoning endpoints instead of resending the full KB text.
 
 Authentication (optional but recommended for production):
   Set EUCLID_API_KEY (or pass --api-key) to require `Authorization: Bearer <key>`
@@ -61,7 +68,10 @@ from euclid_mcp.server import (  # noqa: E402
     check_kb,
     diagnose,
     explain,
+    list_kbs,
     reason,
+    register_kb,
+    unregister_kb,
     what_if,
 )
 
@@ -115,13 +125,20 @@ class ReasonHandler(BaseHTTPRequestHandler):
             self._handle_what_if()
         elif self.path == "/check-kb":
             self._handle_check_kb()
+        elif self.path == "/register-kb":
+            self._handle_register_kb()
+        elif self.path == "/unregister-kb":
+            self._handle_unregister_kb()
+        elif self.path == "/list-kbs":
+            self._handle_list_kbs()
         else:
             self._send(
                 404,
                 {
                     "error": (
                         "Not found. POST to /reason, /explain, /diagnose, /what-if, "
-                        "/check-kb or GET /health"
+                        "/check-kb, /register-kb, /unregister-kb, /list-kbs "
+                        "or GET /health"
                     )
                 },
             )
@@ -132,17 +149,19 @@ class ReasonHandler(BaseHTTPRequestHandler):
             return
 
         knowledge = _optional_knowledge(data.get("knowledge"))
-        if knowledge is None and _PRELOADED_KB is None:
+        if knowledge is None and not data.get("kb_id") and _PRELOADED_KB is None:
             self._send(
                 400,
-                {"error": "'knowledge' field is required (or preload a KB "
-                         "via EUCLID_KB_PATH / --kb-path)"},
+                {"error": "'knowledge' field is required (or pass 'kb_id', or "
+                         "preload a KB via EUCLID_KB_PATH / --kb-path)"},
             )
             return
 
         try:
             result = reason(
                 knowledge=knowledge,
+                kb_id=data.get("kb_id"),
+                delta_knowledge=data.get("delta_knowledge"),
                 query=data.get("query"),
                 max_solutions=data.get("max_solutions", 5),
                 max_depth=data.get("max_depth", 30),
@@ -163,17 +182,19 @@ class ReasonHandler(BaseHTTPRequestHandler):
             return
 
         knowledge = _optional_knowledge(data.get("knowledge"))
-        if knowledge is None and _PRELOADED_KB is None:
+        if knowledge is None and not data.get("kb_id") and _PRELOADED_KB is None:
             self._send(
                 400,
-                {"error": "'knowledge' field is required (or preload a KB "
-                         "via EUCLID_KB_PATH / --kb-path)"},
+                {"error": "'knowledge' field is required (or pass 'kb_id', or "
+                         "preload a KB via EUCLID_KB_PATH / --kb-path)"},
             )
             return
 
         try:
             result = explain(
                 knowledge=knowledge,
+                kb_id=data.get("kb_id"),
+                delta_knowledge=data.get("delta_knowledge"),
                 query=data.get("query"),
                 max_solutions=data.get("max_solutions", 5),
                 max_depth=data.get("max_depth", 30),
@@ -202,11 +223,11 @@ class ReasonHandler(BaseHTTPRequestHandler):
 
         knowledge = _optional_knowledge(data.get("knowledge"))
         query = data.get("query", "")
-        if knowledge is None and _PRELOADED_KB is None:
+        if knowledge is None and not data.get("kb_id") and _PRELOADED_KB is None:
             self._send(
                 400,
-                {"error": "'knowledge' field is required (or preload a KB "
-                         "via EUCLID_KB_PATH / --kb-path)"},
+                {"error": "'knowledge' field is required (or pass 'kb_id', or "
+                         "preload a KB via EUCLID_KB_PATH / --kb-path)"},
             )
             return
         if not query.strip():
@@ -216,6 +237,8 @@ class ReasonHandler(BaseHTTPRequestHandler):
         try:
             result = diagnose(
                 knowledge=knowledge,
+                kb_id=data.get("kb_id"),
+                delta_knowledge=data.get("delta_knowledge"),
                 query=query,
                 mode=data.get("mode", "why"),
                 max_solutions=data.get("max_solutions", 5),
@@ -243,11 +266,11 @@ class ReasonHandler(BaseHTTPRequestHandler):
         base_knowledge = _optional_knowledge(data.get("base_knowledge"))
         modifications = data.get("modifications", "")
         query = data.get("query", "")
-        if base_knowledge is None and _PRELOADED_KB is None:
+        if base_knowledge is None and not data.get("kb_id") and _PRELOADED_KB is None:
             self._send(
                 400,
-                {"error": "'base_knowledge' field is required (or preload a KB "
-                         "via EUCLID_KB_PATH / --kb-path)"},
+                {"error": "'base_knowledge' field is required (or pass 'kb_id', "
+                         "or preload a KB via EUCLID_KB_PATH / --kb-path)"},
             )
             return
         if not modifications.strip() or not query.strip():
@@ -260,6 +283,8 @@ class ReasonHandler(BaseHTTPRequestHandler):
         try:
             result = what_if(
                 base_knowledge=base_knowledge,
+                kb_id=data.get("kb_id"),
+                delta_knowledge=data.get("delta_knowledge"),
                 modifications=modifications,
                 query=query,
                 max_solutions=data.get("max_solutions", 5),
@@ -287,16 +312,20 @@ class ReasonHandler(BaseHTTPRequestHandler):
             return
 
         knowledge = _optional_knowledge(data.get("knowledge"))
-        if knowledge is None and _PRELOADED_KB is None:
+        if knowledge is None and not data.get("kb_id") and _PRELOADED_KB is None:
             self._send(
                 400,
-                {"error": "'knowledge' field is required (or preload a KB "
-                         "via EUCLID_KB_PATH / --kb-path)"},
+                {"error": "'knowledge' field is required (or pass 'kb_id', or "
+                         "preload a KB via EUCLID_KB_PATH / --kb-path)"},
             )
             return
 
         try:
-            result = check_kb(knowledge=knowledge)
+            result = check_kb(
+                knowledge=knowledge,
+                kb_id=data.get("kb_id"),
+                delta_knowledge=data.get("delta_knowledge"),
+            )
             self._send(200, {
                 "valid": result.valid,
                 "errors": [e.model_dump() for e in result.errors],
@@ -308,6 +337,39 @@ class ReasonHandler(BaseHTTPRequestHandler):
                 "content_hash": result.content_hash,
                 "version": result.version,
             })
+        except Exception as e:
+            self._send(500, {"error": str(e)})
+
+    def _handle_register_kb(self):
+        data = self._read_body()
+        if data is None:
+            return
+        try:
+            result = register_kb(
+                kb_id=data.get("kb_id"),
+                knowledge=data.get("knowledge"),
+            )
+            self._send(200, result)
+        except Exception as e:
+            self._send(500, {"error": str(e)})
+
+    def _handle_unregister_kb(self):
+        data = self._read_body()
+        if data is None:
+            return
+        try:
+            result = unregister_kb(kb_id=data.get("kb_id"))
+            self._send(200, result)
+        except Exception as e:
+            self._send(500, {"error": str(e)})
+
+    def _handle_list_kbs(self):
+        data = self._read_body()
+        if data is None:
+            return
+        try:
+            result = list_kbs()
+            self._send(200, result)
         except Exception as e:
             self._send(500, {"error": str(e)})
 
@@ -390,12 +452,15 @@ def main():
         scheme = "https"
     logger.info("Euclid-MCP API running on %s://0.0.0.0:%d", scheme, args.port)
     print(f"Euclid-MCP API running on {scheme}://0.0.0.0:{args.port}")
-    print("  POST /reason    —  deduct from facts and rules")
-    print("  POST /explain   —  explain results in natural language")
-    print("  POST /diagnose  —  diagnose why a query succeeds or fails")
-    print("  POST /what-if   —  what-if analysis on knowledge base")
-    print("  POST /check-kb  —  check KB for consistency")
-    print("  GET  /health    —  health check")
+    print("  POST /reason       —  deduct from facts and rules")
+    print("  POST /explain      —  explain results in natural language")
+    print("  POST /diagnose     —  diagnose why a query succeeds or fails")
+    print("  POST /what-if      —  what-if analysis on knowledge base")
+    print("  POST /check-kb     —  check KB for consistency")
+    print("  POST /register-kb  —  register a named KB (kb_id)")
+    print("  POST /unregister-kb—  remove a named KB")
+    print("  POST /list-kbs     —  list registered named KBs")
+    print("  GET  /health       —  health check")
     if os.environ.get("EUCLID_API_KEY"):
         print("  Auth            —  API key required (Authorization: Bearer)")
     if _PRELOADED_KB is not None:

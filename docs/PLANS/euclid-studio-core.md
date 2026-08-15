@@ -1,6 +1,6 @@
 # Plan: Euclid-MCP core integration for Euclid-Studio (semantic phase)
 
-**Status**: in progress — FASE 1 (C4) and FASE 2 (C5) done & committed; FASE 3 (C3) next.
+**Status**: done — FASE 1 (C4), FASE 2 (C5), and FASE 3 (C3) all committed inside v0.4.0.
 **References**: `staff/euclid-studio-design.md`, `staff/euclid-studio-mockup.html`, `README.md`,
 `AGENTS.md`, `docs/EUCLID_IR.md`, `euclid_mcp/` (engine source).
 **Scope**: the three core-side items agreed with the Euclid-Studio designer — named KBs
@@ -14,6 +14,43 @@ i18n labels (C2 — arity-only, later phase).
 
 > Updated at the end of each working session so a fresh (context-reduced) session
 > can resume without re-reading the whole repo.
+
+- **Session 3 (2026-08-15) — FASE 3 (C3: named KBs): DONE & COMMITTED.**
+  - Same version decision as FASE 1/2: ships inside **v0.4.0**, no `uv.lock` bump;
+    CHANGELOG entry folded into the existing `[0.4.0]` section.
+  - Commit: the one created in this session — verify with `git log --oneline -3`
+    (parent was the C5 commit **36eb80ae**).
+  - What was done: new `euclid_mcp/kb_store.py` (`KB_ID_PATTERN`, `KBRecord`,
+    `KbStore` with `RLock` + `max_kbs=32`, no internal validation);
+    `server.py` (`_kb_store` global, `_resolve` resolver replacing
+    `_resolve_knowledge` on all 5 tools, new params `kb_id`/`delta_knowledge`,
+    3 new MCP tools `register_kb`/`unregister_kb`/`list_kbs`);
+    `integrations/euclid_api.py` (3 new POST endpoints `/register-kb`,
+    `/unregister-kb`, `/list-kbs`, param forwarding + guard updates on the 5
+    reasoning endpoints); tests (`tests/test_kb_store.py` new,
+    `test_security.py` kb_id/delta injection, `test_tools.py` precedence +
+    `Unknown kb_id` + tool listing now 8 tools, `test_api.py` new endpoints);
+    docs (README, AGENTS.md, integrations/README.md, docs/EUCLID_IR.md,
+    docs/MONITORING.md, CHANGELOG under `[0.4.0]`).
+  - Design decisions confirmed during the session:
+    - `what_if` signature places `kb_id`/`delta_knowledge` next to
+      `base_knowledge` (per plan); the 8 positional `what_if(base, mods, query)`
+      test call-sites were updated to keyword form (README/examples/CLI already
+      used keyword args, so no external call-site breaks).
+    - `list_kbs` returns **metadata only** (no `source`) to keep responses
+      bounded; there is no read-back of a registered KB's source (Studio keeps
+      its own copy and re-registers per replica).
+    - `delta_knowledge` without a `kb_id` is an explicit error
+      ("delta_knowledge requires a kb_id") — it only overlays a registered base.
+    - `register_kb` capacity overflow returns an error (not silent).
+  - Pre-existing flake still: `tests/test_api.py::TestApiAuth` intermittent
+    `ConnectionResetError` — run with `-k "not TestApiAuth"` for a stable run.
+  - Verification at commit time: `ruff check .`, `mypy euclid_mcp integrations`,
+    `pytest --cov=euclid_mcp --cov=integrations -k "not TestApiAuth"` →
+    369 passed, coverage 84.92%.
+  - **Plan complete**: all three confirmed phases (C4 → C5 → C3) are shipped.
+    C2 (`@predicate` arity) remains scheduled as a later phase (FASE 4, not in
+    the confirmed order).
 
 - **Session 2 (2026-08-14) — FASE 2 (C5: structured explain): DONE & COMMITTED.**
   - Same version decision as FASE 1: ships inside **v0.4.0**, no `uv.lock` bump;

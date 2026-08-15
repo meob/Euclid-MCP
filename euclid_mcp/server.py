@@ -11,6 +11,7 @@ from mcp.server.mcpserver import MCPServer
 from euclid_mcp.engine import execute as engine_execute
 from euclid_mcp.engine import kb_fingerprint
 from euclid_mcp.explain import explain_solution, explain_solution_typed
+from euclid_mcp.kb_store import KBRecord, KbStore, is_valid_kb_id
 from euclid_mcp.kb_summary import build_kb_summary
 from euclid_mcp.language import parse
 from euclid_mcp.linter import lint_rule
@@ -341,6 +342,8 @@ def _load_preloaded_kb() -> str | None:
 
 _PRELOADED_KB = _load_preloaded_kb()
 
+_kb_store = KbStore()
+
 _BASE_INSTRUCTIONS = """Euclid-MCP is a deterministic logical reasoning engine.
 Write facts and rules in Euclid IR, the engine returns solutions with proof trees.
 
@@ -371,11 +374,48 @@ def _server_instructions() -> str:
 mcp = MCPServer("Euclid-MCP", instructions=_server_instructions())
 
 
-def _resolve_knowledge(knowledge: str | None) -> str | None:
-    """Effective KB source: an explicit value wins, else the preloaded KB."""
+def _resolve(
+    knowledge: str | None,
+    kb_id: str | None = None,
+    delta_knowledge: str | None = None,
+) -> tuple[str | None, str | None]:
+    """Resolve the effective KB source: (kb_source, error).
+
+    Precedence:
+    1. an explicit non-empty ``knowledge``/``base_knowledge`` value wins;
+    2. ``kb_id`` → the registered KB source, with ``delta_knowledge``
+       concatenated when present (unknown or malformed ids are an error);
+    3. fallback to the KB preloaded via ``EUCLID_KB_PATH``.
+
+    Returns ``(source, None)`` on success and ``(None, error)`` otherwise.
+    """
     if knowledge is not None and knowledge.strip():
-        return knowledge
-    return _PRELOADED_KB
+        return knowledge, None
+    if kb_id is not None:
+        if not is_valid_kb_id(kb_id):
+            return None, f"Invalid kb_id: {kb_id!r}. Use 1-64 lowercase " \
+                         "letters, digits, '_' or '-'."
+        record = _kb_store.get(kb_id)
+        if record is None:
+            return None, f"Unknown kb_id: {kb_id}"
+        source = record.source
+        if delta_knowledge:
+            if len(delta_knowledge) > MAX_KNOWLEDGE_LENGTH:
+                return None, (
+                    f"delta_knowledge exceeds maximum allowed size "
+                    f"({len(delta_knowledge):,} > {MAX_KNOWLEDGE_LENGTH:,} bytes)"
+                )
+            source = source.rstrip() + "\n" + delta_knowledge
+            if len(source) > MAX_KNOWLEDGE_LENGTH:
+                return None, (
+                    f"Merged knowledge (kb_id + delta_knowledge) exceeds "
+                    f"maximum allowed size "
+                    f"({len(source):,} > {MAX_KNOWLEDGE_LENGTH:,} bytes)"
+                )
+        return source, None
+    if delta_knowledge:
+        return None, "delta_knowledge requires a kb_id"
+    return _PRELOADED_KB, None
 
 
 @functools.lru_cache(maxsize=8)
@@ -410,17 +450,24 @@ def _fill_identity(result: Any, kb_source: str) -> None:
 @_log_call("reason")
 def reason(
     knowledge: str | None = None,
+    kb_id: str | None = None,
+    delta_knowledge: str | None = None,
     query: str | None = None,
     max_solutions: int = 5,
     max_depth: int = 30,
 ) -> ReasonResult:
     start = time.monotonic()
 
-    kb_source = _resolve_knowledge(knowledge)
+    kb_source, resolve_error = _resolve(knowledge, kb_id, delta_knowledge)
+    if resolve_error:
+        return ReasonResult(
+            error=resolve_error,
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
     if kb_source is None:
         return ReasonResult(
-            error="No knowledge provided: pass 'knowledge' or preload a KB "
-            "via EUCLID_KB_PATH.",
+            error="No knowledge provided: pass 'knowledge', a registered "
+            "'kb_id', or preload a KB via EUCLID_KB_PATH.",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
 
@@ -528,18 +575,26 @@ def reason(
 @_log_call("explain")
 def explain(
     knowledge: str | None = None,
+    kb_id: str | None = None,
+    delta_knowledge: str | None = None,
     query: str | None = None,
     max_solutions: int = 5,
     max_depth: int = 30,
 ) -> ExplanationResult:
     start = time.monotonic()
 
-    kb_source = _resolve_knowledge(knowledge)
+    kb_source, resolve_error = _resolve(knowledge, kb_id, delta_knowledge)
+    if resolve_error:
+        return ExplanationResult(
+            query=query or "",
+            error=resolve_error,
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
     if kb_source is None:
         return ExplanationResult(
             query=query or "",
-            error="No knowledge provided: pass 'knowledge' or preload a KB "
-            "via EUCLID_KB_PATH.",
+            error="No knowledge provided: pass 'knowledge', a registered "
+            "'kb_id', or preload a KB via EUCLID_KB_PATH.",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
 
@@ -584,6 +639,8 @@ def explain(
 @_log_call("diagnose")
 def diagnose(
     knowledge: str | None = None,
+    kb_id: str | None = None,
+    delta_knowledge: str | None = None,
     query: str = "",
     mode: str = "why",
     max_solutions: int = 5,
@@ -591,11 +648,16 @@ def diagnose(
 ) -> DiagnosisResult:
     start = time.monotonic()
 
-    kb_source = _resolve_knowledge(knowledge)
+    kb_source, resolve_error = _resolve(knowledge, kb_id, delta_knowledge)
+    if resolve_error:
+        return DiagnosisResult(
+            error=resolve_error,
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
     if kb_source is None:
         return DiagnosisResult(
-            error="No knowledge provided: pass 'knowledge' or preload a KB "
-            "via EUCLID_KB_PATH.",
+            error="No knowledge provided: pass 'knowledge', a registered "
+            "'kb_id', or preload a KB via EUCLID_KB_PATH.",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
 
@@ -766,6 +828,8 @@ def _analyze_query(kb, query: str, holds: bool) -> list[DiagnosisFinding]:
 @_log_call("what_if")
 def what_if(
     base_knowledge: str | None = None,
+    kb_id: str | None = None,
+    delta_knowledge: str | None = None,
     modifications: str = "",
     query: str = "",
     max_solutions: int = 5,
@@ -773,11 +837,16 @@ def what_if(
 ) -> WhatIfResult:
     start = time.monotonic()
 
-    kb_source = _resolve_knowledge(base_knowledge)
+    kb_source, resolve_error = _resolve(base_knowledge, kb_id, delta_knowledge)
+    if resolve_error:
+        return WhatIfResult(
+            error=resolve_error,
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
     if kb_source is None:
         return WhatIfResult(
-            error="No base knowledge provided: pass 'base_knowledge' or "
-            "preload a KB via EUCLID_KB_PATH.",
+            error="No base knowledge provided: pass 'base_knowledge', a "
+            "registered 'kb_id', or preload a KB via EUCLID_KB_PATH.",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
 
@@ -924,22 +993,136 @@ def _facts_match(line: str, pattern: str) -> bool:
     "syntax errors, undefined predicates, circular rules, duplicates.",
 )
 @_log_call("check_kb")
-def check_kb(knowledge: str | None = None) -> KBCheckResult:
+def check_kb(
+    knowledge: str | None = None,
+    kb_id: str | None = None,
+    delta_knowledge: str | None = None,
+) -> KBCheckResult:
     start = time.monotonic()
-    kb_source = _resolve_knowledge(knowledge)
+    kb_source, resolve_error = _resolve(knowledge, kb_id, delta_knowledge)
+    if resolve_error:
+        return KBCheckResult(
+            valid=False,
+            errors=[KBError(type="resolution_error", message=resolve_error)],
+            error=resolve_error,
+            elapsed_ms=(time.monotonic() - start) * 1000,
+        )
     if kb_source is None:
         return KBCheckResult(
             valid=False,
             errors=[KBError(
                 type="no_knowledge",
-                message="No knowledge provided: pass 'knowledge' or preload "
-                        "a KB via EUCLID_KB_PATH.",
+                message="No knowledge provided: pass 'knowledge', a "
+                        "registered 'kb_id', or preload a KB via "
+                        "EUCLID_KB_PATH.",
             )],
-            error="No knowledge provided: pass 'knowledge' or preload a KB "
-                  "via EUCLID_KB_PATH.",
+            error="No knowledge provided: pass 'knowledge', a registered "
+                  "'kb_id', or preload a KB via EUCLID_KB_PATH.",
             elapsed_ms=(time.monotonic() - start) * 1000,
         )
     return _run_check_kb(kb_source)
+
+
+# ── Named KBs (C3): register_kb / unregister_kb / list_kbs ──────────────
+
+
+@mcp.tool(
+    description="Register a named knowledge base under a kb_id "
+    "so later calls can reference it instead of resending the KB text. "
+    "Overwrites an existing kb_id. The KB is validated with check_kb first.",
+)
+@_log_call("register_kb")
+def register_kb(kb_id: str, knowledge: str) -> dict:
+    start = time.monotonic()
+    if not kb_id or not kb_id.strip():
+        return {
+            "registered": False,
+            "error": "'kb_id' is required: 1-64 lowercase letters, digits, '_' or '-'.",
+            "elapsed_ms": (time.monotonic() - start) * 1000,
+        }
+    if not is_valid_kb_id(kb_id):
+        return {
+            "registered": False,
+            "error": f"Invalid kb_id: {kb_id!r}. Use 1-64 lowercase "
+                     "letters, digits, '_' or '-'.",
+            "elapsed_ms": (time.monotonic() - start) * 1000,
+        }
+    if not knowledge or not knowledge.strip():
+        return {
+            "registered": False,
+            "error": "'knowledge' is required to register a KB.",
+            "elapsed_ms": (time.monotonic() - start) * 1000,
+        }
+    if len(knowledge) > MAX_KNOWLEDGE_LENGTH:
+        return {
+            "registered": False,
+            "error": f"Knowledge exceeds maximum allowed size "
+                     f"({len(knowledge):,} > {MAX_KNOWLEDGE_LENGTH:,} bytes)",
+            "elapsed_ms": (time.monotonic() - start) * 1000,
+        }
+    check = _run_check_kb(knowledge)
+    if not check.valid:
+        details = "; ".join(e.message for e in check.errors)
+        return {
+            "registered": False,
+            "error": f"Knowledge base is not valid: {details}",
+            "elapsed_ms": (time.monotonic() - start) * 1000,
+        }
+    record = KBRecord(
+        kb_id=kb_id,
+        source=knowledge,
+        content_hash=check.content_hash or kb_fingerprint(knowledge),
+        version=check.version,
+        facts=check.facts_count,
+        rules=check.rules_count,
+        predicates=check.predicates_count,
+    )
+    if not _kb_store.register(record):
+        return {
+            "registered": False,
+            "error": f"KB registry is full (max {_kb_store.max_kbs} KBs). "
+                     "Unregister one first.",
+            "elapsed_ms": (time.monotonic() - start) * 1000,
+        }
+    response = {"registered": True, "elapsed_ms": (time.monotonic() - start) * 1000}
+    response.update(record.metadata())
+    return response
+
+
+@mcp.tool(
+    description="Remove a named knowledge base from the registry. "
+    "Returns 'removed': false when the kb_id is not registered.",
+)
+@_log_call("unregister_kb")
+def unregister_kb(kb_id: str) -> dict:
+    start = time.monotonic()
+    if not is_valid_kb_id(kb_id or ""):
+        return {
+            "removed": False,
+            "error": f"Invalid kb_id: {kb_id!r}. Use 1-64 lowercase "
+                     "letters, digits, '_' or '-'.",
+            "elapsed_ms": (time.monotonic() - start) * 1000,
+        }
+    removed = _kb_store.unregister(kb_id)
+    return {
+        "removed": removed,
+        "kb_id": kb_id,
+        "elapsed_ms": (time.monotonic() - start) * 1000,
+    }
+
+
+@mcp.tool(
+    description="List the registered named knowledge bases "
+    "(metadata only: kb_id, content_hash, version, counts).",
+)
+@_log_call("list_kbs")
+def list_kbs() -> dict:
+    start = time.monotonic()
+    return {
+        "kbs": [record.metadata() for record in _kb_store.list()],
+        "count": len(_kb_store.list()),
+        "elapsed_ms": (time.monotonic() - start) * 1000,
+    }
 
 
 def main() -> None:

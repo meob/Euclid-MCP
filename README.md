@@ -156,7 +156,7 @@ Some internal [benchmarks](benchmarks/BENCHMARKS.md) demonstrate the difference:
 
 ## Tools
 
-Euclid-MCP exposes **5 tools**, each with a specific purpose:
+Euclid-MCP exposes **8 tools**, each with a specific purpose:
 
 | Tool | Purpose |
 |------|---------|
@@ -165,6 +165,9 @@ Euclid-MCP exposes **5 tools**, each with a specific purpose:
 | `diagnose` | Understand why a query succeeds or fails |
 | `what_if` | Test modifications before applying them |
 | `check_kb` | Validate KB consistency before reasoning |
+| `register_kb` | Register a named KB under a `kb_id` |
+| `unregister_kb` | Remove a named KB from the registry |
+| `list_kbs` | List registered named KBs (metadata) |
 
 ### `reason`
 
@@ -172,7 +175,9 @@ Main tool for verifiable deterministic reasoning.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `knowledge` | `string` | — | Facts & rules in text or YAML format |
+| `knowledge` | `string?` | — | Facts & rules in text or YAML format |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session-specific facts appended to the `kb_id` base |
 | `query` | `string?` | — | Override query (optional) |
 | `max_solutions` | `int` | `5` | Max solutions to return |
 | `max_depth` | `int` | `30` | Max proof tree depth |
@@ -189,6 +194,8 @@ into an auditable, human-readable explanation.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `knowledge` | `string?` | — | Facts & rules in text or YAML format |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session-specific facts appended to the `kb_id` base |
 | `query` | `string?` | — | Override query (optional) |
 | `max_solutions` | `int` | `5` | Max solutions to return |
 | `max_depth` | `int` | `30` | Max proof tree depth |
@@ -204,7 +211,9 @@ Query analysis — understand why a query succeeds or fails.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `knowledge` | `string` | — | Facts & rules in text or YAML format |
+| `knowledge` | `string?` | — | Facts & rules in text or YAML format |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session-specific facts appended to the `kb_id` base |
 | `query` | `string` | — | Query to diagnose |
 | `mode` | `string` | `why` | One of: `why`, `why_not`, `what_needs` |
 | `max_solutions` | `int` | `5` | Max solutions to return |
@@ -223,7 +232,9 @@ Scenario analysis — apply modifications to a knowledge base and compare result
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `base_knowledge` | `string` | — | Base facts & rules |
+| `base_knowledge` | `string?` | — | Base facts & rules |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session-specific facts appended to the `kb_id` base |
 | `modifications` | `string` | — | `+ fact(...)` to add, `- fact(...)` to remove |
 | `query` | `string` | — | Query to evaluate |
 | `max_solutions` | `int` | `5` | Max solutions to return |
@@ -237,7 +248,9 @@ Knowledge base validator — check for consistency before running deduction.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `knowledge` | `string` | — | Facts & rules in text or YAML format |
+| `knowledge` | `string?` | — | Facts & rules in text or YAML format |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session-specific facts appended to the `kb_id` base |
 
 **Returns** `KBCheckResult` with `valid`, `errors[]`, `warnings[]`, `facts_count`, `rules_count`, `predicates_count`.
 
@@ -298,6 +311,49 @@ Behavior:
   agents can see what the KB covers without extra tool calls.
 
 Backward compatible: passing `knowledge` explicitly behaves exactly as before.
+
+
+#### Named KBs (`kb_id` + `delta_knowledge`)
+
+A KB can also be **registered once under a `kb_id`** and then referenced on
+every call without resending the text — the in-memory registry is per
+server instance, so replicas re-register their KBs on startup (matching the
+scale-out model of the HTTP API). Up to 32 KBs per instance; `register_kb`
+**overwrites** an existing `kb_id` (update semantics for idempotency).
+
+```python
+# Register once — validated with check_kb first
+register_kb(kb_id="rbac-policy", knowledge="has_role(alice, admin) ...\n? $role ...")
+
+# Reference it on every call
+result = reason(kb_id="rbac-policy", query="can_deploy($user, prod)")
+
+# Session-specific facts on top of the registered base (no re-registration):
+result = reason(
+    kb_id="rbac-policy",
+    delta_knowledge="has_role(alice, dev)\nhas_env(dev, staging)",
+    query="can_deploy($user, staging)",
+)
+```
+
+- `register_kb(kb_id, knowledge)` — validates the `kb_id` (allowlist
+  `[a-z0-9_-]{1,64}`) and the KB (`check_kb`), then stores it. Returns the
+  record: `registered`, `kb_id`, `content_hash`, `version`, `facts`, `rules`,
+  `predicates`. Unknown ids are rejected; a full registry returns an error.
+- `unregister_kb(kb_id)` — removes the KB; returns `removed: true/false`.
+- `list_kbs()` — lists registered KBs (metadata only, no source text).
+
+**Resolution precedence** on `reason`, `explain`, `diagnose`, `what_if`,
+`check_kb`: explicit `knowledge`/`base_knowledge` wins → else `kb_id`
+(unknown id → `Unknown kb_id: <id>`; `delta_knowledge` is concatenated to the
+registered source) → else the `EUCLID_KB_PATH` preload → else a clear
+"No knowledge provided" error. `delta_knowledge` without a `kb_id` is an
+error. `content_hash`/`version` on a `kb_id` result are computed from the
+effective source (base + delta), so a result can always be pinned to the
+exact text reasoned over.
+
+The HTTP API exposes the same flow as `POST /register-kb`,
+`POST /unregister-kb`, and `POST /list-kbs`.
 
 
 ## Installation
@@ -561,6 +617,9 @@ python3 integrations/euclid_api.py --port 8080
 | `/diagnose` | POST | Query failure analysis |
 | `/what-if` | POST | Scenario testing |
 | `/check-kb` | POST | KB validation |
+| `/register-kb` | POST | Register a named KB (`kb_id`) |
+| `/unregister-kb` | POST | Remove a named KB |
+| `/list-kbs` | POST | List registered named KBs |
 | `/health` | GET | Health check |
 
 ```bash
@@ -588,6 +647,23 @@ curl -X POST http://localhost:8080/what-if \
 curl -X POST http://localhost:8080/check-kb \
   -H "Content-Type: application/json" \
   -d '{"knowledge": "human(socrates)\nmortal($x) IF human($x)"}'
+
+# Register a named KB once, then reference it by kb_id
+curl -X POST http://localhost:8080/register-kb \
+  -H "Content-Type: application/json" \
+  -d '{"kb_id": "rbac", "knowledge": "human(socrates)\nmortal($x) IF human($x)"}'
+
+curl -X POST http://localhost:8080/reason \
+  -H "Content-Type: application/json" \
+  -d '{"kb_id": "rbac", "delta_knowledge": "human(plato)", "query": "mortal($who)"}'
+
+curl -X POST http://localhost:8080/list-kbs \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+curl -X POST http://localhost:8080/unregister-kb \
+  -H "Content-Type: application/json" \
+  -d '{"kb_id": "rbac"}'
 ```
 
 ### Docker

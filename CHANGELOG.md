@@ -23,6 +23,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and `/check-kb`. Anyone with the `.euclid` text can recompute the hash and
   verify which exact KB a result was computed from — the foundation for KB
   versioning, signatures, and audit trails.
+- **Named knowledge bases (C3)** — new tools `register_kb`, `unregister_kb`,
+  and `list_kbs` manage an in-memory, per-instance registry (max 32 KBs,
+  overwrite allowed for idempotent updates). A KB registered once under a
+  `kb_id` can then be referenced on `reason`, `explain`, `diagnose`, `what_if`,
+  and `check_kb` instead of resending the text, with an optional
+  `delta_knowledge` overlay for session-specific facts (requires a `kb_id`).
+  Registration validates the `kb_id` (allowlist `[a-z0-9_-]{1,64}`) and the KB
+  with `check_kb`. Resolution precedence everywhere: explicit
+  `knowledge`/`base_knowledge` → `kb_id` (`Unknown kb_id` error when absent) →
+  preloaded KB → "No knowledge provided". With `kb_id` + `delta_knowledge`,
+  `content_hash`/`version` are computed from the merged source. The HTTP API
+  exposes the same flow as `POST /register-kb`, `POST /unregister-kb`, and
+  `POST /list-kbs`, and forwards `kb_id`/`delta_knowledge` on the five
+  reasoning endpoints.
 - **Native Euclid-IR engine** (`euclid_mcp/ir_parser.py`, `euclid_mcp/ir_engine.py`):
   a pure-Python engine that interprets Euclid-IR directly — facts, rules,
   recursive rules, conjunctions, negation as failure (`NOT`), arithmetic

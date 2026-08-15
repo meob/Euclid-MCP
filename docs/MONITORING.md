@@ -11,8 +11,8 @@ Both are read-only observers — the server needs no code changes.
 
 ## What you can observe
 
-The server exposes five tools: `check_kb`, `diagnose`, `explain`, `reason`,
-`what_if`.
+The server exposes eight tools: `check_kb`, `diagnose`, `explain`, `reason`,
+`what_if`, `register_kb`, `unregister_kb`, `list_kbs`.
 Each call is wrapped by `_log_call` (euclid_mcp/server.py) which logs the tool
 name, elapsed time and outcome:
 
@@ -60,14 +60,17 @@ and opens your browser automatically.
 
 ### Where to paste text and call a tool
 
-1. Left sidebar → **Tools** section lists the five tools.
+1. Left sidebar → **Tools** section lists the eight tools.
 2. Click a tool, e.g. `reason`: a **form-based panel** opens with one input
    field per parameter (generated from the tool's JSON schema).
-   - `reason`: `knowledge` (optional when a KB is preloaded), `query`, `max_solutions`, `max_depth`
-   - `explain`: `knowledge`, `query`, `max_solutions`, `max_depth`
-   - `diagnose`: `knowledge`, `query`, `mode` (`why` / `why_not` / `what_needs`), ...
-   - `what_if`: `base_knowledge`, `modifications` (`+ fact(...)` / `- fact(...)`), `query`, ...
-   - `check_kb`: `knowledge`
+   - `reason`: `knowledge` (optional when a KB is preloaded), `kb_id`, `delta_knowledge`, `query`, `max_solutions`, `max_depth`
+   - `explain`: `knowledge`, `kb_id`, `delta_knowledge`, `query`, `max_solutions`, `max_depth`
+   - `diagnose`: `knowledge`, `kb_id`, `delta_knowledge`, `query`, `mode` (`why` / `why_not` / `what_needs`), ...
+   - `what_if`: `base_knowledge`, `kb_id`, `delta_knowledge`, `modifications` (`+ fact(...)` / `- fact(...)`), `query`, ...
+   - `check_kb`: `knowledge`, `kb_id`, `delta_knowledge`
+   - `register_kb`: `kb_id`, `knowledge`
+   - `unregister_kb`: `kb_id`
+   - `list_kbs`: (no parameters)
 3. **Paste the knowledge base** into the `knowledge` (or `base_knowledge`)
    field, the query into `query`, then click **Call tool**.
 4. The structured result appears below with the timing; the **request history /

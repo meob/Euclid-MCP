@@ -20,13 +20,23 @@ python3 integrations/euclid_api.py --api-key "$(openssl rand -hex 32)" \
 | `/diagnose` | POST | Diagnose why a query succeeds or fails |
 | `/what-if` | POST | What-if analysis with fact additions/removals |
 | `/check-kb` | POST | Validate a knowledge base for consistency |
+| `/register-kb` | POST | Register a named KB under a `kb_id` |
+| `/unregister-kb` | POST | Remove a named KB from the registry |
+| `/list-kbs` | POST | List registered named KBs (metadata only) |
 | `/health` | GET | Health check |
 
-**KB identity:** every response from the five POST endpoints includes
+**KB identity:** every response from the reasoning POST endpoints includes
 `content_hash` (sha256 of the KB text payload the result was computed from) and
 `version` (the KB's `@version` directive, or `null` when absent) — present even
 on tool-level error branches (a `200` with no solutions). Consumers can use the
 hash to pin a result to the exact KB text, e.g. for audit logs or signatures.
+
+**Named KBs:** register a KB once with `POST /register-kb`, then reference it
+with `kb_id` (plus an optional `delta_knowledge` overlay for session facts) on
+any of the five reasoning endpoints instead of resending the KB text. The
+registry is per-instance (max 32 KBs); replicas re-register on startup.
+Precedence on every reasoning endpoint: explicit `knowledge`/
+`base_knowledge` wins → `kb_id` → preloaded KB.
 
 ### Authentication & TLS
 
@@ -94,6 +104,22 @@ rendering in a UI.
 {
   "knowledge": "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
 }
+```
+
+**Named KBs** — register once, then reference by `kb_id`:
+
+```json
+// POST /register-kb
+{ "kb_id": "rbac-policy", "knowledge": "has_role(alice, admin)\n? ..." }
+
+// POST /reason (kb_id + optional delta_knowledge overlay)
+{ "kb_id": "rbac-policy", "delta_knowledge": "has_role(alice, dev)", "query": "..." }
+
+// POST /unregister-kb
+{ "kb_id": "rbac-policy" }
+
+// POST /list-kbs
+{}
 ```
 
 ## CLI (shell pipelines)

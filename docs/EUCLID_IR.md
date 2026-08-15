@@ -74,6 +74,33 @@ parent(tom, bob)
 
 ---
 
+## Named Knowledge Bases (`kb_id` + `delta_knowledge`)
+
+A KB can be registered once under a `kb_id` (`register_kb`) and then referenced
+on every tool call instead of resending the text. Registration validates the
+KB with `check_kb` first. The registry is **in-memory per instance** (max 32
+KBs, overwrite allowed), so replicas re-register on startup.
+
+All reasoning tools accept `kb_id` plus an optional `delta_knowledge` overlay
+(session-specific facts appended to the registered base):
+
+```
+# Register once (validated with check_kb)
+register_kb(kb_id="policies", knowledge="...")
+
+# Reference it, with a session overlay
+? can_deploy($user, $env)
+# → via the tool: kb_id="policies", delta_knowledge="has_role(alice, dev)"
+```
+
+Resolution precedence on every reasoning tool: explicit
+`knowledge`/`base_knowledge` wins → `kb_id` (`Unknown kb_id` when absent) →
+preloaded KB (`EUCLID_KB_PATH`) → "No knowledge provided". `delta_knowledge`
+requires a `kb_id`. With `kb_id` + `delta_knowledge`, `content_hash`/`version`
+are computed from the effective merged source.
+
+---
+
 ## Lexical Rules
 
 | Rule | Detail |
