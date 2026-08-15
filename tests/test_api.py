@@ -180,6 +180,8 @@ class TestApi:
             assert data["rules_count"] == 1
             assert data["content_hash"] == KB_HASH
             assert "version" in data
+            assert isinstance(data["predicates"], list)
+            assert data["predicates_count"] == len(data["predicates"])
 
     def test_check_kb_invalid(self):
         with _TestServer() as s:

@@ -333,6 +333,7 @@ class ReasonHandler(BaseHTTPRequestHandler):
                 "facts_count": result.facts_count,
                 "rules_count": result.rules_count,
                 "predicates_count": result.predicates_count,
+                "predicates": [p.model_dump() for p in result.predicates],
                 "elapsed_ms": result.elapsed_ms,
                 "content_hash": result.content_hash,
                 "version": result.version,

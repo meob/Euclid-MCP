@@ -252,7 +252,7 @@ Knowledge base validator — check for consistency before running deduction.
 | `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
 | `delta_knowledge` | `string?` | — | Session-specific facts appended to the `kb_id` base |
 
-**Returns** `KBCheckResult` with `valid`, `errors[]`, `warnings[]`, `facts_count`, `rules_count`, `predicates_count`.
+**Returns** `KBCheckResult` with `valid`, `errors[]`, `warnings[]`, `facts_count`, `rules_count`, `predicates_count`, and `predicates[]` — the predicate inventory (name → arities, facts, rules counts) that doubles as the contract for LLM extraction.
 
 #### KB identity in results
 

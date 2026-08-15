@@ -340,6 +340,64 @@ ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)
         assert r.facts_count == 3
         assert r.rules_count == 2
 
+    def test_predicate_inventory(self):
+        r = check_kb(
+            "can_access(a)\n"
+            "can_access(b)\n"
+            "user(u1)\n"
+            "user(u2)\n"
+            "allowed($x) IF can_access($x)\n"
+            "? allowed($who)"
+        )
+        assert r.predicates_count == 3  # can_access, user, allowed
+        by_name = {p.name: p for p in r.predicates}
+        assert set(by_name) == {"can_access", "user", "allowed"}
+        assert by_name["can_access"].arities == [1]
+        assert by_name["can_access"].facts == 2
+        assert by_name["can_access"].rules == 0
+        assert by_name["user"].arities == [1]
+        assert by_name["user"].facts == 2
+        assert by_name["user"].rules == 0
+        assert by_name["allowed"].arities == [1]
+        assert by_name["allowed"].facts == 0
+        assert by_name["allowed"].rules == 1
+
+    def test_predicate_inventory_zero_arity_and_mixed(self):
+        r = check_kb(
+            "rainy\n"
+            "snowy\n"
+            "weather($x) IF rainy\n"
+            "weather($x) IF snowy\n"
+            "can_access(a, secret)\n"
+            "? weather($w)"
+        )
+        by_name = {p.name: p for p in r.predicates}
+        assert by_name["rainy"].arities == [0]
+        assert by_name["rainy"].facts == 1
+        assert by_name["snowy"].facts == 1
+        assert by_name["weather"].rules == 2
+        assert by_name["can_access"].arities == [2]
+
+    def test_inconsistent_arity_warning(self):
+        r = check_kb(
+            "can_access(a)\n"
+            "can_access(a, secret)\n"
+            "? can_access($x)"
+        )
+        assert r.valid is True
+        assert any(
+            w.type == "inconsistent_arity"
+            and "can_access" in w.message
+            and "1, 2" in w.message
+            for w in r.warnings
+        )
+        by_name = {p.name: p for p in r.predicates}
+        assert by_name["can_access"].arities == [1, 2]
+
+    def test_inconsistent_arity_absent_on_consistent_kb(self):
+        r = check_kb("can_access(a)\ncan_access(b)\n? can_access($x)")
+        assert not any(w.type == "inconsistent_arity" for w in r.warnings)
+
 
 # =============================================================================
 # Named KBs (C3): kb_id + delta_knowledge

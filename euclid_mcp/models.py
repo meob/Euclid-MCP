@@ -125,6 +125,18 @@ class KBError(BaseModel):
     line: Optional[int] = None
 
 
+class PredicateInfo(BaseModel):
+    """Predicate inventory entry: name → arities with fact/rule counts.
+
+    Derived from the KB itself (facts and rule heads), so it doubles as the
+    contract for LLM extraction without adding any Euclid-IR syntax.
+    """
+    name: str
+    arities: list[int] = Field(default_factory=list)
+    facts: int = 0
+    rules: int = 0
+
+
 class KBCheckResult(BaseModel):
     """Result from check_kb(): KB consistency and health report."""
     valid: bool = True
@@ -133,6 +145,7 @@ class KBCheckResult(BaseModel):
     facts_count: int = 0
     rules_count: int = 0
     predicates_count: int = 0
+    predicates: list[PredicateInfo] = Field(default_factory=list)
     elapsed_ms: float = 0.0
     error: Optional[str] = None
     content_hash: Optional[str] = None

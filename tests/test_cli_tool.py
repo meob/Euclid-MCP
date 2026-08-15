@@ -36,6 +36,28 @@ class TestCliInProcess:
         assert "KB valid: True" in out
         assert "Facts: 1" in out
 
+    def test_check_prints_predicate_inventory(self, monkeypatch, capsys):
+        out, _ = self._invoke(
+            monkeypatch,
+            capsys,
+            ["check", "--knowledge",
+             "can_access(a)\nuser(u1)\nallowed($x) IF can_access($x)"],
+        )
+        assert "- can_access/1: 1 facts, 0 rules" in out
+        assert "- user/1: 1 facts, 0 rules" in out
+        assert "- allowed/1: 0 facts, 1 rules" in out
+
+    def test_check_json_includes_predicates(self, monkeypatch, capsys):
+        import json
+
+        out, _ = self._invoke(monkeypatch, capsys, ["check", "--knowledge", KB, "--json"])
+        data = json.loads(out)
+        assert "predicates" in data
+        by_name = {p["name"]: p for p in data["predicates"]}
+        assert by_name["human"]["facts"] == 1
+        assert by_name["mortal"]["rules"] == 1
+        assert by_name["mortal"]["arities"] == [1]
+
     def test_check_invalid_exit_code(self, monkeypatch, capsys):
         out, _ = self._invoke(
             monkeypatch,

@@ -78,7 +78,9 @@ Test modifications before applying. `+` prefix to add, `-` to remove.
 | `max_depth` | `int` | `30` | Max proof depth |
 
 ### `check_kb`
-Validate knowledge base for errors before reasoning.
+Validate knowledge base for errors before reasoning. Returns also the
+predicate inventory (name → arities, facts, rules counts) — the derived
+contract for LLM extraction.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|

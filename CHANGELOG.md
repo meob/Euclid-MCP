@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.4.0] — 2026-08-14
 
 ### Added
+- **Predicate inventory (B)** — `check_kb` now returns `predicates`:
+  `PredicateInfo(name, arities, facts, rules)` for every predicate in the KB
+  (derived from facts and rule heads, no Euclid-IR syntax added), giving LLM
+  extraction a derived contract without extending the language. A new
+  `inconsistent_arity` warning flags the same predicate used with multiple
+  arities (e.g. `can_access(a)` + `can_access(a, b)`); it is a warning,
+  consistent with `duplicate_fact`/`duplicate_rule_id`. Exposed on the MCP
+  tool, `POST /check-kb`, and `euclid-cli check` (text + `--json`).
+  `predicates_count` is unchanged for backward compatibility.
 - **Structured explain (C5)** — each `Explanation` now also carries
   `structured_steps`: typed, language-independent reasoning steps (`kind`
   `fact`/`rule`/`neg`/`true`/`unknown`, plus `goal`, `rule_id`, and `body`

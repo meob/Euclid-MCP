@@ -35,6 +35,23 @@ The knowledge base comes from one of three sources, in order of precedence:
 The query comes from `--query`, or from the `?` lines embedded in the KB
 (any tool except `check`).
 
+## Check output
+
+`euclid-cli check` prints the KB statistics followed by the **predicate
+inventory** — one line per predicate with its arities and fact/rule counts,
+the derived contract for LLM extraction:
+
+```
+KB valid: True
+Facts: 3  Rules: 1  Predicates: 3
+  - allowed/1: 0 facts, 1 rules
+  - can_access/1: 2 facts, 0 rules
+  - user/1: 1 facts, 0 rules
+```
+
+A predicate used with multiple arities (e.g. `can_access(a)` and
+`can_access(a, b)`) is flagged with an `inconsistent_arity` warning.
+
 ## Examples
 
 ```bash

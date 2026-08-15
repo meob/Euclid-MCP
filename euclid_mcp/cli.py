@@ -123,6 +123,10 @@ def _render_check(result) -> None:
     print(f"KB valid: {result.valid}")
     print(f"Facts: {result.facts_count}  Rules: {result.rules_count}  "
           f"Predicates: {result.predicates_count}")
+    for predicate in result.predicates:
+        arities = "/".join(str(a) for a in predicate.arities) or "?"
+        print(f"  - {predicate.name}/{arities}: {predicate.facts} facts, "
+              f"{predicate.rules} rules")
     for error in result.errors:
         where = f" (line {error.line})" if error.line else ""
         print(f"  [error] {error.message}{where}")
@@ -322,6 +326,7 @@ def _run_check(args) -> int:
             "facts_count": result.facts_count,
             "rules_count": result.rules_count,
             "predicates_count": result.predicates_count,
+            "predicates": [p.model_dump() for p in result.predicates],
             "elapsed_ms": result.elapsed_ms,
         })
     else:

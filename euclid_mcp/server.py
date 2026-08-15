@@ -23,6 +23,7 @@ from euclid_mcp.models import (
     ExplanationResult,
     KBCheckResult,
     KBError,
+    PredicateInfo,
     ReasonResult,
     WhatIfResult,
 )
@@ -172,15 +173,23 @@ def _run_check_kb(knowledge: str) -> KBCheckResult:
             version=None,
         )
 
-    # Collect all defined predicates
-    defined: dict[str, set[int]] = {}  # name -> set of arities
+    # Collect all defined predicates: name -> {"arities": set[int],
+    # "facts": int, "rules": int}
+    predicates: dict[str, dict[str, Any]] = {}
+
+    def _add_predicate(name: str, arity: int, kind: str) -> None:
+        entry = predicates.setdefault(
+            name, {"arities": set(), "facts": 0, "rules": 0}
+        )
+        entry["arities"].add(arity)
+        entry[kind] += 1
 
     for fact in kb.facts:
         parsed = _extract_predicate(fact)
         if parsed:
             name, args = parsed
             arity = args.count(",") + 1 if args else 0
-            defined.setdefault(name, set()).add(arity)
+            _add_predicate(name, arity, "facts")
 
     for rule in kb.rules:
         head, _ = _split_rule(rule)
@@ -188,7 +197,12 @@ def _run_check_kb(knowledge: str) -> KBCheckResult:
         if parsed:
             name, args = parsed
             arity = args.count(",") + 1 if args else 0
-            defined.setdefault(name, set()).add(arity)
+            _add_predicate(name, arity, "rules")
+
+    # name -> set of arities, for the undefined-predicate checks below
+    defined: dict[str, set[int]] = {
+        name: entry["arities"] for name, entry in predicates.items()
+    }
 
     # Check 1: duplicate facts
     seen_facts: dict[str, int] = {}
@@ -288,6 +302,27 @@ def _run_check_kb(knowledge: str) -> KBCheckResult:
             ))
         seen_rule_ids[rid] = seen_rule_ids.get(rid, 0) + 1
 
+    # Check 7: inconsistent arity (warning) — same predicate with >1 arities
+    predicate_infos: list[PredicateInfo] = []
+    for name in sorted(predicates):
+        entry = predicates[name]
+        arities = sorted(entry["arities"])
+        if len(arities) > 1:
+            warnings.append(KBError(
+                type="inconsistent_arity",
+                message=(
+                    f"Predicate '{name}' used with multiple arities: "
+                    + ", ".join(str(a) for a in arities)
+                ),
+                predicate=name,
+            ))
+        predicate_infos.append(PredicateInfo(
+            name=name,
+            arities=arities,
+            facts=entry["facts"],
+            rules=entry["rules"],
+        ))
+
     valid = len(errors) == 0
 
     elapsed = (time.monotonic() - start) * 1000
@@ -297,7 +332,8 @@ def _run_check_kb(knowledge: str) -> KBCheckResult:
         warnings=warnings,
         facts_count=len(kb.facts),
         rules_count=len(kb.rules),
-        predicates_count=len(defined),
+        predicates_count=len(predicates),
+        predicates=predicate_infos,
         elapsed_ms=elapsed,
         content_hash=kb_fingerprint(knowledge),
         version=kb.version,
