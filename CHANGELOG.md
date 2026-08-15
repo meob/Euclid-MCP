@@ -60,6 +60,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   result parity (all solution counts match); native ~7× slower aggregate but
   only ~1.3–2.5× on typical queries, blowing up (17–32×) on high-solution
   wildcard joins and exhaustive-failure `NOT` queries.
+- **`euclid-cli` command-line interface** (`euclid_mcp/cli.py`, console script
+  `euclid-cli`): a thin, human-friendly wrapper around the five reasoning
+  tools. Subcommands `check`, `reason`, `explain`, `diagnose`, and `what-if`
+  mirror the MCP tools; the KB comes from a `.euclid` file (`-f`), inline
+  (`--knowledge`), or `EUCLID_KB_PATH`/preload, and the query from `--query`
+  or the `?` lines in the KB. Backend selection via `--backend`
+  (`auto` | `prolog` | `native`), human-readable output by default with a
+  `--json` flag for scripting, and exit codes `0`/`1`/`2` for
+  success/tool-error/usage-error.
 
 ### Changed
 - **Example 08 (Cluedo) rewritten to be readable**: the output no longer dumps

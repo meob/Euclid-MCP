@@ -47,6 +47,7 @@ repository = "https://github.com/meob/Euclid-MCP"
 
 [project.scripts]
 euclid-mcp = "euclid_mcp:main"
+euclid-cli = "euclid_mcp.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["euclid_mcp*"]

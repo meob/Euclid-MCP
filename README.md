@@ -455,6 +455,53 @@ check = check_kb(knowledge="human(socrates)\nmortal($x) IF human($x)")
 print(f"Valid: {check.valid}, Errors: {check.errors}")
 ```
 
+### Via CLI
+
+The `euclid-cli` command wraps the same five tools for the terminal. It reads
+the KB from a `.euclid` file (`-f`), inline (`--knowledge`), or falls back to
+`EUCLID_KB_PATH`/preload, and selects the backend with `--backend`
+(`auto` | `prolog` | `native`). Queries come from `--query` or from the `?`
+lines inside the KB file.
+
+```bash
+# Validate a knowledge base
+euclid-cli check -f policies.euclid
+
+# Run a deduction (query taken from the ? line in the file)
+euclid-cli reason -f policies.euclid
+
+# Explicit query + limits
+euclid-cli reason -f policies.euclid --query "can_deploy($user, prod)" \
+    --max-solutions 10 --max-depth 40
+
+# Inline KB (no file)
+euclid-cli reason --knowledge "human(socrates)
+mortal(\$x) IF human(\$x)
+? mortal(\$who)"
+
+# Readable reasoning steps
+euclid-cli explain -f policies.euclid
+
+# Why does a query fail?
+euclid-cli diagnose -f policies.euclid --query "can_deploy(bob, prod)" \
+    --mode why_not
+
+# What-if: how does adding a fact change the answer?
+euclid-cli what-if -f policies.euclid \
+    --modifications "+ has_role(bob, deployer)" --query "can_deploy(bob, prod)"
+
+# Force the pure-Python native engine (no SWI-Prolog needed)
+euclid-cli --backend native reason -f policies.euclid
+
+# Machine-readable output
+euclid-cli reason -f policies.euclid --json
+```
+
+Exit codes: `0` on success, `1` when the tool reports an error (including an
+invalid KB from `check`), `2` on usage errors.
+
+Full CLI reference (all flags, backends, JSON output): [`docs/CLI.md`](docs/CLI.md)
+
 ### Example output
 
 ```json

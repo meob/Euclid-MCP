@@ -100,6 +100,9 @@ python3 examples/08_cluedo/cluedo.py --scenario what-if
 
 # Custom game state file
 python3 examples/08_cluedo/cluedo.py --custom my_game.txt
+
+# Native Euclid Engine
+EUCLID_BACKEND=native python3 examples/08_cluedo/cluedo.py --scenario late
 ```
 
 The demo prints a detective-themed banner (magnifying glass ASCII art) with
