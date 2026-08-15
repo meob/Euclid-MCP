@@ -4,8 +4,8 @@ Walks a ProofNode (fact / rule / and / neg / true) and produces an ordered
 list of reasoning steps. Two representations are derived from the same walk:
 
 * ``explain_solution_typed`` → ``list[ExplainStep]``: language-independent
-  typed steps (kind + goal + rule_id + body conjuncts). Studio renders these
-  with localized templates.
+  typed steps (kind + goal + rule_id + body conjuncts). A frontend renders
+  these with localized templates.
 * ``explain_solution`` → ``list[str]``: the English natural-language steps,
   rendered from the typed steps (backward compatible).
 

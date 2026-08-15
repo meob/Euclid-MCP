@@ -104,3 +104,68 @@ showed(scarlett, dining_room, plum)
 showed(mustard, wrench, peacock)
 showed(peacock, green, scarlett)
 """
+
+RESOLVED_GAME = """
+# Cluedo - Resolved Game
+# ======================
+# Every card except the envelope has been seen in someone's hand.
+# Exactly one suspect, one weapon and one room remain: the case is solvable.
+#
+# Envelope (hidden): green + lead_pipe + ballroom
+
+# Domain: all possible cards
+suspect(scarlett)
+suspect(plum)
+suspect(peacock)
+suspect(green)
+suspect(mustard)
+suspect(white)
+
+weapon(candlestick)
+weapon(knife)
+weapon(lead_pipe)
+weapon(revolver)
+weapon(rope)
+weapon(wrench)
+
+room(kitchen)
+room(ballroom)
+room(conservatory)
+room(billiard_room)
+room(library)
+room(study)
+room(hall)
+room(lounge)
+room(dining_room)
+
+# Players
+player(scarlett)
+player(plum)
+player(peacock)
+player(mustard)
+
+# Cards in each player's hand (every card except the envelope)
+hand(scarlett, mustard)
+hand(scarlett, white)
+hand(scarlett, candlestick)
+hand(scarlett, knife)
+hand(scarlett, kitchen)
+hand(scarlett, study)
+
+hand(peacock, plum)
+hand(peacock, library)
+hand(peacock, lounge)
+
+hand(mustard, peacock)
+hand(mustard, wrench)
+hand(mustard, billiard_room)
+hand(mustard, dining_room)
+
+hand(plum, rope)
+hand(plum, conservatory)
+hand(plum, hall)
+
+# Cards revealed during suggestions
+showed(plum, scarlett, peacock)
+showed(mustard, revolver, plum)
+"""

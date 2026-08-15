@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `fact`/`rule`/`neg`/`true`/`unknown`, plus `goal`, `rule_id`, and `body`
   conjuncts). The English `steps: list[str]` remain unchanged and are now
   derived from the same typed steps, so existing consumers are fully backward
-  compatible while a UI (e.g. Euclid-Studio) can render localized explanations
+  compatible while a UI (e.g. a frontend) can render localized explanations
   without re-walking the proof tree. Exposed on the MCP tool and `POST /explain`.
 - **Exposed KB identity (C4)** — every tool result (`ReasonResult`,
   `ExplanationResult`, `DiagnosisResult`, `WhatIfResult`, `KBCheckResult`) now
@@ -60,6 +60,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   result parity (all solution counts match); native ~7× slower aggregate but
   only ~1.3–2.5× on typical queries, blowing up (17–32×) on high-solution
   wildcard joins and exhaustive-failure `NOT` queries.
+
+### Changed
+- **Example 08 (Cluedo) rewritten to be readable**: the output no longer dumps
+  20 raw suspect/weapon/room triples (which were just *remaining candidates*,
+  not the answer) with a misleading "CASE RESOLVED". It now narrates the
+  deduction: per-category "still possible" vs "eliminated (with reason)",
+  real combination counts (e.g. `2 × 2 × 6 = 24`), an honest "not resolved"
+  message, and a new **Resolved Game** scenario that genuinely pins down the
+  envelope and prints the `explain` proof trace. Engine tool-call logs are
+  silenced and the what-if scenario that was a no-op was fixed.
 
 ### Fixed
 - Example 08 (Cluedo) game-state KB rewritten from Prolog-style

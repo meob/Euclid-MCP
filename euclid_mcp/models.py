@@ -43,9 +43,9 @@ class ExplainStep(BaseModel):
 
     ``kind`` is one of ``fact``, ``rule``, ``neg``, ``true``, ``unknown``.
     ``body`` holds the rule-body conjuncts already split (the ``euclid_rule_id``
-    marker stripped, ``\\+`` rendered as ``NOT``). Studio renders these with its
-    own localized templates; the English ``steps`` strings are derived from the
-    same steps.
+    marker stripped, ``\\+`` rendered as ``NOT``). A frontend renders these with
+    its own localized templates; the English ``steps`` strings are derived from
+    the same steps.
     """
     kind: str
     goal: Optional[str] = None

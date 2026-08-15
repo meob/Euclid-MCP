@@ -216,8 +216,7 @@ Python (PrologServer) ←── stdin/stdout (JSON lines) ──→ SWI-Prolog (
 
 ## External review: Gemini & ChatGPT (Jul 2026)
 
-Independent reviews (sources: `staff/Eu4Gemini.md`, `staff/Eu4ChatGPT.md`,
-`staff/SuggerimentiREADME.txt`).
+Independent reviews.
 
 **Overall verdict: strongly positive.** Both models independently identify the
 same core value — separating probabilistic understanding (LLM) from deterministic
@@ -238,7 +237,7 @@ the architecture.
 
 ### Still open — prioritized
 
-Strategic framing lives in `staff/Euclid-Studio.md` (enterprise/consulting angle).
+Strategic framing (enterprise/consulting angle) lives in an unpublished internal doc.
 
 | # | Idea | Source | Priority |
 |---|---|---|---|
