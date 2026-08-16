@@ -15,7 +15,7 @@ sufficient production architecture once the in-process hardening is in place
                     ┌──────────────┐    ┌───────────────────────┐
   n8n/Zapier/Make ─▶│   HAProxy    │───▶│ replica 1: euclid-api │──▶ swipl
   (TLS, rate limit, │ (LB + health │   ┌┴──────────────────────┐
-   timeouts)        │  + circuit   )──▶│ replica 2: euclid-api │──▶ swipl
+   timeouts)        │  + circuit   │──▶│ replica 2: euclid-api │──▶ swipl
                     │  breaking)   │   └───────────────────────┘
                     └──────────────┘   replica N ...
 ```
@@ -316,8 +316,7 @@ p99-latency, engine-restart-storm and memory-pressure alerts.
 - **Inconsistent answers across replicas**: preloaded-KB mismatch — verify
   `EUCLID_KB_PATH` resolves to the same file everywhere.
 - **A slow client holds a replica**: the engine is single-request at a time; set
-  `timeout client` at the proxy and consider the in-process engine pool roadmap
-  item for concurrent requests within one instance.
+  `timeout client` at the proxy.
 
 ## References
 

@@ -105,9 +105,6 @@ python3 examples/08_cluedo/cluedo.py --custom my_game.txt
 EUCLID_BACKEND=native python3 examples/08_cluedo/cluedo.py --scenario late
 ```
 
-The demo prints a detective-themed banner (magnifying glass ASCII art) with
-ANSI colors: suspects in magenta, weapons in red, rooms in cyan, and a final
-"CASE RESOLVED" verdict.
 
 ### Example 10: LLM vs Euclid-MCP
 
