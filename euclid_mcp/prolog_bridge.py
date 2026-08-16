@@ -37,6 +37,61 @@ def _get_server() -> PrologServer:
         return _default_server
 
 
+def close() -> None:
+    """Terminate the persistent engine, if one was launched.
+
+    Used by the HTTP API's graceful-shutdown path so no ``swipl`` process is
+    orphaned when the container/process receives SIGTERM or SIGINT.
+    """
+    global _default_server
+    with _server_lock:
+        server, _default_server = _default_server, None
+    if server is not None:
+        server.close()
+
+
+def health_info() -> dict | None:
+    """Live engine snapshot for deep health checks.
+
+    The engine is launched lazily on first use, so a cold process has no
+    engine to probe yet — that is healthy, not degraded: the next request
+    starts one. Returns a dict with ``reachable: False`` only when an engine
+    process exists but does not answer a ping (wedged/dropped; ``PrologServer``
+    then discards it and the next request relaunches from a clean state). The
+    native backend has no ``swipl`` process at all and is handled by the
+    caller without consulting this function.
+
+    The dict carries the workspace ``facts``/``rules`` counts and the
+    Python-side ``requests_since_restart`` for the current engine process.
+    """
+    with _server_lock:
+        server = _default_server
+    if server is None:
+        return {
+            "backend": "prolog",
+            "reachable": True,
+            "facts": None,
+            "rules": None,
+            "requests_since_restart": 0,
+        }
+    try:
+        server.ping(timeout=5)
+    except (RuntimeError, OSError):
+        return {"backend": "prolog", "reachable": False}
+    info: dict[str, Any] = {
+        "backend": "prolog",
+        "reachable": True,
+        "requests_since_restart": server.requests_since_restart,
+    }
+    try:
+        stats = server.stats(timeout=5)
+        info["facts"] = stats.get("facts")
+        info["rules"] = stats.get("rules")
+    except (RuntimeError, OSError):
+        pass
+    return info
+
+
 def execute(
     decls: list[str],
     clauses: list[str],

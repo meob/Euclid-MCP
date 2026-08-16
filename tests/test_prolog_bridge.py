@@ -83,3 +83,49 @@ def test_execute_with_kb_hash():
     second = execute(decls, clauses, "mortal($who)", timeout=15, kb_hash="kb-1")
     assert len(first) == len(second) == 1
     assert first[0].substitutions == second[0].substitutions == {"who": "socrates"}
+
+
+# ── deep health + graceful shutdown hook ─────────────────────────────────────
+
+
+def test_health_info_before_any_engine():
+    from euclid_mcp.prolog_bridge import close, health_info
+
+    close()
+    # A cold process has no engine yet (it starts lazily on first use): that
+    # is healthy, and health_info() must not launch one just to answer.
+    info = health_info()
+    assert info is not None
+    assert info["backend"] == "prolog"
+    assert info["reachable"] is True
+    assert info["facts"] is None
+    assert info["requests_since_restart"] == 0
+
+
+def test_health_info_after_engine_use():
+    from euclid_mcp.prolog_bridge import close, execute, health_info
+
+    close()
+    decls, clauses = kb_to_decls_clauses(
+        KB(facts=["human(socrates)"], rules=["mortal($x) IF human($x)"])
+    )
+    execute(decls, clauses, "mortal($who)", timeout=15)
+    info = health_info()
+    assert info is not None
+    assert info["backend"] == "prolog"
+    assert info["facts"] == 1
+    assert info["rules"] == 1
+    assert isinstance(info["requests_since_restart"], int)
+    close()
+
+
+def test_close_is_idempotent_and_engine_relaunches():
+    from euclid_mcp.prolog_bridge import close, execute
+
+    close()
+    close()  # closing twice must be a no-op
+    decls, clauses = kb_to_decls_clauses(KB(facts=["human(socrates)"]))
+    solutions = execute(decls, clauses, "human(socrates)", timeout=15)
+    assert len(solutions) == 1
+    assert solutions[0].substitutions == {}
+    close()

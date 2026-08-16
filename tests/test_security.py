@@ -14,6 +14,8 @@ from euclid_mcp.server import (
     MAX_QUERY_LENGTH,
     MAX_SOLUTIONS_LIMIT,
     reason,
+    register_kb,
+    unregister_kb,
 )
 
 # =============================================================================
@@ -241,3 +243,86 @@ class TestErrorSanitization:
         if result.error:
             assert "/tmp/" not in result.error
             assert ".pl:" not in result.error
+
+
+# =============================================================================
+# Phase 4: Named KB (C3) — kb_id / delta_knowledge injection
+# =============================================================================
+
+_VALID_KB = "p(a)\n? p($x)"
+
+
+class TestKbIdInjection:
+    """kb_id must match the allowlist [a-z0-9_-]{1,64}; no path/name tricks."""
+
+    @pytest.mark.parametrize("kb_id", [
+        "../admin",
+        "admin/evil",
+        "../",
+        "a b",
+        "Admin",
+        "A",  # uppercase rejected
+        "x" * 65,
+        "",
+        None,
+    ])
+    def test_register_kb_rejects_invalid_ids(self, kb_id):
+        result = register_kb(kb_id, _VALID_KB)
+        assert result["registered"] is False
+        assert result["error"] is not None
+
+    def test_register_kb_accepts_benign_reserved_sounding_id(self):
+        result = register_kb("admin", _VALID_KB)
+        assert result["registered"] is True
+        assert unregister_kb("admin")["removed"] is True
+
+    def test_reason_rejects_invalid_kb_id(self):
+        result = reason(knowledge=None, kb_id="../admin", query="p($x)")
+        assert result.error is not None
+        assert "Invalid kb_id" in result.error
+
+    def test_reason_unknown_kb_id(self):
+        result = reason(knowledge=None, kb_id="does-not-exist", query="p($x)")
+        assert result.error is not None
+        assert "Unknown kb_id" in result.error
+
+    def test_reason_rejects_oversized_kb_id(self):
+        result = reason(knowledge=None, kb_id="a" * 65, query="p($x)")
+        assert result.error is not None
+        assert "Invalid kb_id" in result.error
+
+
+class TestDeltaKnowledgeLimits:
+    def test_reason_rejects_oversized_delta(self):
+        register_kb("rbac-limit", _VALID_KB)
+        try:
+            result = reason(
+                kb_id="rbac-limit",
+                delta_knowledge="p(a" + "a" * (MAX_KNOWLEDGE_LENGTH + 1000) + ")",
+                query="p($x)",
+            )
+            assert result.error is not None
+            assert "delta_knowledge exceeds maximum" in result.error
+        finally:
+            unregister_kb("rbac-limit")
+
+    def test_reason_rejects_delta_without_kb_id(self):
+        result = reason(knowledge=None, delta_knowledge="p(a)", query="p($x)")
+        assert result.error is not None
+        assert "delta_knowledge requires a kb_id" in result.error
+
+    def test_register_kb_rejects_oversized_knowledge(self):
+        huge = "p(a" + "a" * (MAX_KNOWLEDGE_LENGTH + 1000) + ")"
+        result = register_kb("big", huge)
+        assert result["registered"] is False
+        assert "exceeds maximum" in result["error"]
+
+    def test_register_kb_rejects_invalid_kb(self):
+        result = register_kb("broken", "mortal($x) IF ghost($x)")
+        assert result["registered"] is False
+        assert "not valid" in result["error"]
+
+    def test_register_kb_rejects_empty_knowledge(self):
+        result = register_kb("empty", "   ")
+        assert result["registered"] is False
+        assert "knowledge" in result["error"]

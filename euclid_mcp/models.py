@@ -23,6 +23,8 @@ class ReasonResult(BaseModel):
     query: str = ""
     elapsed_ms: float = 0.0
     error: Optional[str] = None
+    content_hash: Optional[str] = None
+    version: Optional[str] = None
 
 
 class KB(BaseModel):
@@ -36,10 +38,26 @@ class KB(BaseModel):
 # ── Explanation models ──
 
 
+class ExplainStep(BaseModel):
+    """A single typed reasoning step, independent of any natural language.
+
+    ``kind`` is one of ``fact``, ``rule``, ``neg``, ``true``, ``unknown``.
+    ``body`` holds the rule-body conjuncts already split (the ``euclid_rule_id``
+    marker stripped, ``\\+`` rendered as ``NOT``). A frontend renders these with
+    its own localized templates; the English ``steps`` strings are derived from
+    the same steps.
+    """
+    kind: str
+    goal: Optional[str] = None
+    rule_id: Optional[str] = None
+    body: list[str] = Field(default_factory=list)
+
+
 class Explanation(BaseModel):
     """Natural-language explanation of a single solution's proof."""
     substitutions: dict[str, Any] = Field(default_factory=dict)
     steps: list[str] = Field(default_factory=list)
+    structured_steps: list[ExplainStep] = Field(default_factory=list)
 
 
 class ExplanationResult(BaseModel):
@@ -48,6 +66,8 @@ class ExplanationResult(BaseModel):
     explanations: list[Explanation] = Field(default_factory=list)
     elapsed_ms: float = 0.0
     error: Optional[str] = None
+    content_hash: Optional[str] = None
+    version: Optional[str] = None
 
 
 # ── Diagnosis models ──
@@ -71,6 +91,8 @@ class DiagnosisResult(BaseModel):
     conclusion: str = ""
     elapsed_ms: float = 0.0
     error: Optional[str] = None
+    content_hash: Optional[str] = None
+    version: Optional[str] = None
 
 
 # ── What-if models ──
@@ -88,6 +110,8 @@ class WhatIfResult(BaseModel):
     conclusion: str = ""
     elapsed_ms: float = 0.0
     error: Optional[str] = None
+    content_hash: Optional[str] = None
+    version: Optional[str] = None
 
 
 # ── KB check models ──
@@ -101,6 +125,18 @@ class KBError(BaseModel):
     line: Optional[int] = None
 
 
+class PredicateInfo(BaseModel):
+    """Predicate inventory entry: name → arities with fact/rule counts.
+
+    Derived from the KB itself (facts and rule heads), so it doubles as the
+    contract for LLM extraction without adding any Euclid-IR syntax.
+    """
+    name: str
+    arities: list[int] = Field(default_factory=list)
+    facts: int = 0
+    rules: int = 0
+
+
 class KBCheckResult(BaseModel):
     """Result from check_kb(): KB consistency and health report."""
     valid: bool = True
@@ -109,5 +145,8 @@ class KBCheckResult(BaseModel):
     facts_count: int = 0
     rules_count: int = 0
     predicates_count: int = 0
+    predicates: list[PredicateInfo] = Field(default_factory=list)
     elapsed_ms: float = 0.0
     error: Optional[str] = None
+    content_hash: Optional[str] = None
+    version: Optional[str] = None

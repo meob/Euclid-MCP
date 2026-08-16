@@ -1,12 +1,23 @@
 """Unit tests for all 5 MCP tools: reason, explain, diagnose, what_if, check_kb."""
 
 import asyncio
+import hashlib
 import json
 import logging
 
 from mcp import Client
 
-from euclid_mcp.server import check_kb, diagnose, mcp, reason, what_if
+from euclid_mcp.server import (
+    check_kb,
+    diagnose,
+    explain,
+    list_kbs,
+    mcp,
+    reason,
+    register_kb,
+    unregister_kb,
+    what_if,
+)
 
 # =============================================================================
 # reason
@@ -192,7 +203,8 @@ class TestDiagnose:
 class TestWhatIf:
     def test_add_fact(self):
         base = "human(socrates)\nmortal($x) IF human($x)"
-        r = what_if(base, "+ human(plato)", "mortal($who)")
+        r = what_if(base_knowledge=base, modifications="+ human(plato)",
+                 query="mortal($who)")
         assert r.error is None
         assert r.after_count > r.before_count
         assert r.delta == "more"
@@ -200,7 +212,8 @@ class TestWhatIf:
 
     def test_remove_fact(self):
         base = "human(socrates)\nhuman(plato)\nmortal($x) IF human($x)"
-        r = what_if(base, "- human(socrates)", "mortal($who)")
+        r = what_if(base_knowledge=base, modifications="- human(socrates)",
+                 query="mortal($who)")
         assert r.error is None
         assert r.after_count < r.before_count
         assert r.delta == "less"
@@ -208,9 +221,9 @@ class TestWhatIf:
     def test_add_and_remove(self):
         base = "human(socrates)\nhuman(plato)\nmortal($x) IF human($x)"
         r = what_if(
-            base,
-            "- human(socrates)\n+ human(alcibiades)",
-            "mortal($who)",
+            base_knowledge=base,
+            modifications="- human(socrates)\n+ human(alcibiades)",
+            query="mortal($who)",
         )
         assert r.error is None
         assert r.after_count == r.before_count
@@ -218,36 +231,45 @@ class TestWhatIf:
 
     def test_and_separated_facts(self):
         base = "human(socrates)\nmortal($x) IF human($x)"
-        r = what_if(base, "+ human(plato) AND human(alcibiades)", "mortal($who)")
+        r = what_if(base_knowledge=base,
+                 modifications="+ human(plato) AND human(alcibiades)",
+                 query="mortal($who)")
         assert r.error is None
         assert r.after_count == 3
 
     def test_and_separated_facts_lowercase(self):
         base = "human(socrates)\nmortal($x) IF human($x)"
-        r = what_if(base, "+ human(plato) and human(alcibiades)", "mortal($who)")
+        r = what_if(base_knowledge=base,
+                 modifications="+ human(plato) and human(alcibiades)",
+                 query="mortal($who)")
         assert r.error is None
         assert r.after_count == 3
 
     def test_no_modifications(self):
-        r = what_if("human(socrates)", "", "human(socrates)")
+        r = what_if(base_knowledge="human(socrates)",
+                 modifications="", query="human(socrates)")
         assert r.error is not None
         assert "No modifications" in r.error
 
     def test_add_then_remove_same_fact(self):
         base = "human(socrates)\nmortal($x) IF human($x)"
-        r = what_if(base, "+ human(plato)\n- human(plato)", "mortal($who)")
+        r = what_if(base_knowledge=base,
+                 modifications="+ human(plato)\n- human(plato)",
+                 query="mortal($who)")
         assert r.error is None
         assert r.after_count >= r.before_count
 
     def test_modifications_label(self):
         base = "human(socrates)\nmortal($x) IF human($x)"
-        r = what_if(base, "+ human(plato)", "mortal($who)")
+        r = what_if(base_knowledge=base, modifications="+ human(plato)",
+                 query="mortal($who)")
         assert r.error is None
         assert "+ human(plato)" in r.modifications
 
     def test_solutions_before_and_after(self):
         base = "human(socrates)\nmortal($x) IF human($x)"
-        r = what_if(base, "+ human(plato)", "mortal($who)")
+        r = what_if(base_knowledge=base, modifications="+ human(plato)",
+                    query="mortal($who)")
         assert r.error is None
         assert len(r.solutions_before) >= 1
         assert len(r.solutions_after) >= 2
@@ -318,6 +340,282 @@ ancestor($x, $y) IF parent($x, $z) AND ancestor($z, $y)
         assert r.facts_count == 3
         assert r.rules_count == 2
 
+    def test_predicate_inventory(self):
+        r = check_kb(
+            "can_access(a)\n"
+            "can_access(b)\n"
+            "user(u1)\n"
+            "user(u2)\n"
+            "allowed($x) IF can_access($x)\n"
+            "? allowed($who)"
+        )
+        assert r.predicates_count == 3  # can_access, user, allowed
+        by_name = {p.name: p for p in r.predicates}
+        assert set(by_name) == {"can_access", "user", "allowed"}
+        assert by_name["can_access"].arities == [1]
+        assert by_name["can_access"].facts == 2
+        assert by_name["can_access"].rules == 0
+        assert by_name["user"].arities == [1]
+        assert by_name["user"].facts == 2
+        assert by_name["user"].rules == 0
+        assert by_name["allowed"].arities == [1]
+        assert by_name["allowed"].facts == 0
+        assert by_name["allowed"].rules == 1
+
+    def test_predicate_inventory_zero_arity_and_mixed(self):
+        r = check_kb(
+            "rainy\n"
+            "snowy\n"
+            "weather($x) IF rainy\n"
+            "weather($x) IF snowy\n"
+            "can_access(a, secret)\n"
+            "? weather($w)"
+        )
+        by_name = {p.name: p for p in r.predicates}
+        assert by_name["rainy"].arities == [0]
+        assert by_name["rainy"].facts == 1
+        assert by_name["snowy"].facts == 1
+        assert by_name["weather"].rules == 2
+        assert by_name["can_access"].arities == [2]
+
+    def test_inconsistent_arity_warning(self):
+        r = check_kb(
+            "can_access(a)\n"
+            "can_access(a, secret)\n"
+            "? can_access($x)"
+        )
+        assert r.valid is True
+        assert any(
+            w.type == "inconsistent_arity"
+            and "can_access" in w.message
+            and "1, 2" in w.message
+            for w in r.warnings
+        )
+        by_name = {p.name: p for p in r.predicates}
+        assert by_name["can_access"].arities == [1, 2]
+
+    def test_inconsistent_arity_absent_on_consistent_kb(self):
+        r = check_kb("can_access(a)\ncan_access(b)\n? can_access($x)")
+        assert not any(w.type == "inconsistent_arity" for w in r.warnings)
+
+
+# =============================================================================
+# Named KBs (C3): kb_id + delta_knowledge
+# =============================================================================
+
+
+class TestNamedKBs:
+    def test_register_and_reason_by_kb_id(self):
+        register_kb("rbac", "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)")
+        try:
+            r = reason(kb_id="rbac")
+            assert r.error is None
+            assert r.solutions[0].substitutions["who"] == "socrates"
+            assert r.content_hash == _sha256(
+                "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
+            )
+        finally:
+            unregister_kb("rbac")
+
+    def test_reason_with_delta_knowledge(self):
+        base = "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
+        register_kb("rbac", base)
+        try:
+            r = reason(kb_id="rbac", delta_knowledge="human(plato)")
+            assert r.error is None
+            assert {s.substitutions["who"] for s in r.solutions} == {"socrates", "plato"}
+            merged = base + "\n" + "human(plato)"
+            assert r.content_hash == _sha256(merged)
+        finally:
+            unregister_kb("rbac")
+
+    def test_delta_applies_to_all_tools(self):
+        register_kb("rbac", "human(socrates)\nmortal($x) IF human($x)")
+        try:
+            assert explain(
+                kb_id="rbac", delta_knowledge="human(plato)", query="mortal(plato)"
+            ).error is None
+            d = diagnose(
+                kb_id="rbac", delta_knowledge="human(plato)", query="mortal(plato)"
+            )
+            assert d.holds is True
+            c = check_kb(kb_id="rbac", delta_knowledge="human(plato)")
+            assert c.valid is True
+            assert c.facts_count == 2
+            w = what_if(
+                kb_id="rbac",
+                delta_knowledge="human(plato)",
+                modifications="+ human(aristotle)",
+                query="mortal($who)",
+            )
+            assert w.error is None
+            assert w.after_count == 3
+        finally:
+            unregister_kb("rbac")
+
+    def test_precedence_explicit_knowledge_wins_over_kb_id(self):
+        register_kb("rbac", "human(socrates)\n? human($who)")
+        try:
+            r = reason(
+                "human(aristotle)",
+                kb_id="rbac",
+                query="human($who)",
+            )
+            assert r.error is None
+            assert r.solutions[0].substitutions["who"] == "aristotle"
+        finally:
+            unregister_kb("rbac")
+
+    def test_unknown_kb_id(self):
+        r = reason(kb_id="does-not-exist", query="p($x)")
+        assert r.error is not None
+        assert "Unknown kb_id: does-not-exist" in r.error
+
+    def test_kb_id_beats_preload_fallback(self):
+        # no preload configured here; kb_id must resolve instead of
+        # "No knowledge provided"
+        register_kb("only_kb", "p(a)\n? p($x)")
+        try:
+            r = reason(kb_id="only_kb")
+            assert r.error is None
+            assert len(r.solutions) == 1
+        finally:
+            unregister_kb("only_kb")
+
+    def test_unregister_makes_kb_id_unknown(self):
+        register_kb("rbac", "p(a)\n? p($x)")
+        assert unregister_kb("rbac")["removed"] is True
+        assert reason(kb_id="rbac").error is not None
+
+    def test_unregister_absent_returns_false(self):
+        assert unregister_kb("never-registered")["removed"] is False
+
+    def test_register_kb_overwrite(self):
+        register_kb("rbac", "p(a)\n? p($x)")
+        try:
+            overwrite = register_kb("rbac", "q(b)\n? q($x)")
+            assert overwrite["registered"] is True
+            assert overwrite["facts"] == 1
+            r = reason(kb_id="rbac")
+            assert r.error is None
+            assert len(r.solutions) == 1
+        finally:
+            unregister_kb("rbac")
+
+    def test_register_kb_error_path(self):
+        result = register_kb("broken", "mortal($x) IF ghost($x)")
+        assert result["registered"] is False
+        assert "not valid" in result["error"]
+
+    def test_list_kbs_returns_metadata(self):
+        register_kb("rbac", "p(a)\n? p($x)")
+        try:
+            listing = list_kbs()
+            assert listing["count"] == 1
+            entry = listing["kbs"][0]
+            assert entry["kb_id"] == "rbac"
+            assert entry["content_hash"] == _sha256("p(a)\n? p($x)")
+            assert "source" not in entry
+            assert entry["version"] is None
+        finally:
+            unregister_kb("rbac")
+
+    def test_register_kb_returns_version_and_counts(self):
+        result = register_kb(
+            "vkb", "@version 3.0\np(a)\nq($x) IF p($x)\n? q($x)"
+        )
+        try:
+            assert result["registered"] is True
+            assert result["version"] == "3.0"
+            assert result["facts"] == 1
+            assert result["rules"] == 1
+            assert result["predicates"] == 2
+        finally:
+            unregister_kb("vkb")
+
+    def test_register_kb_respects_capacity(self, monkeypatch):
+        from euclid_mcp.server import _kb_store
+
+        monkeypatch.setattr(_kb_store, "max_kbs", 2)
+        ids = ["cap_a", "cap_b"]
+        try:
+            for kb_id in ids:
+                assert register_kb(kb_id, "p(a)\n? p($x)")["registered"] is True
+            over = register_kb("cap_c", "p(a)\n? p($x)")
+            assert over["registered"] is False
+            assert "registry is full" in over["error"]
+        finally:
+            for kb_id in ids + ["cap_c"]:
+                unregister_kb(kb_id)
+
+
+# =============================================================================
+# KB identity (C4): content_hash + version on every result
+# =============================================================================
+
+
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+class TestKBIdentity:
+    def test_reason_returns_content_hash(self):
+        kb = "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
+        r = reason(kb)
+        assert r.error is None
+        assert r.content_hash == _sha256(kb)
+
+    def test_reason_version_from_directive(self):
+        kb = "@version 2.5\nhuman(socrates)\n? human(socrates)"
+        r = reason(kb)
+        assert r.error is None
+        assert r.version == "2.5"
+
+    def test_reason_version_none_without_directive(self):
+        r = reason("human(socrates)\n? human(socrates)")
+        assert r.error is None
+        assert r.version is None
+
+    def test_identity_present_on_error_branch(self):
+        kb = "human(socrates)"
+        r = reason(kb)  # no query -> error branch
+        assert r.error is not None
+        assert r.content_hash == _sha256(kb)
+        assert r.version is None
+
+    def test_explain_identity(self):
+        kb = "@version 1.3\nhuman(socrates)\n? human(socrates)"
+        r = explain(kb)
+        assert r.error is None
+        assert r.content_hash == _sha256(kb)
+        assert r.version == "1.3"
+
+    def test_diagnose_identity(self):
+        kb = "human(socrates)\nmortal($x) IF human($x)"
+        r = diagnose(kb, query="mortal(socrates)")
+        assert r.error is None
+        assert r.content_hash == _sha256(kb)
+
+    def test_what_if_identity_of_base_knowledge(self):
+        base = "human(socrates)\nmortal($x) IF human($x)"
+        r = what_if(base_knowledge=base, modifications="+ human(plato)",
+                    query="mortal($who)")
+        assert r.error is None
+        assert r.content_hash == _sha256(base)
+
+    def test_check_kb_identity(self):
+        kb = "@version 4.2\nhuman(socrates)"
+        r = check_kb(kb)
+        assert r.valid is True
+        assert r.content_hash == _sha256(kb)
+        assert r.version == "4.2"
+
+    def test_check_kb_identity_on_invalid(self):
+        kb = "mortal($x) IF ghost($x)"
+        r = check_kb(kb)
+        assert r.valid is False
+        assert r.content_hash == _sha256(kb)
+
 
 # =============================================================================
 # MCP in-memory protocol (MCP SDK v2 Client against the live MCPServer)
@@ -343,7 +641,10 @@ class TestMCPInMemory:
                 return [t.name for t in tools.tools]
 
         names = asyncio.run(run())
-        assert set(names) == {"reason", "explain", "diagnose", "what_if", "check_kb"}
+        assert set(names) == {
+            "reason", "explain", "diagnose", "what_if", "check_kb",
+            "register_kb", "unregister_kb", "list_kbs",
+        }
 
     def test_server_name(self):
         async def run():

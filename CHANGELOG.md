@@ -4,6 +4,153 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.1] — 2026-08-16
+
+### Added
+- **Prometheus metrics (observability, Mode C)** — `euclid_mcp/metrics.py`:
+  a zero-dependency (stdlib-only) module implementing `Counter`, `Gauge` and
+  `Histogram` (fixed buckets) and rendering them in the Prometheus text
+  exposition format. Always on, no dependencies added.
+- **Instrumentation** across all three layers, feeding the same registry:
+  - Engine lifecycle (`prolog_server.py`): `euclid_engine_requests_total`
+    (by `command`), `euclid_engine_restarts_total` (by `reason` —
+    `periodic`/`timeout`/`broken_pipe`), `euclid_engine_timeouts_total`,
+    `euclid_kb_skipped_loads_total`, and the `euclid_kb_size` gauge
+    (facts/rules in the workspace).
+  - Tool layer (`server.py`, `_log_call`): `euclid_tool_calls_total`,
+    `euclid_tool_errors_total` and `euclid_tool_call_duration_seconds` per
+    tool — this covers MCP stdio mode and every in-process consumer too.
+  - HTTP API (`integrations/euclid_api.py`): `euclid_http_requests_total`
+    (method/path/status), `euclid_http_request_duration_seconds` per path,
+    `euclid_solutions_total` per path, `euclid_auth_failures_total`, and the
+    `euclid_process_uptime_seconds` gauge. Exposed on the open, read-only
+    `GET /metrics` endpoint (never carries KB content).
+- **Deep `GET /health`** — now pings the engine and reports its workspace
+  stats (`facts`, `rules`, `requests_since_restart`); returns 503 only when
+  an engine process exists but does not answer (wedged). A cold process with
+  no engine yet is healthy (the engine starts lazily). The native backend is
+  healthy by default.
+- **Graceful shutdown** — the HTTP API now handles SIGTERM/SIGINT: it stops
+  accepting requests, finishes the in-flight one, closes the socket and the
+  engine (`prolog_bridge.close()`), so no `swipl` process is orphaned when a
+  container stops.
+- **Monitoring stack** (`monitoring/`): `docker-compose.monitoring.yml`
+  (Prometheus + Grafana + cAdvisor, attached to the shared `euclid-app`
+  network so every scaled replica is scraped), Prometheus config with alert
+  rules (`EuclidDown`, error rate, p99 latency, engine restart storm, memory
+  pressure), Grafana datasource + a prebuilt `Euclid-MCP` dashboard, and a
+  README. `docker-compose.yml` gained the named `euclid-app` network.
+- **Remote benchmark mode** — `benchmarks/euclid_bench.py --api-url URL`
+  stresses an already-running API (no local `swipl` required) and reads
+  engine restarts + process uptime from the API's `GET /metrics`.
+- **Docs** — `docs/MONITORING.md` gained Mode C (metric reference, scrape
+  and query examples), `docs/PRODUCTION.md` gained a metrics section and the
+  deep-health check notes, and `benchmarks/docs/08-monitoring.md` documents
+  the new benchmark mode (PASS, 5 394 iterations, 658.7 req/s, 0 failures).
+
+### Changed
+- `euclid_http_requests_total` and per-path latency histograms record the
+  `GET /metrics` scrape itself (its `path` is `/metrics`).
+
+## [0.4.0] — 2026-08-14
+
+### Added
+- **Predicate inventory (B)** — `check_kb` now returns `predicates`:
+  `PredicateInfo(name, arities, facts, rules)` for every predicate in the KB
+  (derived from facts and rule heads, no Euclid-IR syntax added), giving LLM
+  extraction a derived contract without extending the language. A new
+  `inconsistent_arity` warning flags the same predicate used with multiple
+  arities (e.g. `can_access(a)` + `can_access(a, b)`); it is a warning,
+  consistent with `duplicate_fact`/`duplicate_rule_id`. Exposed on the MCP
+  tool, `POST /check-kb`, and `euclid-cli check` (text + `--json`).
+  `predicates_count` is unchanged for backward compatibility.
+- **Structured explain (C5)** — each `Explanation` now also carries
+  `structured_steps`: typed, language-independent reasoning steps (`kind`
+  `fact`/`rule`/`neg`/`true`/`unknown`, plus `goal`, `rule_id`, and `body`
+  conjuncts). The English `steps: list[str]` remain unchanged and are now
+  derived from the same typed steps, so existing consumers are fully backward
+  compatible while a UI (e.g. a frontend) can render localized explanations
+  without re-walking the proof tree. Exposed on the MCP tool and `POST /explain`.
+- **Exposed KB identity (C4)** — every tool result (`ReasonResult`,
+  `ExplanationResult`, `DiagnosisResult`, `WhatIfResult`, `KBCheckResult`) now
+  carries `content_hash` (sha256 of the KB text payload) and `version` (from the
+  `@version` directive, when present), on **every** return path including error
+  branches. `kb_fingerprint` (`euclid_mcp/engine.py`) is now public. The HTTP
+  API exposes both fields on `/reason`, `/explain`, `/diagnose`, `/what-if`,
+  and `/check-kb`. Anyone with the `.euclid` text can recompute the hash and
+  verify which exact KB a result was computed from — the foundation for KB
+  versioning, signatures, and audit trails.
+- **Named knowledge bases (C3)** — new tools `register_kb`, `unregister_kb`,
+  and `list_kbs` manage an in-memory, per-instance registry (max 32 KBs,
+  overwrite allowed for idempotent updates). A KB registered once under a
+  `kb_id` can then be referenced on `reason`, `explain`, `diagnose`, `what_if`,
+  and `check_kb` instead of resending the text, with an optional
+  `delta_knowledge` overlay for session-specific facts (requires a `kb_id`).
+  Registration validates the `kb_id` (allowlist `[a-z0-9_-]{1,64}`) and the KB
+  with `check_kb`. Resolution precedence everywhere: explicit
+  `knowledge`/`base_knowledge` → `kb_id` (`Unknown kb_id` error when absent) →
+  preloaded KB → "No knowledge provided". With `kb_id` + `delta_knowledge`,
+  `content_hash`/`version` are computed from the merged source. The HTTP API
+  exposes the same flow as `POST /register-kb`, `POST /unregister-kb`, and
+  `POST /list-kbs`, and forwards `kb_id`/`delta_knowledge` on the five
+  reasoning endpoints.
+- **Native Euclid-IR engine** (`euclid_mcp/ir_parser.py`, `euclid_mcp/ir_engine.py`):
+  a pure-Python engine that interprets Euclid-IR directly — facts, rules,
+  recursive rules, conjunctions, negation as failure (`NOT`), arithmetic
+  (`> >= < <= == != is =` with `+ - * /`), rule ids, string literals and
+  wildcards — and produces the same proof trees as the Prolog backend.
+  Designed for small knowledge bases where SWI-Prolog cannot be installed
+  (e.g. minimal containers); full semantics, limitations and the supported
+  test matrix are documented in `docs/NATIVE_ENGINE.md`.
+- **Inference-backend dispatcher** (`euclid_mcp/engine.py`): a single `execute`
+  dispatch point selects the backend via `EUCLID_BACKEND` (`auto` | `prolog` |
+  `native`, default `auto` → SWI-Prolog when on `PATH`, otherwise native) or
+  the new `--backend` CLI flag. All tools (`reason`, `explain`, `diagnose`,
+  `what_if`, `check_kb`) route through it, so swapping the engine never
+  touches the tool layer.
+- **Native engine tests** (`tests/test_native_engine.py`): 23 tests covering
+  deduction, recursion, negation, arithmetic, strings, wildcards, limits
+  (`max_solutions`, depth, timeout) and the dispatcher — run in every CI matrix
+  even without SWI-Prolog.
+- **First native-vs-Prolog benchmark** (`benchmarks/native_vs_prolog_benchmark.py`
+  + `benchmarks/docs/07-native-vs-prolog.md`): head-to-head on example 07 with
+  result parity (all solution counts match); native ~7× slower aggregate but
+  only ~1.3–2.5× on typical queries, blowing up (17–32×) on high-solution
+  wildcard joins and exhaustive-failure `NOT` queries.
+- **`euclid-cli` command-line interface** (`euclid_mcp/cli.py`, console script
+  `euclid-cli`): a thin, human-friendly wrapper around the five reasoning
+  tools. Subcommands `check`, `reason`, `explain`, `diagnose`, and `what-if`
+  mirror the MCP tools; the KB comes from a `.euclid` file (`-f`), inline
+  (`--knowledge`), or `EUCLID_KB_PATH`/preload, and the query from `--query`
+  or the `?` lines in the KB. Backend selection via `--backend`
+  (`auto` | `prolog` | `native`), human-readable output by default with a
+  `--json` flag for scripting, and exit codes `0`/`1`/`2` for
+  success/tool-error/usage-error.
+
+### Changed
+- **Example 08 (Cluedo) rewritten to be readable**: the output no longer dumps
+  20 raw suspect/weapon/room triples (which were just *remaining candidates*,
+  not the answer) with a misleading "CASE RESOLVED". It now narrates the
+  deduction: per-category "still possible" vs "eliminated (with reason)",
+  real combination counts (e.g. `2 × 2 × 6 = 24`), an honest "not resolved"
+  message, and a new **Resolved Game** scenario that genuinely pins down the
+  envelope and prints the `explain` proof trace. Engine tool-call logs are
+  silenced and the what-if scenario that was a no-op was fixed.
+
+### Fixed
+- Example 08 (Cluedo) game-state KB rewritten from Prolog-style
+  `.`-terminated facts (one per line) to idiomatic Euclid-IR, so it also runs
+  on the native engine.
+- **Flaky HTTP API auth tests** (`tests/test_api.py::TestApiAuth` intermittent
+  `ConnectionResetError`): the API now sends explicit `Content-Length` +
+  `Connection: close` on every response so clients frame the body without an
+  EOF/EOF-vs-RST race, and treats a client disconnecting mid-response as normal
+  (logged at debug). The test harness shuts the server down and joins the
+  serve thread before closing the listening socket, and the test client retries
+  once on `ConnectionResetError`/`RemoteDisconnected` — correct consumer
+  behavior for real TCP that does not mask a persistently broken server. The
+  auth class now passes reliably (previously failing ~5/8 runs).
+
 ## [0.3.1] — 2026-08-13
 
 ### Added

@@ -2,7 +2,7 @@
 
 Deterministic logical reasoning engine. Write facts/rules in **Euclid IR**, engine translates to Prolog, returns solutions with **proof trees**.
 
-Tools: `euclid-mcp_reason`, `euclid-mcp_explain`, `euclid-mcp_diagnose`, `euclid-mcp_what_if`, `euclid-mcp_check_kb`
+Tools: `euclid-mcp_reason`, `euclid-mcp_explain`, `euclid-mcp_diagnose`, `euclid-mcp_what_if`, `euclid-mcp_check_kb`, `euclid-mcp_register_kb`, `euclid-mcp_unregister_kb`, `euclid-mcp_list_kbs`
 
 ## Workflow
 
@@ -16,9 +16,11 @@ Tools: `euclid-mcp_reason`, `euclid-mcp_explain`, `euclid-mcp_diagnose`, `euclid
 
 Always call `check_kb` first on new or modified knowledge bases.
 
-`knowledge`/`base_knowledge` are optional on all tools: when a KB is preloaded
-(`EUCLID_KB_PATH` / `--kb-path`), an empty value falls back to it. Pass
-`knowledge` explicitly only for session-specific facts or a different KB.
+`knowledge`/`base_knowledge` are optional on all reasoning tools: an empty
+value falls back to `kb_id` (if given) and then to the preloaded KB
+(`EUCLID_KB_PATH` / `--kb-path`). For repeated sessions, `register_kb` once
+and pass `kb_id` (+ an optional `delta_knowledge` overlay for session facts)
+instead of resending the KB text.
 
 ## Tools
 
@@ -27,18 +29,24 @@ Main deduction. Returns solutions with variable bindings and proof trees.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `knowledge` | `string?` | — | Facts & rules (falls back to preloaded KB) |
+| `knowledge` | `string?` | — | Facts & rules (falls back to `kb_id`, then preloaded KB) |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session facts appended to the `kb_id` base |
 | `query` | `string?` | — | Override query (optional) |
 | `max_solutions` | `int` | `5` | Max solutions |
 | `max_depth` | `int` | `30` | Max proof tree depth |
 
 ### `explain`
 Deterministic proof-tree → natural-language reasoning steps. Cites `rule_id`
-when a rule has one.
+when a rule has one. Each explanation also carries `structured_steps`: typed,
+language-independent steps (`kind`/`goal`/`rule_id`/`body`) from which the
+English `steps` are derived — use them for localized rendering.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `knowledge` | `string?` | — | Facts & rules (falls back to preloaded KB) |
+| `knowledge` | `string?` | — | Facts & rules (falls back to `kb_id`, then preloaded KB) |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session facts appended to the `kb_id` base |
 | `query` | `string?` | — | Override query (optional) |
 | `max_solutions` | `int` | `5` | Max solutions |
 | `max_depth` | `int` | `30` | Max proof tree depth |
@@ -48,7 +56,9 @@ Why a query succeeds or fails.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `knowledge` | `string` | — | Facts & rules |
+| `knowledge` | `string?` | — | Facts & rules (falls back to `kb_id`, then preloaded KB) |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session facts appended to the `kb_id` base |
 | `query` | `string` | — | Query to diagnose |
 | `mode` | `string` | `why` | `why` / `why_not` / `what_needs` |
 | `max_solutions` | `int` | `5` | Max solutions |
@@ -59,18 +69,46 @@ Test modifications before applying. `+` prefix to add, `-` to remove.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `base_knowledge` | `string` | — | Base facts & rules |
+| `base_knowledge` | `string?` | — | Base facts & rules (falls back to `kb_id`, then preloaded KB) |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session facts appended to the `kb_id` base |
 | `modifications` | `string` | — | `+ fact(...)` or `- fact(...)` |
 | `query` | `string` | — | Query to evaluate |
 | `max_solutions` | `int` | `5` | Max solutions |
 | `max_depth` | `int` | `30` | Max proof depth |
 
 ### `check_kb`
-Validate knowledge base for errors before reasoning.
+Validate knowledge base for errors before reasoning. Returns also the
+predicate inventory (name → arities, facts, rules counts) — the derived
+contract for LLM extraction.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `knowledge` | `string` | — | Facts & rules |
+| `knowledge` | `string?` | — | Facts & rules (falls back to `kb_id`, then preloaded KB) |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session facts appended to the `kb_id` base |
+
+### `register_kb`
+Register a named KB once, then reference it by `kb_id` on later calls.
+Validates `kb_id` (allowlist `[a-z0-9_-]{1,64}`) and the KB (`check_kb`);
+**overwrites** an existing `kb_id`. Returns `registered`, `kb_id`,
+`content_hash`, `version`, `facts`, `rules`, `predicates`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `kb_id` | `string` | — | Name (1-64 lowercase letters, digits, `_`, `-`) |
+| `knowledge` | `string` | — | Facts & rules to store |
+
+### `unregister_kb`
+Remove a named KB. Returns `removed: true/false`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `kb_id` | `string` | — | Name of the KB to remove |
+
+### `list_kbs`
+List registered named KBs (metadata only — `kb_id`, `content_hash`, `version`,
+`facts`, `rules`, `predicates`; no source text).
 
 ## Euclid IR Syntax
 
@@ -140,6 +178,17 @@ can_deploy($user, $env) IF
 **Diagnostic flow**:
 1. `reason` returns unexpected → `diagnose(mode="why_not")` → find missing facts
 2. `diagnose(mode="what_needs")` → suggest what to add
+
+**KB identity**: every result carries `content_hash` (sha256 of the KB text
+payload) and `version` (from the `@version` directive) — on every return path,
+including error branches. With a `kb_id` + `delta_knowledge`, both are computed
+from the effective source (base + delta). Use the hash to pin a result to the
+exact KB text it was computed from (e.g. before storing it in an audit log).
+
+**Named KB precedence** on all reasoning tools: explicit `knowledge`/
+`base_knowledge` wins → `kb_id` (`Unknown kb_id` when absent) → preloaded KB →
+"No knowledge provided". `delta_knowledge` is appended to the registered base
+and requires a `kb_id`.
 
 ## Development
 

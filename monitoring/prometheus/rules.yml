@@ -1,0 +1,66 @@
+# Alerting rules for the Euclid-MCP observability stack.
+# Evaluate locally in Prometheus; route them to your Alertmanager
+# (see monitoring/README.md → sending alerts) or open in Grafana.
+
+groups:
+  - name: euclid-api
+    rules:
+      # The API stopped answering /metrics for > 1 minute.
+      - alert: EuclidDown
+        expr: up{job="euclid-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Euclid-MCP API is down"
+          description: "Prometheus cannot scrape euclid-api:8080/metrics."
+
+      # HTTP 5xx/4xx ratio above 10% over the last 5 minutes.
+      - alert: EuclidHighErrorRate
+        expr: >
+          sum(rate(euclid_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(euclid_http_requests_total[5m])), 1e-9) > 0.10
+          or
+          sum(rate(euclid_http_requests_total{status="401"}[5m]))
+            / clamp_min(sum(rate(euclid_http_requests_total[5m])), 1e-9) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Euclid-MCP API error rate high"
+          description: "5xx or 401 ratio above 10% over the last 5 minutes."
+
+      # p99 latency above 5 seconds (observe /metrics to confirm).
+      - alert: EuclidHighLatency
+        expr: histogram_quantile(0.99, sum(rate(euclid_http_request_duration_seconds_bucket[5m])) by (le)) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Euclid-MCP API p99 latency high"
+          description: "p99 HTTP latency above 5s over the last 5 minutes."
+
+      # Engine process is being relaunched repeatedly (every metric scrape
+      # is itself a request; more than ~2 restarts/min means instability).
+      - alert: EuclidEngineRestarting
+        expr: increase(euclid_engine_restarts_total[1m]) > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Euclid-MCP engine restarting"
+          description: "The Prolog engine has been relaunched {{ $value }} times in the last minute."
+
+      # The API container approaches its memory limit (cAdvisor metric).
+      - alert: EuclidMemoryPressure
+        expr: |
+          max by (name) (
+            (container_memory_usage_bytes{name=~".*euclid.*"}
+             / container_spec_memory_limit_bytes{name=~".*euclid.*"}) * 100
+          ) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Euclid-MCP memory pressure"
+          description: "The euclid-api container is above 85% of its memory limit."

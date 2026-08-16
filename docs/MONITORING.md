@@ -1,18 +1,23 @@
 # Monitoring Euclid-MCP
 
-Two lightweight ways to observe the MCP server without touching any code:
+Three lightweight ways to observe the MCP server:
 
 1. **MCP Inspector** (interactive browser UI): spawn the server, call the tools by
    hand, watch the raw JSON-RPC traffic and per-call timing.
 2. **Structured logs**: every tool call already emits a
    `tool=... elapsed_ms=... solutions=...` line (or `error=...` on failure).
+3. **Prometheus metrics (Mode C)**: every tool call and HTTP request updates
+   in-process counters/gauges/histograms, exposed by the HTTP API on
+   `GET /metrics` and scraped into Prometheus/Grafana.
 
-Both are read-only observers — the server needs no code changes.
+Modes A and B are read-only observers — the server needs no code changes.
+Mode C is always on (zero-dependency, stdlib-only metrics module) and needs
+no extra setup beyond pointing a scraper at `/metrics`.
 
 ## What you can observe
 
-The server exposes five tools: `check_kb`, `diagnose`, `explain`, `reason`,
-`what_if`.
+The server exposes eight tools: `check_kb`, `diagnose`, `explain`, `reason`,
+`what_if`, `register_kb`, `unregister_kb`, `list_kbs`.
 Each call is wrapped by `_log_call` (euclid_mcp/server.py) which logs the tool
 name, elapsed time and outcome:
 
@@ -60,14 +65,17 @@ and opens your browser automatically.
 
 ### Where to paste text and call a tool
 
-1. Left sidebar → **Tools** section lists the five tools.
+1. Left sidebar → **Tools** section lists the eight tools.
 2. Click a tool, e.g. `reason`: a **form-based panel** opens with one input
    field per parameter (generated from the tool's JSON schema).
-   - `reason`: `knowledge` (optional when a KB is preloaded), `query`, `max_solutions`, `max_depth`
-   - `explain`: `knowledge`, `query`, `max_solutions`, `max_depth`
-   - `diagnose`: `knowledge`, `query`, `mode` (`why` / `why_not` / `what_needs`), ...
-   - `what_if`: `base_knowledge`, `modifications` (`+ fact(...)` / `- fact(...)`), `query`, ...
-   - `check_kb`: `knowledge`
+   - `reason`: `knowledge` (optional when a KB is preloaded), `kb_id`, `delta_knowledge`, `query`, `max_solutions`, `max_depth`
+   - `explain`: `knowledge`, `kb_id`, `delta_knowledge`, `query`, `max_solutions`, `max_depth`
+   - `diagnose`: `knowledge`, `kb_id`, `delta_knowledge`, `query`, `mode` (`why` / `why_not` / `what_needs`), ...
+   - `what_if`: `base_knowledge`, `kb_id`, `delta_knowledge`, `modifications` (`+ fact(...)` / `- fact(...)`), `query`, ...
+   - `check_kb`: `knowledge`, `kb_id`, `delta_knowledge`
+   - `register_kb`: `kb_id`, `knowledge`
+   - `unregister_kb`: `kb_id`
+   - `list_kbs`: (no parameters)
 3. **Paste the knowledge base** into the `knowledge` (or `base_knowledge`)
    field, the query into `query`, then click **Call tool**.
 4. The structured result appears below with the timing; the **request history /
@@ -139,6 +147,87 @@ EUCLID_LOG_LEVEL=INFO .venv/bin/python -m euclid_mcp 2>> mcp.log
 > protocol, so the Inspector cannot see it, and the demo never configures the
 > logger, so `EUCLID_LOG_LEVEL` has no effect there. Its monitoring channel is
 > the demo's own output with `--verbose` (proof trees + tool responses).
+
+---
+
+## Mode C — Prometheus metrics (`GET /metrics`)
+
+Always on and zero-dependency: `euclid_mcp/metrics.py` implements the
+Prometheus text exposition format with the standard library alone, and every
+instrumented layer feeds it — the MCP tool layer (`_log_call` in server.py,
+which also covers stdio mode), the persistent engine (prolog_server.py) and
+the HTTP API (integrations/euclid_api.py).
+
+### Metric reference
+
+All metric names are prefixed `euclid_`.
+
+| Metric | Type | Labels | Source |
+|--------|------|--------|--------|
+| `euclid_tool_calls_total` | counter | `tool` | `_log_call` (all entrypoints) |
+| `euclid_tool_errors_total` | counter | `tool` | `_log_call` on error |
+| `euclid_tool_call_duration_seconds` | histogram | `tool` | `_log_call` |
+| `euclid_engine_requests_total` | counter | `command` | prolog_server.py |
+| `euclid_engine_restarts_total` | counter | `reason` (`periodic`/`timeout`/`broken_pipe`) | prolog_server.py |
+| `euclid_engine_timeouts_total` | counter | — | engine time-limit hit |
+| `euclid_kb_skipped_loads_total` | counter | — | unchanged `kb_hash` loads |
+| `euclid_kb_size` | gauge | `kind` (`facts`/`rules`) | workspace size |
+| `euclid_http_requests_total` | counter | `method`, `path`, `status` | HTTP API |
+| `euclid_http_request_duration_seconds` | histogram | `path` | HTTP API |
+| `euclid_solutions_total` | counter | `path` | reasoning endpoints |
+| `euclid_auth_failures_total` | counter | — | 401 rejections |
+| `euclid_process_uptime_seconds` | gauge | — | seconds since API start |
+
+### Expose
+
+Start the HTTP API (any deployment): `python3 integrations/euclid_api.py`, or
+`docker compose up -d euclid-api`, then
+
+```bash
+curl -s localhost:8080/metrics
+```
+
+`/metrics` is open (like `/health`), read-only, and **never carries KB
+content** — only the counters above.
+
+### Scrape
+
+```bash
+# Point Prometheus at it and browse http://localhost:9090
+prometheus --config.file=monitoring/prometheus/prometheus.yml
+```
+
+Or use the bundled full stack (Prometheus + Grafana + cAdvisor) from the
+`monitoring/` directory — see `monitoring/README.md`:
+
+```bash
+docker compose -f monitoring/docker-compose.monitoring.yml up -d
+```
+
+### Deep health check
+
+`GET /health` is now deep: with the Prolog backend it pings the engine and
+returns its workspace stats; it returns 503 only when an engine process
+exists but does not answer (wedged). See `monitoring/README.md` → *Deep health
+checks* for the exact responses and how to wire it into a load balancer.
+
+### Useful queries
+
+```text
+# p99 tool latency per tool
+histogram_quantile(0.99, sum by (le, tool)
+    (rate(euclid_tool_call_duration_seconds_bucket[5m])))
+
+# error ratio per tool
+sum(rate(euclid_tool_errors_total[5m])) by (tool)
+  / sum(rate(euclid_tool_calls_total[5m])) by (tool)
+
+# engine restarts by reason (spike = instability)
+increase(euclid_engine_restarts_total[5m])
+
+# 401 bursts
+increase(euclid_auth_failures_total[5m])
+```
 
 ---
 

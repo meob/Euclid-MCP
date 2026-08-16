@@ -15,7 +15,7 @@ Euclid-MCP is a hybrid cognitive architecture: a lightweight LLM describes the w
 
 With Euclid-MCP, an 8B model can solve reasoning tasks that stump even 400B+ cloud models — because the engine handles deduction deterministically. Every answer comes with a proof tree, so you can trace *why* a conclusion holds, not just *what* it is. Use it to enforce RBAC policies, audit cloud compliance, validate loan eligibility rules, or reason over any domain where answers must be explainable and verifiable.
 
-Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable intermediate language designed for both AI agents and humans. It currently uses **SWI-Prolog** as its inference engine and can be consumed in multiple ways: via **MCP** by AI agents (OpenCode, Claude, Cursor), via **HTTP** by tools and automation platforms (n8n, Zapier, Make), and via **Python API** for direct integration. Euclid-IR rules can also be used to **augment RAG** pipelines with deterministic policy enforcement.
+Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable intermediate language designed for both AI agents and humans. It uses **SWI-Prolog** as its primary inference engine — and, where SWI-Prolog is not available (e.g. minimal containers), a pure-Python **native engine** that interprets Euclid-IR directly for small knowledge bases (see `docs/NATIVE_ENGINE.md`). It can be consumed in multiple ways: via **MCP** by AI agents (OpenCode, Claude, Cursor), via **HTTP** by tools and automation platforms (n8n, Zapier, Make), and via **Python API** for direct integration. Euclid-IR rules can also be used to **augment RAG** pipelines with deterministic policy enforcement.
 
 
 ## How it works
@@ -31,6 +31,9 @@ Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable interme
 2. Translate into Prolog with a meta-interpreter for proof tree capture
 3. Execute via a persistent SWI-Prolog engine process (JSON-lines protocol on stdin/stdout; the workspace is reloaded per call, no process spawn overhead)
 4. Return solutions + proof trees as structured JSON
+
+The backend is selected through a single dispatch point (`EUCLID_BACKEND`): `auto`
+(SWI-Prolog when available, otherwise the native engine), `prolog`, or `native`.
 
 Additional tools (`explain`, `diagnose`, `what_if`, `check_kb`) extend this core flow with natural-language explanations, analysis, scenario testing, and validation.
 
@@ -153,7 +156,7 @@ Some internal [benchmarks](benchmarks/BENCHMARKS.md) demonstrate the difference:
 
 ## Tools
 
-Euclid-MCP exposes **5 tools**, each with a specific purpose:
+Euclid-MCP exposes **8 tools**, each with a specific purpose:
 
 | Tool | Purpose |
 |------|---------|
@@ -162,6 +165,9 @@ Euclid-MCP exposes **5 tools**, each with a specific purpose:
 | `diagnose` | Understand why a query succeeds or fails |
 | `what_if` | Test modifications before applying them |
 | `check_kb` | Validate KB consistency before reasoning |
+| `register_kb` | Register a named KB under a `kb_id` |
+| `unregister_kb` | Remove a named KB from the registry |
+| `list_kbs` | List registered named KBs (metadata) |
 
 ### `reason`
 
@@ -169,7 +175,9 @@ Main tool for verifiable deterministic reasoning.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `knowledge` | `string` | — | Facts & rules in text or YAML format |
+| `knowledge` | `string?` | — | Facts & rules in text or YAML format |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session-specific facts appended to the `kb_id` base |
 | `query` | `string?` | — | Override query (optional) |
 | `max_solutions` | `int` | `5` | Max solutions to return |
 | `max_depth` | `int` | `30` | Max proof tree depth |
@@ -186,12 +194,16 @@ into an auditable, human-readable explanation.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `knowledge` | `string?` | — | Facts & rules in text or YAML format |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session-specific facts appended to the `kb_id` base |
 | `query` | `string?` | — | Override query (optional) |
 | `max_solutions` | `int` | `5` | Max solutions to return |
 | `max_depth` | `int` | `30` | Max proof tree depth |
 
 **Returns** `ExplanationResult` with `explanations[]` — each containing variable
-bindings and an ordered list of natural-language `steps`.
+bindings, an ordered list of natural-language `steps`, and language-independent
+`structured_steps` (typed `kind`/`goal`/`rule_id`/`body`, ready for localized
+rendering in a UI).
 
 ### `diagnose`
 
@@ -199,7 +211,9 @@ Query analysis — understand why a query succeeds or fails.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `knowledge` | `string` | — | Facts & rules in text or YAML format |
+| `knowledge` | `string?` | — | Facts & rules in text or YAML format |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session-specific facts appended to the `kb_id` base |
 | `query` | `string` | — | Query to diagnose |
 | `mode` | `string` | `why` | One of: `why`, `why_not`, `what_needs` |
 | `max_solutions` | `int` | `5` | Max solutions to return |
@@ -218,7 +232,9 @@ Scenario analysis — apply modifications to a knowledge base and compare result
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `base_knowledge` | `string` | — | Base facts & rules |
+| `base_knowledge` | `string?` | — | Base facts & rules |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session-specific facts appended to the `kb_id` base |
 | `modifications` | `string` | — | `+ fact(...)` to add, `- fact(...)` to remove |
 | `query` | `string` | — | Query to evaluate |
 | `max_solutions` | `int` | `5` | Max solutions to return |
@@ -232,9 +248,37 @@ Knowledge base validator — check for consistency before running deduction.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `knowledge` | `string` | — | Facts & rules in text or YAML format |
+| `knowledge` | `string?` | — | Facts & rules in text or YAML format |
+| `kb_id` | `string?` | — | Reference a KB registered via `register_kb` |
+| `delta_knowledge` | `string?` | — | Session-specific facts appended to the `kb_id` base |
 
-**Returns** `KBCheckResult` with `valid`, `errors[]`, `warnings[]`, `facts_count`, `rules_count`, `predicates_count`.
+**Returns** `KBCheckResult` with `valid`, `errors[]`, `warnings[]`, `facts_count`, `rules_count`, `predicates_count`, and `predicates[]` — the predicate inventory (name → arities, facts, rules counts) that doubles as the contract for LLM extraction.
+
+#### KB identity in results
+
+Every tool result — `ReasonResult`, `ExplanationResult`, `DiagnosisResult`,
+`WhatIfResult`, and `KBCheckResult` — carries two identity fields:
+
+| Field | Value |
+|-------|-------|
+| `content_hash` | sha256 of the **KB text payload** (the exact source that was reasoned over) |
+| `version` | the `@version` directive of the KB, or `null` when absent |
+
+The fields are present on **every** return path, including error branches, so a
+result can always be pinned to the exact KB it was computed from: anyone with
+the `.euclid` text and Euclid-MCP can recompute the hash and verify it. This is
+the foundation for KB versioning, signatures, and audit trails built on top of
+the engine.
+
+```json
+{
+  "query": "mortal($who)",
+  "solutions": [...],
+  "elapsed_ms": 12.4,
+  "content_hash": "a3f9c1e4b82d55f0…",
+  "version": "1.0"
+}
+```
 
 
 #### KB Preload (v0.2.0)
@@ -267,6 +311,49 @@ Behavior:
   agents can see what the KB covers without extra tool calls.
 
 Backward compatible: passing `knowledge` explicitly behaves exactly as before.
+
+
+#### Named KBs (`kb_id` + `delta_knowledge`)
+
+A KB can also be **registered once under a `kb_id`** and then referenced on
+every call without resending the text — the in-memory registry is per
+server instance, so replicas re-register their KBs on startup (matching the
+scale-out model of the HTTP API). Up to 32 KBs per instance; `register_kb`
+**overwrites** an existing `kb_id` (update semantics for idempotency).
+
+```python
+# Register once — validated with check_kb first
+register_kb(kb_id="rbac-policy", knowledge="has_role(alice, admin) ...\n? $role ...")
+
+# Reference it on every call
+result = reason(kb_id="rbac-policy", query="can_deploy($user, prod)")
+
+# Session-specific facts on top of the registered base (no re-registration):
+result = reason(
+    kb_id="rbac-policy",
+    delta_knowledge="has_role(alice, dev)\nhas_env(dev, staging)",
+    query="can_deploy($user, staging)",
+)
+```
+
+- `register_kb(kb_id, knowledge)` — validates the `kb_id` (allowlist
+  `[a-z0-9_-]{1,64}`) and the KB (`check_kb`), then stores it. Returns the
+  record: `registered`, `kb_id`, `content_hash`, `version`, `facts`, `rules`,
+  `predicates`. Unknown ids are rejected; a full registry returns an error.
+- `unregister_kb(kb_id)` — removes the KB; returns `removed: true/false`.
+- `list_kbs()` — lists registered KBs (metadata only, no source text).
+
+**Resolution precedence** on `reason`, `explain`, `diagnose`, `what_if`,
+`check_kb`: explicit `knowledge`/`base_knowledge` wins → else `kb_id`
+(unknown id → `Unknown kb_id: <id>`; `delta_knowledge` is concatenated to the
+registered source) → else the `EUCLID_KB_PATH` preload → else a clear
+"No knowledge provided" error. `delta_knowledge` without a `kb_id` is an
+error. `content_hash`/`version` on a `kb_id` result are computed from the
+effective source (base + delta), so a result can always be pinned to the
+exact text reasoned over.
+
+The HTTP API exposes the same flow as `POST /register-kb`,
+`POST /unregister-kb`, and `POST /list-kbs`.
 
 
 ## Installation
@@ -345,6 +432,7 @@ expl = explain(
 )
 for e in expl.explanations:
     print(e.substitutions, e.steps)
+    print(e.structured_steps)  # typed, language-independent steps
 
 # Diagnosis — why does a query fail?
 diag = diagnose(
@@ -366,6 +454,53 @@ print(f"Before: {scenario.before_count}, After: {scenario.after_count}")
 check = check_kb(knowledge="human(socrates)\nmortal($x) IF human($x)")
 print(f"Valid: {check.valid}, Errors: {check.errors}")
 ```
+
+### Via CLI
+
+The `euclid-cli` command wraps the same five tools for the terminal. It reads
+the KB from a `.euclid` file (`-f`), inline (`--knowledge`), or falls back to
+`EUCLID_KB_PATH`/preload, and selects the backend with `--backend`
+(`auto` | `prolog` | `native`). Queries come from `--query` or from the `?`
+lines inside the KB file.
+
+```bash
+# Validate a knowledge base
+euclid-cli check -f policies.euclid
+
+# Run a deduction (query taken from the ? line in the file)
+euclid-cli reason -f policies.euclid
+
+# Explicit query + limits
+euclid-cli reason -f policies.euclid --query "can_deploy($user, prod)" \
+    --max-solutions 10 --max-depth 40
+
+# Inline KB (no file)
+euclid-cli reason --knowledge "human(socrates)
+mortal(\$x) IF human(\$x)
+? mortal(\$who)"
+
+# Readable reasoning steps
+euclid-cli explain -f policies.euclid
+
+# Why does a query fail?
+euclid-cli diagnose -f policies.euclid --query "can_deploy(bob, prod)" \
+    --mode why_not
+
+# What-if: how does adding a fact change the answer?
+euclid-cli what-if -f policies.euclid \
+    --modifications "+ has_role(bob, deployer)" --query "can_deploy(bob, prod)"
+
+# Force the pure-Python native engine (no SWI-Prolog needed)
+euclid-cli --backend native reason -f policies.euclid
+
+# Machine-readable output
+euclid-cli reason -f policies.euclid --json
+```
+
+Exit codes: `0` on success, `1` when the tool reports an error (including an
+invalid KB from `check`), `2` on usage errors.
+
+Full CLI reference (all flags, backends, JSON output): [`docs/CLI.md`](docs/CLI.md)
 
 ### Example output
 
@@ -529,6 +664,9 @@ python3 integrations/euclid_api.py --port 8080
 | `/diagnose` | POST | Query failure analysis |
 | `/what-if` | POST | Scenario testing |
 | `/check-kb` | POST | KB validation |
+| `/register-kb` | POST | Register a named KB (`kb_id`) |
+| `/unregister-kb` | POST | Remove a named KB |
+| `/list-kbs` | POST | List registered named KBs |
 | `/health` | GET | Health check |
 
 ```bash
@@ -556,6 +694,23 @@ curl -X POST http://localhost:8080/what-if \
 curl -X POST http://localhost:8080/check-kb \
   -H "Content-Type: application/json" \
   -d '{"knowledge": "human(socrates)\nmortal($x) IF human($x)"}'
+
+# Register a named KB once, then reference it by kb_id
+curl -X POST http://localhost:8080/register-kb \
+  -H "Content-Type: application/json" \
+  -d '{"kb_id": "rbac", "knowledge": "human(socrates)\nmortal($x) IF human($x)"}'
+
+curl -X POST http://localhost:8080/reason \
+  -H "Content-Type: application/json" \
+  -d '{"kb_id": "rbac", "delta_knowledge": "human(plato)", "query": "mortal($who)"}'
+
+curl -X POST http://localhost:8080/list-kbs \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+curl -X POST http://localhost:8080/unregister-kb \
+  -H "Content-Type: application/json" \
+  -d '{"kb_id": "rbac"}'
 ```
 
 ### Docker
@@ -664,6 +819,39 @@ variable, only warnings and errors are emitted.
 The HTTP API also supports request tracing: send an `X-Request-Id` header and
 it is echoed back on the response and included in the access logs.
 
+### Monitoring & metrics
+
+The HTTP API exposes Prometheus metrics on `GET /metrics` (open, read-only,
+never carries KB content): per-tool call/error counters and latency
+histograms, engine requests/restarts/timeouts, HTTP traffic, solutions
+returned, auth failures and process uptime — always on, zero dependencies
+(`euclid_mcp/metrics.py`). `GET /health` is a deep check that pings the
+engine and reports its workspace stats (503 only when a wedged engine exists).
+
+```bash
+curl -s localhost:8080/metrics
+```
+
+For a full stack (Prometheus + Grafana + cAdvisor, dashboard and alert rules
+included): `monitoring/README.md`.
+
+
+## What is Prolog?
+
+**Prolog** (from *PROgrammation en LOGique*) is a declarative logic programming
+language: instead of telling the machine *how* to compute an answer, you state
+**facts** and **rules** and let it find *what* follows from them, using
+unification and backtracking. Born in the early 1970s, it remains one of the
+most battle-tested tools for symbolic reasoning.
+
+Euclid-MCP uses **SWI-Prolog** as its inference engine. SWI-Prolog is a mature
+**open-source** implementation — continuously developed and freely available
+since **1987** — widely used in industry, academia, and research. You write
+your rules in Euclid-IR; the translator compiles them to Prolog, and SWI-Prolog
+performs the deduction and produces the proof trees that make every Euclid-MCP
+answer verifiable.
+
+![SWI-Prolog](docs/swipl.png)
 
 ## How is Euclid?
 

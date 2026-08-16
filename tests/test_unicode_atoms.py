@@ -1,10 +1,21 @@
 """Tests for Unicode atoms (\\p{L}) and ASCII-only case folding."""
 
+import os
+
+import pytest
+
 from euclid_mcp.language import _fold_ascii, parse
 from euclid_mcp.models import KB
 from euclid_mcp.prolog_bridge import execute
 from euclid_mcp.server import check_kb, reason, what_if
 from euclid_mcp.translator import build_query_snippet, kb_to_decls_clauses
+
+# The native engine's lexer is ASCII-only (see docs/NATIVE_ENGINE.md): the
+# tool-level Unicode tests below are therefore skipped in the native matrix.
+native_only = pytest.mark.skipif(
+    os.environ.get("EUCLID_BACKEND", "auto") == "native",
+    reason="native engine is ASCII-only",
+)
 
 # ── case folding ────────────────────────────────────────────────────────────
 
@@ -111,12 +122,14 @@ def test_check_kb_unicode():
     assert res.predicates_count == 1
 
 
+@native_only
 def test_reason_tool_unicode():
     res = reason(knowledge="父(张三)\n父(李四)\n? 父($c)")
     assert len(res.solutions) == 2
     assert {s.substitutions["c"] for s in res.solutions} == {"张三", "李四"}
 
 
+@native_only
 def test_what_if_unicode():
     res = what_if(
         base_knowledge="human(Сократ)",

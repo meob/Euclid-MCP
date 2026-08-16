@@ -4,6 +4,7 @@ Preload happens at server-module import time, so the file-level tests run the
 module in a fresh subprocess with the env var set.
 """
 
+import hashlib
 import os
 import subprocess
 import sys
@@ -159,6 +160,20 @@ class TestPreloadFromFile:
         assert "what_if 3 2" in proc.stdout
         assert "check_kb True 2" in proc.stdout
         assert "explain 2 None" in proc.stdout
+
+    def test_reason_content_hash_matches_preload_file(self, preload_file: Path):
+        expected = hashlib.sha256(PRELOAD_KB.encode("utf-8")).hexdigest()
+        code = (
+            "import euclid_mcp.server as s\n"
+            "r = s.reason()\n"
+            f"print(r.content_hash == '{expected}')\n"
+            "c = s.check_kb()\n"
+            f"print(c.content_hash == '{expected}')\n"
+            "print(s.reason().version is None)\n"
+        )
+        proc = _run(str(preload_file), code)
+        assert proc.returncode == 0, proc.stderr
+        assert "True\nTrue\nTrue" in proc.stdout
 
 
 class TestNoKnowledgeProvided:

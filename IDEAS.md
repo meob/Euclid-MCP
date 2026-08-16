@@ -32,6 +32,56 @@ Euclid is not trying to:
 
 ## Future ideas
 
+The following ideas are not approved and maybe they will not be implemented
+
+### Observability — (DONE — implemented in v0.4.1)
+
+Full record in the session notes; implemented as approved:
+
+1. **`euclid_mcp/metrics.py`** — stdlib-only `Counter`/`Gauge`/`Histogram`
+   (fixed buckets) + `render()` in the Prometheus text exposition format.
+   Metrics auto-register on construction; no `pyproject.toml` deps added.
+2. **Instrumentation**
+   - `prolog_server.py`: `euclid_engine_requests_total{command}`,
+     `euclid_engine_restarts_total` (reasons: `periodic`/`timeout`/
+     `broken_pipe`), `euclid_engine_timeouts_total`,
+     `euclid_kb_skipped_loads_total`, gauge `euclid_kb_size{kind}`.
+   - `server.py` (`_log_call`): `euclid_tool_calls_total{tool}`,
+     `euclid_tool_errors_total{tool}`,
+     `euclid_tool_call_duration_seconds{tool}` (also covers MCP stdio mode).
+   - `integrations/euclid_api.py`: `GET /metrics` (open, read-only, never
+     carries KB data) + per-request `euclid_http_requests_total{method,path,
+     status}`, duration histogram per path, `euclid_solutions_total{path}`,
+     `euclid_auth_failures_total`, `euclid_process_uptime_seconds`.
+3. **Deep `/health` + graceful shutdown** — `/health` pings the engine and
+   returns `stats` (`facts`, `rules`, `requests_since_restart`): `200` with an
+   `engine` section (`reachable:true`, facts `null` on a cold process — the
+   engine starts lazily), `503` only when an engine process exists but does
+   not answer (wedged). SIGTERM/SIGINT handler: `server.shutdown()` (in a
+   thread) + `server_close()` + `prolog_bridge.close()` so no `swipl` process
+   is orphaned.
+4. **`monitoring/` stack** — `docker-compose.monitoring.yml`
+   (prometheus + grafana + cadvisor, attached to the shared `euclid-app`
+   network; with `--scale` every replica exposes its own `/metrics`);
+   `prometheus/prometheus.yml` (scrape euclid-api:8080/metrics + cadvisor) and
+   `rules.yml` alerts (EuclidDown, error rate, p99 latency, engine restart
+   spike, memory near limit); `grafana/provisioning/` datasource +
+   `euclid.json` dashboard with HTTP API / Engine / Container (cAdvisor
+   CPU-mem-net-IO) rows; `monitoring/README.md` (production + benchmark use).
+5. **`euclid_bench.py`** — new `--api-url http://host:port` hammers the real
+   (containerized) API instead of the in-process server (no local `swipl`
+   needed); the final report reads engine restarts + process uptime from the
+   API's `GET /metrics`.
+6. **Tests** — `tests/test_metrics.py` (16 tests), `tests/test_api.py`
+   (`/metrics`, deep `/health`, counters/gauge via scrape), and
+   `tests/test_prolog_server.py` + `tests/test_prolog_bridge.py`
+   (restart/timeout/skipped counters, `health_info`, `close()` idempotency).
+7. **Docs & version** — `docs/MONITORING.md` Mode C, `docs/PRODUCTION.md`,
+   `benchmarks/docs/08-monitoring.md`, `benchmarks/BENCHMARKS.md`,
+   `CHANGELOG.md`, `pyproject.toml`, README; version bumped to **0.4.1**.
+8. **Release** — `ruff check .`, `mypy`, `pytest` → branch + PR → CI green →
+   merge to `main` → new tag (+ PyPI publish on request).
+
 ### Security (P3 — from 2026-08-12 hardening review)
 
 - **Structural allowlist validation (post-parse)**: after translating a KB,
@@ -62,6 +112,7 @@ Euclid is not trying to:
 - **In-process engine pool**: run N persistent engines per instance and dispatch
   each request to an idle one (round-robin), enabling concurrent requests on a
   single process / HTTP API without cross-process coordination.
+  I'm not sure it is a good idea...
 - **Threaded HTTP API**: serve parallel requests via `ThreadingHTTPServer` so one
   instance can translate a new request while the engine works on another.
 - **Horizontal scale-out**: stateless replicas behind a load balancer — no session
@@ -144,13 +195,14 @@ Python (PrologServer) ←── stdin/stdout (JSON lines) ──→ SWI-Prolog (
 
 ### IR
 
-- Typed predicates
+It is important to keep Euclid-IR as simple as possible... 
+
+- **Rule IDs** — `@rule <id>` directive attached to a rule, surfaced in the proof
+  tree (see Explainability)- Typed predicates - Already implemented as trailing comments # RULE: id
 - Temporal predicates
 - **Schema / arity declarations** — `@predicate has_role(person, role)`; validator
   checks arity/args against the schema and gives the LLM a clear "contract" of
   available predicates (check_kb already collects arities internally)
-- **Rule IDs** — `@rule <id>` directive attached to a rule, surfaced in the proof
-  tree (see Explainability)
 - **`@use "kb_name"`** — reference a pre-loaded named KB from within Euclid-IR
   (complements the `kb_id` / `delta_knowledge` tool params)
 - **Namespaces** — `rbac.user(alice)` to avoid collisions in large KBs
@@ -164,8 +216,7 @@ Python (PrologServer) ←── stdin/stdout (JSON lines) ──→ SWI-Prolog (
 
 ## External review: Gemini & ChatGPT (Jul 2026)
 
-Independent reviews (sources: `staff/Eu4Gemini.md`, `staff/Eu4ChatGPT.md`,
-`staff/SuggerimentiREADME.txt`).
+Independent reviews.
 
 **Overall verdict: strongly positive.** Both models independently identify the
 same core value — separating probabilistic understanding (LLM) from deterministic
@@ -186,7 +237,7 @@ the architecture.
 
 ### Still open — prioritized
 
-Strategic framing lives in `staff/Euclid-Studio.md` (enterprise/consulting angle).
+Strategic framing (enterprise/consulting angle) lives in an unpublished internal doc.
 
 | # | Idea | Source | Priority |
 |---|---|---|---|
@@ -299,28 +350,5 @@ Future features should satisfy at least one of these goals:
 Features that mainly expose backend-specific behavior should generally be avoided.
 Backward compatibility should be maintaned when possible.
 
-**"Euclid-IR should remain as simple as possible, but no simpler for reliable logical reasoning."**
+**"Euclid-IR should remain as simple as possible for reliable logical reasoning, but no simpler ."**
 
-**"Everything should be made as simple as possible, but not simpler"**
-
-**"Entia non sunt moltiplicanda praeter necessitatem"**
-
-
-## Demo (examples/10_llm_vs_euclid/)
-
-Side-by-side comparison: plain LLM vs LLM + Euclid-MCP, same model, same KB.
-
-### Completed
-- Interactive CLI with Ollama tool calling (llama3.1:8b)
-- IT Security KB (30 users, 50 resources, recursive role hierarchy)
-- Language-agnostic: works in any language without hardcoded mappings
-- Text-based tool call fallback for models with inconsistent tool calling
-- Query syntax auto-correction (`$who=value` → `value`)
-
-### Improvements backlog
-- Token tracking (per-call and progressive)
-- JSON-lines log for post-session analysis
-- Proof tree ASCII visualization
-- What-if interactive mode
-- Multiple model comparison (llama3.1 vs qwen vs mistral)
-- Additional KB scenarios (Oracle EMP table, RPG game, startup)

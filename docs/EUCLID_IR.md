@@ -66,6 +66,38 @@ parent(tom, bob)
 - **Optional** — if omitted, version `1.0` is assumed
 - **Retrocompatible** — future versions will maintain backward compatibility
 - **Parsed as a directive** — not treated as a fact or comment
+- **Surfaced in results** — every tool result (`reason`, `explain`, `diagnose`,
+  `what_if`, `check_kb`) exposes `version` (the value of `@version`) together
+  with `content_hash` (sha256 of the KB text payload), on success and on error
+  branches. Anyone holding the `.euclid` text and Euclid-MCP can recompute the
+  hash and verify that a result was computed from that exact knowledge base.
+
+---
+
+## Named Knowledge Bases (`kb_id` + `delta_knowledge`)
+
+A KB can be registered once under a `kb_id` (`register_kb`) and then referenced
+on every tool call instead of resending the text. Registration validates the
+KB with `check_kb` first. The registry is **in-memory per instance** (max 32
+KBs, overwrite allowed), so replicas re-register on startup.
+
+All reasoning tools accept `kb_id` plus an optional `delta_knowledge` overlay
+(session-specific facts appended to the registered base):
+
+```
+# Register once (validated with check_kb)
+register_kb(kb_id="policies", knowledge="...")
+
+# Reference it, with a session overlay
+? can_deploy($user, $env)
+# → via the tool: kb_id="policies", delta_knowledge="has_role(alice, dev)"
+```
+
+Resolution precedence on every reasoning tool: explicit
+`knowledge`/`base_knowledge` wins → `kb_id` (`Unknown kb_id` when absent) →
+preloaded KB (`EUCLID_KB_PATH`) → "No knowledge provided". `delta_knowledge`
+requires a `kb_id`. With `kb_id` + `delta_knowledge`, `content_hash`/`version`
+are computed from the effective merged source.
 
 ---
 
@@ -477,12 +509,21 @@ mortal($x) IF human($x)
   {"substitutions": {"who": "socrates"}, "steps": [
     "mortal(socrates) is derived by a rule from: human(socrates).",
     "human(socrates) is asserted as a fact in the knowledge base."
+  ], "structured_steps": [
+    {"kind": "rule", "goal": "mortal(socrates)", "rule_id": null,
+     "body": ["human(socrates)"]},
+    {"kind": "fact", "goal": "human(socrates)", "rule_id": null, "body": []}
   ]}
 ]}
 ```
 
+The `structured_steps` are language-independent: typed steps (`kind`,
+`goal`, `rule_id`, `body` conjuncts) from which the English `steps` are
+derived, so a UI can render them with localized templates.
+
 If the rules carry `# RULE:` IDs, `explain` cites them: *"mortal(socrates) is
-derived by rule BIO-001 from: human(socrates)."*
+derived by rule BIO-001 from: human(socrates)."* and the `structured_steps`
+`rule_id` fields carry the ID.
 
 ---
 
