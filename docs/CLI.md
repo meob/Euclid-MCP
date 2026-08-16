@@ -85,6 +85,48 @@ euclid-cli what-if -f policies.euclid \
 euclid-cli reason -f policies.euclid --json
 ```
 
+## Interactive REPL
+
+Run `euclid-cli` with **no subcommand** to open an interactive Euclid-IR
+REPL. You type facts, rules and `? query` lines directly — like `swipl` or
+`psql` — and the session knowledge base accumulates across queries:
+
+```
+$ euclid-cli
+Euclid-MCP REPL — type facts and rules in Euclid-IR, then `? query`.
+Commands: :help  :check  :kb  :load  :explain  :diagnose  :what-if  :reset  :quit
+
+euclid > human(socrates)
+euclid > mortal($x) IF human($x)
+euclid > ? mortal($who)
+Query: mortal($who)
+Solution 1:
+  who: socrates
+mortal(socrates)  [rule]
+  human(socrates)  [fact]
+
+euclid > :quit
+```
+
+- **Session KB** — facts and rules persist across `? query` lines. `:reset`
+  clears it; `:kb` prints it. Seed it at startup with `-f kb.euclid` or
+  `--knowledge "..."` (otherwise `EUCLID_KB_PATH`/preload is the fallback
+  while the session is empty).
+- **Multi-line rules** — a rule that ends in `IF` or `AND` continues on the
+  next line (the prompt becomes `... >`). A blank line finishes the pending
+  statement.
+- **Meta-commands** — `:help`, `:check`, `:kb`, `:load <file>`,
+  `:explain [query]`, `:diagnose <query> [why|why_not|what_needs]`
+  (or `--mode <mode>`), `:what-if <mods>` (e.g. `+ human(plato)`), `:reset`,
+  `:quit`.
+- **Piped input** — feeding the script through stdin runs the same loop
+  without prompts, so it doubles as a batch runner:
+
+  ```bash
+  printf 'human(socrates)\nmortal($x) IF human($x)\n? mortal($who)\n' | euclid-cli
+  ```
+
+
 ## Backend selection
 
 `--backend` selects the inference engine (it sets `EUCLID_BACKEND` for the

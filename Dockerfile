@@ -1,6 +1,6 @@
 FROM swipl:stable
 
-# Install Python 3.12 and pip
+# Install Python 3 (Debian bookworm ships 3.11) and pip
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3 \

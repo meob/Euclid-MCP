@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- **Interactive Euclid-IR REPL** — `euclid-cli` with no subcommand opens a
+  `swipl`/`psql`-style shell: facts and rules accumulate in a session
+  knowledge base across `? query` lines, multi-line rules continue after
+  `IF`/`AND` (continuation prompt `... > `), and `:` meta-commands cover the
+  remaining tools (`:check`, `:kb`, `:load <file>`, `:explain [query]`,
+  `:diagnose <query> [why|why_not|what_needs]`, `:what-if <mods>`, `:reset`,
+  `:quit`). Piped input runs the same loop as a batch script without prompts;
+  `-f`/`--knowledge` seed the session (preload fallback when empty). Docs:
+  README "Via CLI" and `docs/CLI.md`.
+
 ## [0.4.1] — 2026-08-16
 
 ### Added
@@ -55,7 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.4.0] — 2026-08-14
 
 ### Added
-- **Predicate inventory (B)** — `check_kb` now returns `predicates`:
+- **Predicate inventory** — `check_kb` now returns `predicates`:
   `PredicateInfo(name, arities, facts, rules)` for every predicate in the KB
   (derived from facts and rule heads, no Euclid-IR syntax added), giving LLM
   extraction a derived contract without extending the language. A new
@@ -64,14 +77,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   consistent with `duplicate_fact`/`duplicate_rule_id`. Exposed on the MCP
   tool, `POST /check-kb`, and `euclid-cli check` (text + `--json`).
   `predicates_count` is unchanged for backward compatibility.
-- **Structured explain (C5)** — each `Explanation` now also carries
+- **Structured explain** — each `Explanation` now also carries
   `structured_steps`: typed, language-independent reasoning steps (`kind`
   `fact`/`rule`/`neg`/`true`/`unknown`, plus `goal`, `rule_id`, and `body`
   conjuncts). The English `steps: list[str]` remain unchanged and are now
   derived from the same typed steps, so existing consumers are fully backward
   compatible while a UI (e.g. a frontend) can render localized explanations
   without re-walking the proof tree. Exposed on the MCP tool and `POST /explain`.
-- **Exposed KB identity (C4)** — every tool result (`ReasonResult`,
+- **Exposed KB identity** — every tool result (`ReasonResult`,
   `ExplanationResult`, `DiagnosisResult`, `WhatIfResult`, `KBCheckResult`) now
   carries `content_hash` (sha256 of the KB text payload) and `version` (from the
   `@version` directive, when present), on **every** return path including error
@@ -80,7 +93,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and `/check-kb`. Anyone with the `.euclid` text can recompute the hash and
   verify which exact KB a result was computed from — the foundation for KB
   versioning, signatures, and audit trails.
-- **Named knowledge bases (C3)** — new tools `register_kb`, `unregister_kb`,
+- **Named knowledge bases** — new tools `register_kb`, `unregister_kb`,
   and `list_kbs` manage an in-memory, per-instance registry (max 32 KBs,
   overwrite allowed for idempotent updates). A KB registered once under a
   `kb_id` can then be referenced on `reason`, `explain`, `diagnose`, `what_if`,
@@ -112,7 +125,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   deduction, recursion, negation, arithmetic, strings, wildcards, limits
   (`max_solutions`, depth, timeout) and the dispatcher — run in every CI matrix
   even without SWI-Prolog.
-- **First native-vs-Prolog benchmark** (`benchmarks/native_vs_prolog_benchmark.py`
+- **Native-vs-Prolog benchmark** (`benchmarks/native_vs_prolog_benchmark.py`
   + `benchmarks/docs/07-native-vs-prolog.md`): head-to-head on example 07 with
   result parity (all solution counts match); native ~7× slower aggregate but
   only ~1.3–2.5× on typical queries, blowing up (17–32×) on high-solution

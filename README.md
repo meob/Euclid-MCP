@@ -23,7 +23,7 @@ Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable interme
 ```
 ┌──────────────┐     ┌──────────────────┐     ┌──────────────┐     ┌─────────────────┐
 │  LLM/Agent   │────▶│  Euclid-MCP      │────▶│  Translator  │────▶│  SWI-Prolog     │
-│  (MCP Client)│◀────│  (MCPServer)     │◀────│  + Meta-IP   │◀────│ (persistent)    │
+│  (MCP Client)│◀────│  (MCPServer)     │◀────│  + Meta-IP   │◀────│  (persistent)   │
 └──────────────┘     └──────────────────┘     └──────────────┘     └─────────────────┘
 ```
 
@@ -31,9 +31,6 @@ Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable interme
 2. Translate into Prolog with a meta-interpreter for proof tree capture
 3. Execute via a persistent SWI-Prolog engine process (JSON-lines protocol on stdin/stdout; the workspace is reloaded per call, no process spawn overhead)
 4. Return solutions + proof trees as structured JSON
-
-The backend is selected through a single dispatch point (`EUCLID_BACKEND`): `auto`
-(SWI-Prolog when available, otherwise the native engine), `prolog`, or `native`.
 
 Additional tools (`explain`, `diagnose`, `what_if`, `check_kb`) extend this core flow with natural-language explanations, analysis, scenario testing, and validation.
 
@@ -44,9 +41,8 @@ LLMs describe. Euclid MCP proves.
 
 For small knowledge bases, facts and rules can be provided with each request.
 
-Since v0.2.0 a knowledge base can be loaded at server startup and reused across
-calls, so agents only pass the session-specific facts for the current query.
-
+A knowledge base can be loaded at server startup and reused across
+calls, so agents only pass the session-specific facts for the current query.  
 This minimizes token usage, improves performance, and allows small LLMs to reason over large rule sets without reconstructing the entire knowledge base for every request.
 
 
@@ -281,9 +277,9 @@ the engine.
 ```
 
 
-#### KB Preload (v0.2.0)
+#### KB Preload
 
-Since v0.2.0 a knowledge base can be loaded **once at server startup** and reused across
+A knowledge base can be loaded **once at server startup** and reused across
 calls, so agents only pass the session-specific facts for the current query.
 
 Preload a KB by file path, via the `EUCLID_KB_PATH` environment variable or a
@@ -457,11 +453,44 @@ print(f"Valid: {check.valid}, Errors: {check.errors}")
 
 ### Via CLI
 
-The `euclid-cli` command wraps the same five tools for the terminal. It reads
+The `euclid-cli` command wraps the five reasoning tools (`reason`, `explain`,
+`diagnose`, `what_if`, `check_kb`) for the terminal. It reads
 the KB from a `.euclid` file (`-f`), inline (`--knowledge`), or falls back to
 `EUCLID_KB_PATH`/preload, and selects the backend with `--backend`
 (`auto` | `prolog` | `native`). Queries come from `--query` or from the `?`
 lines inside the KB file.
+
+Run with **no subcommand** to open an interactive **Euclid-IR REPL** — type
+facts, rules and `? query` lines directly, like you would in `swipl` or
+`psql`. The session knowledge base accumulates across queries.
+
+```bash
+$ euclid-cli
+Euclid-MCP REPL — type facts and rules in Euclid-IR, then `? query`.
+Commands: :help  :check  :kb  :load  :explain  :diagnose  :what-if  :reset  :quit
+
+euclid > human(socrates)
+euclid > mortal($x) IF human($x)
+euclid > ? mortal($who)
+Query: mortal($who)
+Solution 1:
+  who: socrates
+mortal(socrates)  [rule]
+  human(socrates)  [fact]
+
+euclid > :what-if + human(plato)
+Solutions: 1 -> 2 (delta: more)
+euclid > :quit
+```
+
+REPL meta-commands: `:check`, `:kb`, `:load <file>`, `:explain [query]`,
+`:diagnose <query> [why|why_not|what_needs]`, `:what-if <mods>`, `:reset`,
+`:quit`. Multi-line rules continue after `IF`/`AND` (prompt becomes `... >`).
+Piped input runs the same loop as a batch script without prompts:
+
+```bash
+printf 'human(socrates)\nmortal($x) IF human($x)\n? mortal($who)\n' | euclid-cli
+```
 
 ```bash
 # Validate a knowledge base
@@ -490,7 +519,7 @@ euclid-cli diagnose -f policies.euclid --query "can_deploy(bob, prod)" \
 euclid-cli what-if -f policies.euclid \
     --modifications "+ has_role(bob, deployer)" --query "can_deploy(bob, prod)"
 
-# Force the pure-Python native engine (no SWI-Prolog needed)
+# Force the pure-Python native engine (no SWI-Prolog)
 euclid-cli --backend native reason -f policies.euclid
 
 # Machine-readable output
@@ -667,7 +696,8 @@ python3 integrations/euclid_api.py --port 8080
 | `/register-kb` | POST | Register a named KB (`kb_id`) |
 | `/unregister-kb` | POST | Remove a named KB |
 | `/list-kbs` | POST | List registered named KBs |
-| `/health` | GET | Health check |
+| `/health` | GET | Health check (deep: pings the engine; 503 only when wedged) |
+| `/metrics` | GET | Prometheus metrics (open, read-only, never KB content) |
 
 ```bash
 # Reasoning
@@ -762,11 +792,13 @@ See `integrations/README.md` for full details.
 
 ## Scalability
 
-The engine is **persistent** since v0.3.0 — a single long-lived SWI-Prolog
+Euclid-MCP engine is **persistent**: a single long-lived SWI-Prolog
 process per server instance, reloaded per request over a JSON-lines pipe
-instead of booting Prolog for every call. Requests stay **stateless**: each one
-brings its own knowledge base (or uses the preloaded one), so instances share
-nothing.
+instead of booting Prolog for every call. 
+A single instance handles one request at a time.
+Requests stay **stateless**: 
+each one brings its own knowledge base (or uses the preloaded one), 
+so instances share nothing.
 
 This makes Euclid-MCP horizontally scalable:
 
@@ -778,9 +810,6 @@ This makes Euclid-MCP horizontally scalable:
 - **Resource footprint** — one `swipl` process per instance (~tens of MB)
   instead of one short-lived process per request, so a single instance serves
   many requests cheaply.
-
-A single instance handles one request at a time; an in-process engine pool for
-concurrent requests is on the roadmap (see `IDEAS.md`).
 
 Reference production architecture — load balancing, resource limits, security
 hardening, and monitoring for a replica battery behind HAProxy:
@@ -844,6 +873,8 @@ language: instead of telling the machine *how* to compute an answer, you state
 unification and backtracking. Born in the early 1970s, it remains one of the
 most battle-tested tools for symbolic reasoning.
 
+![SWI-Prolog](docs/swipl.png)
+
 Euclid-MCP uses **SWI-Prolog** as its inference engine. SWI-Prolog is a mature
 **open-source** implementation — continuously developed and freely available
 since **1987** — widely used in industry, academia, and research. You write
@@ -851,7 +882,6 @@ your rules in Euclid-IR; the translator compiles them to Prolog, and SWI-Prolog
 performs the deduction and produces the proof trees that make every Euclid-MCP
 answer verifiable.
 
-![SWI-Prolog](docs/swipl.png)
 
 ## How is Euclid?
 

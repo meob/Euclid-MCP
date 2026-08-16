@@ -1,5 +1,6 @@
 """Tests for the euclid-cli command-line interface (euclid_mcp/cli.py)."""
 
+import io
 import os
 import subprocess
 import sys
@@ -19,6 +20,19 @@ def _write_kb(tmp_path: Path, text: str = KB) -> Path:
     path = tmp_path / "kb.euclid"
     path.write_text(text, encoding="utf-8")
     return path
+
+
+class _FakeStdin:
+    """Non-interactive stdin for in-process REPL tests."""
+
+    def __init__(self, text: str) -> None:
+        self._io = io.StringIO(text)
+
+    def isatty(self) -> bool:
+        return False
+
+    def readline(self) -> str:
+        return self._io.readline()
 
 
 class TestCliInProcess:
@@ -161,6 +175,102 @@ class TestCliInProcess:
         assert exc.value.code == 2
 
 
+class TestCliRepl:
+    """In-process tests for the interactive (no-subcommand) REPL mode."""
+
+    def _run(self, monkeypatch, capsys, script, seed_args=(), expect_code=0):
+        monkeypatch.setattr(sys, "stdin", _FakeStdin(script))
+        monkeypatch.setattr(sys, "argv", ["euclid-cli", *seed_args])
+        code = cli.main()
+        out, err = capsys.readouterr()
+        assert code == expect_code, f"exit={code} stderr={err}"
+        return out, err
+
+    def test_query_without_subcommand(self, monkeypatch, capsys):
+        script = "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)\n"
+        out, _ = self._run(monkeypatch, capsys, script)
+        assert "Query: mortal($who)" in out
+        assert "who: socrates" in out
+        assert "human(socrates)  [fact]" in out
+
+    def test_multiline_rule(self, monkeypatch, capsys):
+        script = (
+            "human(socrates)\nhuman(plato)\n"
+            "mortal($x) IF human($x) AND\n  greek($x)\n"
+            "greek(socrates)\n? mortal($who)\n"
+        )
+        out, _ = self._run(monkeypatch, capsys, script)
+        assert "who: socrates" in out
+        assert "who: plato" not in out
+
+    def test_query_no_solutions(self, monkeypatch, capsys):
+        out, _ = self._run(monkeypatch, capsys, "human(socrates)\n? mortal($who)\n")
+        assert "No solutions." in out
+
+    def test_check_and_kb(self, monkeypatch, capsys):
+        out, _ = self._run(monkeypatch, capsys, "human(socrates)\n:check\n:kb\n")
+        assert "KB valid: True" in out
+        assert "human(socrates)" in out
+
+    def test_check_empty_session(self, monkeypatch, capsys):
+        out, _ = self._run(monkeypatch, capsys, ":check\n")
+        assert "(session KB is empty)" in out
+
+    def test_what_if(self, monkeypatch, capsys):
+        script = (
+            "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)\n"
+            ":what-if + human(plato)\n"
+        )
+        out, _ = self._run(monkeypatch, capsys, script)
+        assert "1 -> 2" in out
+
+    def test_diagnose(self, monkeypatch, capsys):
+        script = "human(socrates)\nmortal($x) IF human($x)\n:diagnose mortal(plato) why_not\n"
+        out, _ = self._run(monkeypatch, capsys, script)
+        assert "does NOT hold" in out
+
+    def test_explain(self, monkeypatch, capsys):
+        script = "human(socrates)\nmortal($x) IF human($x)\n:explain mortal($who)\n"
+        out, _ = self._run(monkeypatch, capsys, script)
+        assert "asserted as a fact" in out
+
+    def test_load_file(self, monkeypatch, capsys, tmp_path):
+        path = tmp_path / "seed.euclid"
+        path.write_text("red(apple)\n", encoding="utf-8")
+        out, _ = self._run(monkeypatch, capsys, f":load {path}\n? red($x)\n")
+        assert "Loaded" in out
+        assert "x: apple" in out
+
+    def test_reset(self, monkeypatch, capsys):
+        out, _ = self._run(monkeypatch, capsys, "human(socrates)\n:reset\n:kb\n")
+        assert "Session KB cleared." in out
+        assert "(session KB is empty)" in out
+
+    def test_quit_stops_loop(self, monkeypatch, capsys):
+        self._run(monkeypatch, capsys, "human(socrates)\n:q\nhuman(plato)\n")
+
+    def test_syntax_error_rolled_back(self, monkeypatch, capsys):
+        monkeypatch.setenv("EUCLID_KB_PATH", "")
+        out, err = self._run(monkeypatch, capsys, "human(socrates\n? red($x)\n")
+        assert "Error:" in err
+
+    def test_unknown_command(self, monkeypatch, capsys):
+        out, err = self._run(monkeypatch, capsys, ":bogus\n")
+        assert "Unknown command" in err
+
+    def test_seeded_from_file(self, monkeypatch, capsys, tmp_path):
+        path = _write_kb(tmp_path)
+        out, _ = self._run(monkeypatch, capsys, "? mortal($who)\n", seed_args=["-f", str(path)])
+        assert "who: socrates" in out
+
+    def test_seeded_from_inline_knowledge(self, monkeypatch, capsys):
+        out, _ = self._run(
+            monkeypatch, capsys, "? mortal($who)\n",
+            seed_args=["--knowledge", BASE],
+        )
+        assert "who: socrates" in out
+
+
 class TestCliSubprocess:
     """End-to-end tests through the real entry point."""
 
@@ -212,3 +322,22 @@ class TestCliSubprocess:
         assert proc.returncode == 0, proc.stderr
         data = json.loads(proc.stdout)
         assert data["solutions"][0]["substitutions"]["who"] == "socrates"
+
+    def test_repl_piped_end_to_end(self):
+        proc = subprocess.run(
+            [sys.executable, "-m", "euclid_mcp.cli"],
+            input=(
+                "human(socrates)\n"
+                "mortal($x) IF human($x)\n"
+                "? mortal($who)\n"
+                ":check\n"
+                ":quit\n"
+            ),
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert "who: socrates" in proc.stdout
+        assert "KB valid: True" in proc.stdout
