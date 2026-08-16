@@ -15,7 +15,9 @@ Euclid-MCP is a hybrid cognitive architecture: a lightweight LLM describes the w
 
 With Euclid-MCP, an 8B model can solve reasoning tasks that stump even 400B+ cloud models — because the engine handles deduction deterministically. Every answer comes with a proof tree, so you can trace *why* a conclusion holds, not just *what* it is. Use it to enforce RBAC policies, audit cloud compliance, validate loan eligibility rules, or reason over any domain where answers must be explainable and verifiable.
 
-Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable intermediate language designed for both AI agents and humans. It uses **SWI-Prolog** as its primary inference engine — and, where SWI-Prolog is not available (e.g. minimal containers), a pure-Python **native engine** that interprets Euclid-IR directly for small knowledge bases (see `docs/NATIVE_ENGINE.md`). It can be consumed in multiple ways: via **MCP** by AI agents (OpenCode, Claude, Cursor), via **HTTP** by tools and automation platforms (n8n, Zapier, Make), and via **Python API** for direct integration. Euclid-IR rules can also be used to **augment RAG** pipelines with deterministic policy enforcement.
+Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable intermediate language designed for both AI agents and humans. It uses **SWI-Prolog** as its primary inference engine — and, where SWI-Prolog is not available (e.g. minimal containers), a pure-Python **native engine** that interprets Euclid-IR directly for small knowledge bases
+(see [`docs/NATIVE_ENGINE.md`](docs/NATIVE_ENGINE.md)).
+It can be consumed in multiple ways: via **MCP** by AI agents (OpenCode, Claude, Cursor), via **HTTP** by tools and automation platforms (n8n, Zapier, Make), and via **Python API** for direct integration. Euclid-IR rules can also be used to **augment RAG** pipelines with deterministic policy enforcement.
 
 
 ## How it works
@@ -635,7 +637,7 @@ can be cited ("this derives from rule GEN-2").
 - **Explainable decisions**: Every answer comes with a proof tree which allows explanation, reasoning trace, and justification
 - **Business rules**: Validate logic chains (permissions, workflows, compliance)
 - **Dependency analysis**: Circular dependency detection, topological ordering
-- **Education**: Interactive logic tutoring with visible proof chains
+- **Education**: Interactive logic tutoring with visible proof chains (see [`docs/DIDACTIC.md`](docs/DIDACTIC.md), a step-by-step teaching guide built around the `euclid-cli` REPL)
 - **Knowledge preload**: Complex business rules can be loaded in Euclid instead of using a vector database
 - **Query diagnosis**: Understand why queries fail and what facts/rules are missing
 - **Scenario analysis**: Test "what-if" modifications before applying them to production
