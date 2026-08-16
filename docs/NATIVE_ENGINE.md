@@ -74,8 +74,10 @@ to the Prolog backend — verified per-question on example 07
 ## Limitations (by design)
 
 * **ASCII-only lexer**: Unicode predicate/atom names (e.g. `父(张三)`) are not
-  supported natively (SWI-Prolog handles them). Two tool-level Unicode tests
-  are skipped in the native matrix.
+  supported natively (SWI-Prolog handles them). The tool-level Unicode support
+  tests are therefore `prolog_only`; the native matrix instead asserts the
+  clear rejection error (`Query parsing error: Unexpected character …`), so the
+  limit is documented rather than silently skipped.
 * **No cut** (`!`), lists, `findall`/`bagof`, dynamic `assert`/`retract`,
   modules, or disjunction — same restriction as Euclid-IR itself.
 * **Depth-limited recursion** (`max_depth`, default 30) and a wall-clock
@@ -108,10 +110,15 @@ EUCLID_BACKEND=native pytest    # native engine
 
 Native matrix (this release):
 
-| Result   | Tests                                                        |
-|----------|--------------------------------------------------------------|
-| pass     | `tests/test_native_engine.py` (23) + the whole main suite    |
-| skip     | `test_reason_tool_unicode`, `test_what_if_unicode` (ASCII-only lexer) |
+| Result | Tests |
+|--------|-------|
+| pass   | `tests/test_native_engine.py` (23) + the whole main suite |
+| pass   | `test_reason_tool_unicode_rejected_native`, `test_what_if_unicode_rejected_native` (assert the ASCII-only rejection) |
+| skip   | `test_reason_tool_unicode`, `test_what_if_unicode` (`prolog_only` — SWI-Prolog Unicode support) |
+
+The CI matrix runs both backends explicitly: the Prolog legs on every supported
+Python, plus a `EUCLID_BACKEND=native` leg, so native-specific behaviour is
+always exercised on every push/PR.
 
 New tool-level behaviour must keep the Prolog suite green; native-specific
 behaviour belongs in `tests/test_native_engine.py`.

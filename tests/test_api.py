@@ -12,6 +12,7 @@ from http.server import HTTPServer
 
 import pytest
 
+from euclid_mcp.engine import resolve_backend
 from integrations.euclid_api import ReasonHandler, _tls_server_context
 
 KB = "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
@@ -20,6 +21,11 @@ KB_HASH = hashlib.sha256(KB.encode("utf-8")).hexdigest()
 _NEEDS_SWIPL = pytest.mark.skipif(
     shutil.which("swipl") is None,
     reason="SWI-Prolog (swipl) not installed",
+)
+
+_NEEDS_PROLOG_ENGINE = pytest.mark.skipif(
+    resolve_backend() != "prolog",
+    reason="SWI-Prolog backend required",
 )
 
 
@@ -492,13 +498,14 @@ class TestApiObservability:
             assert "human(" not in text
 
     def test_deep_health_engine_section(self):
+        backend = resolve_backend()
         with _TestServer() as s:
             status, data = _request(s.port, "GET", "/health")
             assert status == 200
             engine = data["engine"]
             assert "backend" in engine
-            if shutil.which("swipl"):
-                assert engine["backend"] == "prolog"
+            assert engine["backend"] == backend
+            if backend == "prolog":
                 assert isinstance(engine["facts"], int)
                 assert isinstance(engine["rules"], int)
                 assert isinstance(engine["requests_since_restart"], int)
@@ -547,6 +554,7 @@ class TestApiObservability:
             assert _metric(t1, "euclid_auth_failures_total") == before + 1
 
     @_NEEDS_SWIPL
+    @_NEEDS_PROLOG_ENGINE
     def test_engine_metrics_on_reason(self):
         with _TestServer() as s:
             _, t0 = _request_text(s.port, "GET", "/metrics")

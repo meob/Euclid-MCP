@@ -5,8 +5,9 @@ engine must share with the Prolog backend: facts/rules, recursion,
 conjunctions, negation as failure, arithmetic, rule ids, strings, wildcards,
 depth/time limits and the ``EUCLID_BACKEND`` dispatcher.
 
-See ``docs/NATIVE_ENGINE.md`` for the documented limitations (the Unicode and
-multi-fact-per-line tests live in the main suite and are skipped natively).
+See ``docs/NATIVE_ENGINE.md`` for the documented limitations (Unicode
+tool-level tests are ``prolog_only`` and live in the main suite; the native
+rejection behaviour is asserted there too).
 """
 
 import shutil

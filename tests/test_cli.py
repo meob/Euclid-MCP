@@ -112,6 +112,9 @@ class TestCliInProcess:
 
     def _invoke(self, monkeypatch, capsys, argv, stdin_text=None) -> dict:
         monkeypatch.setattr(sys, "argv", argv)
+        # cli.main() writes EUCLID_BACKEND to the process env; isolate it so
+        # in-process runs cannot leak a backend selection into later tests.
+        monkeypatch.delenv("EUCLID_BACKEND", raising=False)
         if stdin_text is not None:
             monkeypatch.setattr(sys, "stdin", _FakeStdin(stdin_text))
         cli.main()
