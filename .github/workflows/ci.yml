@@ -27,7 +27,7 @@ jobs:
             backend: native
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Install SWI-Prolog
         run: sudo apt-get update && sudo apt-get install -y swi-prolog
