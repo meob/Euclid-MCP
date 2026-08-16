@@ -1,0 +1,26 @@
+# Prometheus configuration for the Euclid-MCP observability stack.
+# See monitoring/README.md for the full instructions.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - rules.yml
+
+scrape_configs:
+  # The Euclid-MCP HTTP API — exposes its own metrics on GET /metrics.
+  - job_name: euclid-api
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - euclid-api:8080
+        labels:
+          service: euclid-mcp
+
+  # Per-container metrics (CPU, memory, network, I/O) for every running
+  # container on this Docker host.
+  - job_name: cadvisor
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - cadvisor:8080

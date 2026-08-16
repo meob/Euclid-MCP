@@ -4,6 +4,54 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.1] — 2026-08-16
+
+### Added
+- **Prometheus metrics (observability, Mode C)** — `euclid_mcp/metrics.py`:
+  a zero-dependency (stdlib-only) module implementing `Counter`, `Gauge` and
+  `Histogram` (fixed buckets) and rendering them in the Prometheus text
+  exposition format. Always on, no dependencies added.
+- **Instrumentation** across all three layers, feeding the same registry:
+  - Engine lifecycle (`prolog_server.py`): `euclid_engine_requests_total`
+    (by `command`), `euclid_engine_restarts_total` (by `reason` —
+    `periodic`/`timeout`/`broken_pipe`), `euclid_engine_timeouts_total`,
+    `euclid_kb_skipped_loads_total`, and the `euclid_kb_size` gauge
+    (facts/rules in the workspace).
+  - Tool layer (`server.py`, `_log_call`): `euclid_tool_calls_total`,
+    `euclid_tool_errors_total` and `euclid_tool_call_duration_seconds` per
+    tool — this covers MCP stdio mode and every in-process consumer too.
+  - HTTP API (`integrations/euclid_api.py`): `euclid_http_requests_total`
+    (method/path/status), `euclid_http_request_duration_seconds` per path,
+    `euclid_solutions_total` per path, `euclid_auth_failures_total`, and the
+    `euclid_process_uptime_seconds` gauge. Exposed on the open, read-only
+    `GET /metrics` endpoint (never carries KB content).
+- **Deep `GET /health`** — now pings the engine and reports its workspace
+  stats (`facts`, `rules`, `requests_since_restart`); returns 503 only when
+  an engine process exists but does not answer (wedged). A cold process with
+  no engine yet is healthy (the engine starts lazily). The native backend is
+  healthy by default.
+- **Graceful shutdown** — the HTTP API now handles SIGTERM/SIGINT: it stops
+  accepting requests, finishes the in-flight one, closes the socket and the
+  engine (`prolog_bridge.close()`), so no `swipl` process is orphaned when a
+  container stops.
+- **Monitoring stack** (`monitoring/`): `docker-compose.monitoring.yml`
+  (Prometheus + Grafana + cAdvisor, attached to the shared `euclid-app`
+  network so every scaled replica is scraped), Prometheus config with alert
+  rules (`EuclidDown`, error rate, p99 latency, engine restart storm, memory
+  pressure), Grafana datasource + a prebuilt `Euclid-MCP` dashboard, and a
+  README. `docker-compose.yml` gained the named `euclid-app` network.
+- **Remote benchmark mode** — `benchmarks/euclid_bench.py --api-url URL`
+  stresses an already-running API (no local `swipl` required) and reads
+  engine restarts + process uptime from the API's `GET /metrics`.
+- **Docs** — `docs/MONITORING.md` gained Mode C (metric reference, scrape
+  and query examples), `docs/PRODUCTION.md` gained a metrics section and the
+  deep-health check notes, and `benchmarks/docs/08-monitoring.md` documents
+  the new benchmark mode (PASS, 5 394 iterations, 658.7 req/s, 0 failures).
+
+### Changed
+- `euclid_http_requests_total` and per-path latency histograms record the
+  `GET /metrics` scrape itself (its `path` is `/metrics`).
+
 ## [0.4.0] — 2026-08-14
 
 ### Added

@@ -3,6 +3,7 @@
 import hashlib
 import http.client
 import json
+import re
 import shutil
 import ssl
 import subprocess
@@ -15,6 +16,11 @@ from integrations.euclid_api import ReasonHandler, _tls_server_context
 
 KB = "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"
 KB_HASH = hashlib.sha256(KB.encode("utf-8")).hexdigest()
+
+_NEEDS_SWIPL = pytest.mark.skipif(
+    shutil.which("swipl") is None,
+    reason="SWI-Prolog (swipl) not installed",
+)
 
 
 class _TestServer:
@@ -74,6 +80,41 @@ def _request(
         # retry is correct consumer behavior and does not mask a persistently
         # broken server (which still fails on the retry).
         return _request_once()
+
+
+def _request_text(
+    port: int,
+    method: str,
+    path: str,
+    body: dict | None = None,
+    headers: dict | None = None,
+) -> tuple[int, str]:
+    """Like _request but returns the raw body (e.g. /metrics, text/plain)."""
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    hdrs = dict(headers or {})
+    payload = None
+    if body is not None:
+        payload = json.dumps(body).encode()
+        hdrs.setdefault("Content-Type", "application/json")
+    conn.request(method, path, body=payload, headers=hdrs)
+    resp = conn.getresponse()
+    raw = resp.read().decode()
+    conn.close()
+    return resp.status, raw
+
+
+def _metric(text: str, name: str, **labels: str) -> float:
+    """Parse one series from a Prometheus text body (name{labels} value)."""
+    pattern = re.escape(name)
+    if labels:
+        label_part = ",".join(
+            f'{k}="{re.escape(v)}"' for k, v in sorted(labels.items())
+        )
+        pattern += r"\{" + label_part + r"\}"
+    pattern += r"\s+([-+0-9.eE]+)"
+    match = re.search(pattern, text)
+    assert match, f"metric {name} {labels} not found in:\n{text}"
+    return float(match.group(1))
 
 
 class TestApi:
@@ -420,3 +461,107 @@ class TestApiTls:
             )
             assert status == 200
             assert data["status"] == "ok"
+
+
+class TestApiObservability:
+    """Mode C: /metrics + deep /health (docs/MONITORING.md)."""
+
+    def test_metrics_endpoint(self):
+        with _TestServer() as s:
+            status, text = _request_text(s.port, "GET", "/metrics")
+            assert status == 200
+            assert "# TYPE euclid_process_uptime_seconds gauge" in text
+            assert "# TYPE euclid_http_requests_total counter" in text
+            # the scrape itself is recorded
+            assert _metric(
+                text, "euclid_http_requests_total",
+                method="GET", path="/metrics", status="200",
+            ) >= 1
+
+    def test_metrics_is_open_without_auth(self, monkeypatch):
+        monkeypatch.setenv("EUCLID_API_KEY", "secret-123")
+        with _TestServer() as s:
+            status, _ = _request_text(s.port, "GET", "/metrics")
+            assert status == 200
+
+    def test_metrics_never_carries_kb_content(self):
+        with _TestServer() as s:
+            _request(s.port, "POST", "/reason", {"knowledge": KB})
+            _, text = _request_text(s.port, "GET", "/metrics")
+            assert "socrates" not in text
+            assert "human(" not in text
+
+    def test_deep_health_engine_section(self):
+        with _TestServer() as s:
+            status, data = _request(s.port, "GET", "/health")
+            assert status == 200
+            engine = data["engine"]
+            assert "backend" in engine
+            if shutil.which("swipl"):
+                assert engine["backend"] == "prolog"
+                assert isinstance(engine["facts"], int)
+                assert isinstance(engine["rules"], int)
+                assert isinstance(engine["requests_since_restart"], int)
+
+    def test_deep_health_native_backend(self, monkeypatch):
+        import integrations.euclid_api as api_mod
+
+        monkeypatch.setattr(api_mod, "resolve_backend", lambda: "native")
+        with _TestServer() as s:
+            status, data = _request(s.port, "GET", "/health")
+            assert status == 200
+            assert data["engine"]["backend"] == "native"
+
+    def test_deep_health_engine_unreachable(self, monkeypatch):
+        import integrations.euclid_api as api_mod
+
+        monkeypatch.setattr(api_mod, "resolve_backend", lambda: "prolog")
+        monkeypatch.setattr(
+            api_mod.prolog_bridge,
+            "health_info",
+            lambda: {"backend": "prolog", "reachable": False},
+        )
+        with _TestServer() as s:
+            status, data = _request(s.port, "GET", "/health")
+            assert status == 503
+            assert data["engine"]["reachable"] is False
+
+    def test_reason_counter_metrics(self):
+        with _TestServer() as s:
+            _, t0 = _request_text(s.port, "GET", "/metrics")
+            before = _metric(t0, "euclid_solutions_total", path="/reason")
+            status, _ = _request(s.port, "POST", "/reason", {"knowledge": KB})
+            assert status == 200
+            _, t1 = _request_text(s.port, "GET", "/metrics")
+            assert _metric(t1, "euclid_solutions_total", path="/reason") == before + 1
+            assert _metric(t1, "euclid_tool_calls_total", tool="reason") >= 1
+
+    def test_auth_failures_counter(self, monkeypatch):
+        monkeypatch.setenv("EUCLID_API_KEY", "secret-123")
+        with _TestServer() as s:
+            _, t0 = _request_text(s.port, "GET", "/metrics")
+            before = _metric(t0, "euclid_auth_failures_total")
+            status, _ = _request(s.port, "POST", "/reason", {"knowledge": KB})
+            assert status == 401
+            _, t1 = _request_text(s.port, "GET", "/metrics")
+            assert _metric(t1, "euclid_auth_failures_total") == before + 1
+
+    @_NEEDS_SWIPL
+    def test_engine_metrics_on_reason(self):
+        with _TestServer() as s:
+            _, t0 = _request_text(s.port, "GET", "/metrics")
+            load_before = _metric(t0, "euclid_engine_requests_total", command="load")
+            query_before = _metric(t0, "euclid_engine_requests_total", command="query")
+            status, _ = _request(s.port, "POST", "/reason", {"knowledge": KB})
+            assert status == 200
+            _, t1 = _request_text(s.port, "GET", "/metrics")
+            assert (
+                _metric(t1, "euclid_engine_requests_total", command="load")
+                == load_before + 1
+            )
+            assert (
+                _metric(t1, "euclid_engine_requests_total", command="query")
+                == query_before + 1
+            )
+            assert _metric(t1, "euclid_kb_size", kind="facts") == 1
+            assert _metric(t1, "euclid_kb_size", kind="rules") == 1

@@ -136,9 +136,14 @@ backend be_euclid_api
 
 Behavior notes:
 
-- **Health check**: `GET /health` returns `{"status": "ok", "service": "euclid-mcp"}`.
-  HAProxy removes a replica after `fall 3` consecutive failures and re-adds it
-  after `rise 2` successes.
+- **Health check**: `GET /health` is a **deep** check — with the Prolog backend
+  it pings the engine and returns its workspace stats
+  (`{"status": "ok", "engine": {"backend": "prolog", "facts": N, "rules": M,
+  "requests_since_restart": K}}`), and returns **503** only when an engine
+  process exists but does not answer (wedged). A cold replica with no engine
+  yet is healthy (the engine starts lazily on the first request). HAProxy
+  removes a replica after `fall 3` consecutive failures and re-adds it after
+  `rise 2` successes.
 - **Circuit breaking**: a pathological query raises `status:timeout` after 30 s;
   the replica is dropped and restarted by the engine's own restart policy. The
   proxy's `timeout server` + health checks keep the rest of the fleet healthy.
@@ -257,7 +262,8 @@ services:
 
 ## Monitoring & observability
 
-See `docs/MONITORING.md` for the MCP Inspector and per-call log details.
+See `docs/MONITORING.md` for the MCP Inspector, per-call logs, and the
+Prometheus metric reference (Mode C).
 
 ### Logs
 
@@ -271,17 +277,35 @@ Every tool call emits `tool=... elapsed_ms=... solutions=...` (or `error=...`).
 The HTTP API access log includes `request_id=...` when the client sent
 `X-Request-Id`.
 
+### Prometheus metrics
+
+Every replica exposes Prometheus metrics on **`GET /metrics`** (open,
+read-only, never carries KB content): per-tool call/error counters and
+duration histograms, engine requests/restarts/timeouts, KB workspace size,
+HTTP request counters + latency histograms per path, solutions returned, auth
+failures, and process uptime (`euclid_process_uptime_seconds`). Scrape each
+replica directly:
+
+```bash
+curl -s http://euclid-1:8080/metrics
+```
+
+The bundled stack in `monitoring/` (Prometheus + Grafana + cAdvisor, with a
+prebuilt dashboard and alert rules) is the fastest way to go end-to-end — see
+`monitoring/README.md`. Alert rules include **EuclidDown**, error-rate,
+p99-latency, engine-restart-storm and memory-pressure alerts.
+
 ### Metrics to watch
 
 | Signal | Good | Investigate |
 |---|---|---|
-| `elapsed_ms` per call | < 100 ms steady-state | growth in p95/p99 |
-| `status:timeout` in engine logs | 0 | pathological queries reaching the 30 s cap |
-| Engine restarts (`restart_every=1000`, after-timeout) | expected, cheap | frequent timeouts → fix queries, not restart policy |
-| `/health` failures at the proxy | all replicas up | replica crash / swipl not launched |
+| `euclid_tool_call_duration_seconds` p99 | < 100 ms steady-state | growth in p95/p99 |
+| `euclid_engine_timeouts_total` | 0 | pathological queries reaching the 30 s cap |
+| `euclid_engine_restarts_total` (`periodic`/`timeout`) | periodic only, cheap | frequent timeout restarts → fix queries, not restart policy |
+| `euclid_http_requests_total` `/health` 503s at the proxy | all replicas up | replica crash / wedged swipl |
 | HTTP 429 at the edge | none for legitimate traffic | tighten rate limit or scale out |
-| HTTP 401 from the API | none (clients hold the key) | check the client secret / key rotation |
-| Replica memory (e.g. `mem_limit`) | well under limit | long-lived drift → rely on restart policy |
+| `euclid_auth_failures_total` / HTTP 401 | none (clients hold the key) | check the client secret / key rotation |
+| Replica memory (e.g. `mem_limit`, cAdvisor) | well under limit | long-lived drift → rely on restart policy |
 
 ## Troubleshooting
 
@@ -298,5 +322,6 @@ The HTTP API access log includes `request_id=...` when the client sent
 ## References
 
 - Internal monitoring: `docs/MONITORING.md`
+- Monitoring stack (Prometheus/Grafana/cAdvisor): `monitoring/README.md`
 - HTTP API endpoints: `integrations/README.md`, `integrations/euclid_api.py`
 - Benchmarks: `benchmarks/BENCHMARKS.md`, `benchmarks/solution_cap_benchmark.py`

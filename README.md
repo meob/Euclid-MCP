@@ -819,6 +819,22 @@ variable, only warnings and errors are emitted.
 The HTTP API also supports request tracing: send an `X-Request-Id` header and
 it is echoed back on the response and included in the access logs.
 
+### Monitoring & metrics
+
+The HTTP API exposes Prometheus metrics on `GET /metrics` (open, read-only,
+never carries KB content): per-tool call/error counters and latency
+histograms, engine requests/restarts/timeouts, HTTP traffic, solutions
+returned, auth failures and process uptime — always on, zero dependencies
+(`euclid_mcp/metrics.py`). `GET /health` is a deep check that pings the
+engine and reports its workspace stats (503 only when a wedged engine exists).
+
+```bash
+curl -s localhost:8080/metrics
+```
+
+For a full stack (Prometheus + Grafana + cAdvisor, dashboard and alert rules
+included): `monitoring/README.md`.
+
 
 ## What is Prolog?
 

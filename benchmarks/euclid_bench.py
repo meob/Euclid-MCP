@@ -18,12 +18,17 @@ direct (default) — hammers the persistent engine (``PrologServer``) directly.
 api              — stresses the real HTTP API (``HTTPServer``, single-threaded).
     Concurrent clients are serialized by the accept loop, so queuing is
     exercised and correctness must hold at any ``--workers`` value.
+--api-url URL    — stresses an already-running Euclid-MCP API (e.g. the
+    containerized one from docker-compose.yml). The engine runs in that remote
+    process; the final report reads engine restarts and process uptime from
+    its ``GET /metrics`` endpoint.
 
 Usage:
     python benchmarks/euclid_bench.py                              # 30 s soak
     python benchmarks/euclid_bench.py --duration 3600 --workers 1  # 1 h soak
     python benchmarks/euclid_bench.py --mode api --workers 8       # HTTP load
     python benchmarks/euclid_bench.py --iterations 5000 --workers 4
+    python benchmarks/euclid_bench.py --api-url http://localhost:8080 --workers 8
 """
 import argparse
 import hashlib
@@ -34,6 +39,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from euclid_mcp.models import KB
 from euclid_mcp.prolog_server import PrologServer
@@ -176,6 +182,104 @@ class ApiRunner:
         self._server.server_close()
 
 
+def _parse_metrics(text: str) -> dict[str, float]:
+    """Minimal Prometheus text-format parser (name{labels} value lines)."""
+    out: dict[str, float] = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.rsplit(" ", 1)
+        if len(parts) != 2:
+            continue
+        try:
+            out[parts[0]] = float(parts[1])
+        except ValueError:
+            continue
+    return out
+
+
+class RemoteApiRunner:
+    """Stresses an already-running Euclid-MCP API (``--api-url``).
+
+    The engine lives in the remote process; ``restarts``/``uptime`` are read
+    from its open ``GET /metrics`` endpoint instead of local introspection.
+    """
+
+    def __init__(self, base_url: str):
+        self.base_url = base_url.rstrip("/")
+        parts = urlsplit(self.base_url)
+        if parts.scheme not in ("http", "https") or not parts.hostname:
+            raise SystemExit(
+                f"invalid --api-url {base_url!r}; expected e.g. http://localhost:8080"
+            )
+        self._host = parts.hostname
+        self._port = parts.port or (443 if parts.scheme == "https" else 80)
+        self._tls = parts.scheme == "https"
+        # Path-only target: HTTPConnection takes a path (an absolute URI would
+        # arrive at the handler as an absolute-form request line).
+        self._reason_path = (parts.path.rstrip("/") + "/reason") or "/reason"
+
+    def _metrics(self) -> dict[str, float]:
+        from http.client import HTTPConnection, HTTPSConnection
+
+        conn_cls = HTTPSConnection if self._tls else HTTPConnection
+        conn = conn_cls(self._host, self._port, timeout=5)
+        try:
+            conn.request("GET", "/metrics")
+            resp = conn.getresponse()
+            if resp.status != 200:
+                raise RuntimeError(f"GET /metrics -> HTTP {resp.status}")
+            return _parse_metrics(resp.read().decode())
+        finally:
+            conn.close()
+
+    @property
+    def restarts(self) -> int:
+        total = sum(
+            value
+            for name, value in self._metrics().items()
+            if name.startswith("euclid_engine_restarts_total")
+        )
+        return int(total)
+
+    @property
+    def uptime(self) -> float | None:
+        return self._metrics().get("euclid_process_uptime_seconds")
+
+    def request(self, tag: int, n_facts: int) -> bool:
+        from http.client import HTTPConnection, HTTPSConnection
+
+        body = json.dumps({
+            "knowledge": build_api_kb_text(tag, n_facts),
+            "max_solutions": MAX_SOLUTIONS,
+        })
+        conn_cls = HTTPSConnection if self._tls else HTTPConnection
+        conn = conn_cls(self._host, self._port, timeout=TIMEOUT)
+        status = 0
+        data: dict = {}
+        try:
+            conn.request(
+                "POST", self._reason_path, body=body,
+                headers={"Content-Type": "application/json"},
+            )
+            resp = conn.getresponse()
+            status = resp.status
+            data = json.loads(resp.read().decode())
+        finally:
+            conn.close()
+        if status != 200 or "solutions" not in data:
+            raise RuntimeError(f"HTTP {status}: {data.get('error')}")
+        got = {
+            (s["substitutions"]["t"], s["substitutions"]["x"])
+            for s in data["solutions"]
+        }
+        return got == expected_set(tag, n_facts)
+
+    def close(self) -> None:
+        pass  # the API is external; nothing to shut down locally
+
+
 class _Stats:
     __slots__ = ("iterations", "mismatches", "exceptions", "latency", "errors")
 
@@ -236,6 +340,7 @@ def _worker(
 def _print_report(
     args, total: int, mismatches: int, exceptions: int, restarts: int,
     latency: list[float], errors: list[str], elapsed: float,
+    uptime: float | None = None,
 ) -> None:
     sorted_latency = sorted(latency)
     rps = total / elapsed if elapsed else 0.0
@@ -253,6 +358,8 @@ def _print_report(
         f"   p95={_percentile(sorted_latency, 0.95):7.1f}ms"
         f"   p99={_percentile(sorted_latency, 0.99):7.1f}ms"
     )
+    if uptime is not None:
+        print(f"  api_uptime={uptime:.0f}s")
     print(f"  mismatches={mismatches:,}    exceptions={exceptions:,}"
           f"    engine_restarts={restarts}")
     for err in errors[:5]:
@@ -273,6 +380,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--mode", choices=["direct", "api"], default="direct",
                         help="engine core (direct) or HTTP API (api)")
+    parser.add_argument("--api-url", default=None,
+                        help="base URL of a running Euclid-MCP API (e.g. "
+                             "http://localhost:8080); implies --mode api and "
+                             "reads restarts/uptime from its /metrics")
     parser.add_argument("--workers", type=int, default=1,
                         help="concurrent worker threads")
     parser.add_argument("--duration", type=float, default=30.0,
@@ -289,12 +400,16 @@ def main() -> None:
                         help="seconds between progress lines (0 = off)")
     args = parser.parse_args()
 
-    if shutil.which("swipl") is None:
+    if args.api_url:
+        args.mode = "api"
+        runner = RemoteApiRunner(args.api_url)
+    elif shutil.which("swipl") is None:
         print("SWI-Prolog (swipl) not installed; benchmark skipped.")
         return
-
-    runner = DirectRunner(restart_every=args.restart_every) if args.mode == "direct" \
-        else ApiRunner()
+    elif args.mode == "direct":
+        runner = DirectRunner(restart_every=args.restart_every)
+    else:
+        runner = ApiRunner()
     tags = list(range(args.tags))
 
     deadline = [time.monotonic() + args.duration if args.duration > 0 else None]
@@ -315,6 +430,8 @@ def main() -> None:
     )
     if args.mode == "direct":
         print(f"  engine restart_every={args.restart_every} requests")
+    if args.api_url:
+        print(f"  remote api_url={args.api_url}")
     print("  " + "─" * 68)
 
     started = time.monotonic()
@@ -350,9 +467,16 @@ def main() -> None:
     for s in stats:
         merged.merge(s)
 
+    uptime: float | None = None
+    if args.api_url:
+        try:
+            uptime = runner.uptime
+        except Exception as exc:
+            print(f"  (could not read uptime from /metrics: {exc})")
+
     _print_report(
         args, merged.iterations, merged.mismatches, merged.exceptions,
-        runner.restarts, merged.latency, merged.errors, elapsed,
+        runner.restarts, merged.latency, merged.errors, elapsed, uptime,
     )
     if merged.mismatches or merged.exceptions:
         sys.exit(1)

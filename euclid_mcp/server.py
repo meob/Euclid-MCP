@@ -15,6 +15,7 @@ from euclid_mcp.kb_store import KBRecord, KbStore, is_valid_kb_id
 from euclid_mcp.kb_summary import build_kb_summary
 from euclid_mcp.language import parse
 from euclid_mcp.linter import lint_rule
+from euclid_mcp.metrics import Counter, Histogram, register
 from euclid_mcp.models import (
     KB,
     DiagnosisFinding,
@@ -35,31 +36,53 @@ _IF_SPLIT = re.compile(r"\s+IF\s+", re.IGNORECASE)
 
 _Fn = TypeVar("_Fn", bound=Callable[..., Any])
 
+# Observability: Prometheus-compatible tool-call metrics. These live in the
+# shared `_log_call` decorator, so they cover MCP stdio mode, the HTTP API,
+# and every in-process consumer (see euclid_mcp/metrics.py).
+tool_calls_total = register(Counter(
+    "euclid_tool_calls_total",
+    "MCP tool invocations by tool.",
+    labels=("tool",),
+))
+tool_errors_total = register(Counter(
+    "euclid_tool_errors_total",
+    "MCP tool invocations that returned an error, by tool.",
+    labels=("tool",),
+))
+tool_call_duration_seconds = register(Histogram(
+    "euclid_tool_call_duration_seconds",
+    "Tool call latency in seconds, by tool.",
+    labels=("tool",),
+))
+
 
 def _log_call(tool_name: str) -> Callable[[_Fn], _Fn]:
-    """Wrap a tool to log per-call timing and outcome."""
+    """Wrap a tool to log per-call timing and outcome, and emit metrics."""
 
     def decorator(fn: _Fn) -> _Fn:
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             start = time.monotonic()
             result = fn(*args, **kwargs)
-            elapsed_ms = (time.monotonic() - start) * 1000
+            elapsed = time.monotonic() - start
+            tool_calls_total.inc(tool=tool_name)
+            tool_call_duration_seconds.observe(elapsed, tool=tool_name)
             error = getattr(result, "error", None)
             solutions = getattr(result, "solutions", None)
             count = len(solutions) if isinstance(solutions, list) else None
             if error:
+                tool_errors_total.inc(tool=tool_name)
                 logger.warning(
                     "tool=%s elapsed_ms=%.1f error=%s",
                     tool_name,
-                    elapsed_ms,
+                    elapsed * 1000,
                     error,
                 )
             else:
                 logger.info(
                     "tool=%s elapsed_ms=%.1f solutions=%s",
                     tool_name,
-                    elapsed_ms,
+                    elapsed * 1000,
                     count if count is not None else "-",
                 )
             return result

@@ -23,9 +23,37 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from .metrics import Counter, Gauge, register
+
 logger = logging.getLogger(__name__)
 
 _ENGINE_FILE = Path(__file__).resolve().parent / "prolog_engine.pl"
+
+# Observability: Prometheus-compatible counters/gauges for the persistent
+# engine lifecycle (see euclid_mcp/metrics.py and docs/MONITORING.md Mode C).
+engine_requests_total = register(Counter(
+    "euclid_engine_requests_total",
+    "Engine JSON-lines requests by command.",
+    labels=("command",),
+))
+engine_restarts_total = register(Counter(
+    "euclid_engine_restarts_total",
+    "Engine relaunches by reason (periodic, timeout, broken_pipe).",
+    labels=("reason",),
+))
+engine_timeouts_total = register(Counter(
+    "euclid_engine_timeouts_total",
+    "Engine requests that hit the time limit (status:timeout or socket stall).",
+))
+kb_skipped_loads_total = register(Counter(
+    "euclid_kb_skipped_loads_total",
+    "Load requests skipped because the workspace was unchanged (kb_hash).",
+))
+kb_size = register(Gauge(
+    "euclid_kb_size",
+    "Facts and rules currently loaded in the engine workspace.",
+    labels=("kind",),
+))
 
 
 def _find_swipl() -> str:
@@ -65,11 +93,25 @@ class PrologServer:
         # it. 0 disables the periodic restart.
         self._restart_every = max(0, restart_every)
         self._requests_since_restart = 0
+        # Reason for the next relaunch, set right before _terminate() so the
+        # subsequent _launch() can attribute the restart (periodic/timeout/
+        # broken_pipe). "initial" is the first launch and never counted as a
+        # restart.
+        self._pending_restart_reason: str | None = None
+
+    @property
+    def requests_since_restart(self) -> int:
+        """Number of requests served by the current engine process."""
+        return self._requests_since_restart
 
     # ── lifecycle ────────────────────────────────────────────────────────
 
     def _launch(self) -> None:
+        reason = self._pending_restart_reason or "initial"
+        self._pending_restart_reason = None
         self._requests_since_restart = 0
+        if reason != "initial":
+            engine_restarts_total.inc(reason=reason)
         self._proc = subprocess.Popen(
             [
                 self._swipl,
@@ -140,16 +182,19 @@ class PrologServer:
                 # interpreter, prove/3) before any query runs on it, otherwise
                 # the query paired with a restarting load fails with an
                 # existence error on a bare engine.
+                self._pending_restart_reason = "periodic"
                 self._terminate()
             if not self._alive():
                 self._launch()
             self._requests_since_restart += 1
+            engine_requests_total.inc(command=payload.get("command") or "unknown")
             line = json.dumps(payload) + "\n"
             try:
                 self._write(line)
             except (BrokenPipeError, OSError):
                 # Engine died between the liveness check and the write:
                 # relaunch once and retry before giving up.
+                self._pending_restart_reason = "broken_pipe"
                 self._terminate()
                 self._launch()
                 self._write(line)
@@ -162,6 +207,8 @@ class PrologServer:
             if status == "timeout":
                 # Drop the engine so the next request starts from a clean
                 # state: the time limit fired, so state may be inconsistent.
+                engine_timeouts_total.inc()
+                self._pending_restart_reason = "timeout"
                 self._terminate()
                 raise RuntimeError(f"Euclid engine timed out after {timeout}s")
             return data
@@ -186,6 +233,8 @@ class PrologServer:
         if not ready:
             # The engine's time limit failed to fire; drop the engine so the
             # next request starts from a clean state.
+            engine_timeouts_total.inc()
+            self._pending_restart_reason = "timeout"
             self._terminate()
             raise RuntimeError(f"Euclid engine timed out after {timeout}s")
         line = proc.stdout.readline()
@@ -225,6 +274,13 @@ class PrologServer:
         resp = self._request(payload, timeout)
         if isinstance(resp.get("skipped"), int):
             resp["skipped"] = bool(resp["skipped"])
+        if resp.get("skipped"):
+            kb_skipped_loads_total.inc()
+        facts = resp.get("facts")
+        rules = resp.get("rules")
+        if isinstance(facts, int) and isinstance(rules, int):
+            kb_size.set(facts, kind="facts")
+            kb_size.set(rules, kind="rules")
         return resp
 
     def load_and_query(

@@ -4,7 +4,14 @@ import threading
 import pytest
 
 from euclid_mcp.models import KB
-from euclid_mcp.prolog_server import PrologServer
+from euclid_mcp.prolog_server import (
+    PrologServer,
+    engine_requests_total,
+    engine_restarts_total,
+    engine_timeouts_total,
+    kb_size,
+    kb_skipped_loads_total,
+)
 from euclid_mcp.translator import build_query_snippet, kb_to_decls_clauses
 
 pytestmark = pytest.mark.skipif(
@@ -253,3 +260,68 @@ def test_load_and_query_is_atomic_under_concurrency(server):
     for t in threads:
         t.join(timeout=90)
     assert failures == []
+
+
+# ── observability metrics ───────────────────────────────────────────────────
+# The metrics are process-wide singletons (euclid_mcp/metrics.py), so every
+# assertion uses a relative delta from the value measured before the action.
+
+
+def test_engine_request_counter_increments(server):
+    before = engine_requests_total.value(command="query")
+    decls, clauses = kb_to_decls_clauses(KB(facts=["human(socrates)"], rules=[]))
+    server.load(decls, clauses)
+    server.query(build_query_snippet("human($who)"))
+    assert engine_requests_total.value(command="query") == before + 1
+
+
+def test_periodic_restart_counter_increments():
+    before = engine_restarts_total.value(reason="periodic")
+    srv = PrologServer(restart_every=2)
+    kb = KB(facts=["parent(tom, bob)"], rules=[])
+    decls, clauses = kb_to_decls_clauses(kb)
+    try:
+        srv.load(decls, clauses)  # request 1
+        srv.load(decls, clauses)  # request 2 -> threshold crossed
+        srv.load(decls, clauses)  # request 3 -> periodic restart fires
+        assert srv._proc is not None
+        assert engine_restarts_total.value(reason="periodic") == before + 1
+    finally:
+        srv.close()
+
+
+def test_timeout_counter_and_restart_reason(server):
+    timeouts_before = engine_timeouts_total.value()
+    restart_before = engine_restarts_total.value(reason="timeout")
+    with pytest.raises(RuntimeError, match="timed out"):
+        server._request(
+            {"command": "query", "snippet": "repeat, fail.", "timeout": 0.1}
+        )
+    assert engine_timeouts_total.value() == timeouts_before + 1
+    server.ping()  # relaunch happens lazily on the next request
+    assert server._proc is not None
+    assert engine_restarts_total.value(reason="timeout") == restart_before + 1
+
+
+def test_skipped_load_counter_increments(server):
+    before = kb_skipped_loads_total.value()
+    decls, clauses = kb_to_decls_clauses(KB(facts=["parent(tom, bob)"], rules=[]))
+    server.load(decls, clauses, kb_hash="h1")
+    server.load(decls, clauses, kb_hash="h1")
+    assert kb_skipped_loads_total.value() == before + 1
+
+
+def test_kb_size_gauge(server):
+    kb = KB(facts=[f"item({i})" for i in range(5)], rules=["answer($x) IF item($x)"])
+    decls, clauses = kb_to_decls_clauses(kb)
+    server.load(decls, clauses)
+    assert kb_size.value(kind="facts") == 5
+    assert kb_size.value(kind="rules") == 1
+
+
+def test_requests_since_restart(server):
+    before = server.requests_since_restart
+    decls, clauses = kb_to_decls_clauses(KB(facts=["human(socrates)"], rules=[]))
+    server.load(decls, clauses)
+    server.query(build_query_snippet("human($who)"))
+    assert server.requests_since_restart == before + 2

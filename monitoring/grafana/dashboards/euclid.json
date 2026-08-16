@@ -1,0 +1,237 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "title": "Request rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(euclid_http_requests_total{job=\"euclid-api\"}[5m])) by (path)",
+          "legendFormat": "{{path}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "fillOpacity": 20, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Error rate (5xx)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(euclid_http_requests_total{job=\"euclid-api\", status=~\"5..\"}[5m])) by (path)",
+          "legendFormat": "{{path}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "fillOpacity": 20, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "p99 latency",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(euclid_http_request_duration_seconds_bucket{job=\"euclid-api\"}[5m])) by (le, path))",
+          "legendFormat": "{{path}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "fillOpacity": 20, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Solutions returned",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(increase(euclid_solutions_total{job=\"euclid-api\"}[5m])) by (path)",
+          "legendFormat": "{{path}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "fillOpacity": 20, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Authentication failures (401)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(increase(euclid_auth_failures_total{job=\"euclid-api\"}[5m]))",
+          "legendFormat": "401 / 5m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "fillOpacity": 20 }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Uptime",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+      "targets": [
+        {
+          "expr": "euclid_process_uptime_seconds{job=\"euclid-api\"}",
+          "legendFormat": "API uptime"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "fillOpacity": 20 }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Engine requests (by command)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum(rate(euclid_engine_requests_total{job=\"euclid-api\"}[5m])) by (command)",
+          "legendFormat": "{{command}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "fillOpacity": 20, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Engine restarts",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum(increase(euclid_engine_restarts_total{job=\"euclid-api\"}[5m])) by (reason)",
+          "legendFormat": "{{reason}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "fillOpacity": 20, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Workspace size (facts/rules)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "targets": [
+        {
+          "expr": "euclid_kb_size{job=\"euclid-api\"}",
+          "legendFormat": "{{kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "fillOpacity": 20, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Container CPU",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 24 },
+      "targets": [
+        {
+          "expr": "sum(rate(container_cpu_usage_seconds_total{name=~\".*euclid.*\"}[5m])) by (name) * 100",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "custom": { "fillOpacity": 20, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Container memory",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 24 },
+      "targets": [
+        {
+          "expr": "sum(container_memory_usage_bytes{name=~\".*euclid.*\"}) by (name)",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "fillOpacity": 20, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Container network I/O",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 },
+      "targets": [
+        {
+          "expr": "sum(rate(container_network_receive_bytes_total{name=~\".*euclid.*\"}[5m])) by (name)",
+          "legendFormat": "in: {{name}}"
+        },
+        {
+          "expr": "sum(rate(container_network_transmit_bytes_total{name=~\".*euclid.*\"}[5m])) by (name)",
+          "legendFormat": "out: {{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": { "fillOpacity": 20, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    }
+  ],
+  "schemaVersion": 37,
+  "tags": ["euclid-mcp", "monitoring"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "browser",
+  "title": "Euclid-MCP",
+  "uid": "euclid-mcp"
+}

@@ -19,6 +19,7 @@ in [`docs/`](docs/).
 | 5 | `euclid_bench.py` | Stress & soak: mixing, pollution, restart, API under load | workers=1, workers=4 & API **PASS** | [05](docs/05-stress-soak.md) |
 | 6 | — (full suite + CI) | Engine correctness across SWI-Prolog 8.4.2/9.0.4/9.2.9/10.0.2 | **256/256 PASS** on all versions | [06](docs/06-swi-prolog-versions.md) |
 | 7 | `native_vs_prolog_benchmark.py` | Native Euclid-IR engine vs SWI-Prolog on example 07 (10 queries, 2 KB sizes) | **Parity** (all solution counts match); native ~7× slower aggregate, ~1.3–2.5× on typical queries, up to 17–32× on high-solution joins & exhaustive-failure `NOT` queries | [07](docs/07-native-vs-prolog.md) |
+| 8 | `euclid_bench.py --api-url` | Remote (containerized) HTTP API under load; report reads restarts/uptime from `GET /metrics` | **PASS** (v0.4.1, local API) | [08](docs/08-monitoring.md) |
 
 ## Summary of results
 
@@ -67,10 +68,18 @@ in [`docs/`](docs/).
    queries, small + full KB). **Result parity**: every solution count matches.
    Native is ~7× slower aggregate (53 → 390 ms small, 564 → 3 777 ms full), but
    only ~1.3–2.5× on typical queries; it blows up (17–32×) precisely on
-   high-solution wildcard joins and exhaustive-failure `NOT` queries — the
-   compliance-audit workloads of example 07. **→** Confirms native is for small
-   interactive KBs; heavy audits stay on SWI-Prolog; a native Program cache
-   (mirroring `_translate_cached`) is the next optimization.
+    high-solution wildcard joins and exhaustive-failure `NOT` queries — the
+    compliance-audit workloads of example 07. **→** Confirms native is for small
+    interactive KBs; heavy audits stay on SWI-Prolog; a native Program cache
+    (mirroring `_translate_cached`) is the next optimization.
+
+8. **Remote API mode (2026-08-16, v0.4.1).** `euclid_bench.py --api-url URL`
+    hammers an already-running API (the containerized one from
+    `docker-compose.yml`, or any deployed instance) instead of spawning the
+    server in-process. The final report reads engine restarts and process
+    uptime from the API's `GET /metrics` endpoint — the same data the
+    Prometheus stack scrapes. **→** The benchmark now covers the real
+    deployment shape, including a containerized `swipl` inside the API image.
 
 ## Consequent implementation choices
 
@@ -97,6 +106,10 @@ in [`docs/`](docs/).
   retracts only the registered workspace predicates (`workspace_predicate/1`)
   instead of every dynamic predicate, keeping the engine correct on
   SWI-Prolog 8.x–10.x (see `benchmarks/docs/06-swi-prolog-versions.md`).
+- **Remote API benchmark mode** (v0.4.1, Benchmark 8): `--api-url` stresses a
+  real deployment (containerized API + its own `swipl`), and the report reads
+  restarts/uptime from `GET /metrics` — the same observability surface the
+  monitoring stack uses (see `benchmarks/docs/08-monitoring.md`).
 
 ## Exploratory measurement — KB reload cost (2026-08-12)
 

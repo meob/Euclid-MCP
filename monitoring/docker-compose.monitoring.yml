@@ -1,0 +1,66 @@
+services:
+  # Prometheus — scrapes the euclid-api /metrics endpoint and cAdvisor.
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: euclid-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - euclid-app
+
+  # Grafana — dashboards over Prometheus (default admin/admin).
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: euclid-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - euclid-app
+
+  # cAdvisor — per-container CPU/memory/network metrics for the euclid-api
+  # container, scraped by Prometheus.
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: euclid-cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
+    privileged: true
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+    networks:
+      - euclid-app
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  # Attach to the network shared by the euclid-api service (defined in
+  # docker-compose.yml); with `docker compose --scale euclid-api=N` every
+  # replica exposes its own /metrics and is scraped individually.
+  euclid-app:
+    external: true
