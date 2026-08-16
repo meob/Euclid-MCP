@@ -7,6 +7,16 @@ services:
     stdin_open: true
     restart: "no"
 
+  # Native-only engine (no SWI-Prolog) — slim image
+  # Usage: docker compose run --rm euclid-mcp-native
+  euclid-mcp-native:
+    build:
+      context: .
+      dockerfile: Dockerfile.native
+    image: euclid-mcp:native
+    stdin_open: true
+    restart: "no"
+
   # HTTP API mode — for n8n, Zapier, remote clients
   # Usage: docker compose up euclid-api
   euclid-api:
