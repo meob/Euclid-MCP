@@ -22,6 +22,17 @@ def _write_kb(tmp_path: Path, text: str = KB) -> Path:
     return path
 
 
+@pytest.fixture(autouse=True)
+def _isolate_backend_env(monkeypatch):
+    """cli.main() writes EUCLID_BACKEND to the process env (default: "auto").
+
+    Every in-process invocation would otherwise leak that selection into later
+    tests in the same run, silently flipping the active backend. Deleting the
+    variable for the duration of each test keeps the runs isolated.
+    """
+    monkeypatch.delenv("EUCLID_BACKEND", raising=False)
+
+
 class _FakeStdin:
     """Non-interactive stdin for in-process REPL tests."""
 
