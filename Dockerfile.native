@@ -1,0 +1,33 @@
+FROM python:3.12-slim
+
+# Verify the runtime
+RUN python3 --version
+
+# Create non-root user
+RUN groupadd -r euclid && useradd -r -g euclid -d /app -s /sbin/nologin euclid
+
+WORKDIR /app
+
+# Copy dependency files first (layer caching)
+COPY pyproject.toml README.md LICENSE ./
+COPY euclid_mcp/ euclid_mcp/
+
+# Install Python package — no SWI-Prolog needed: the native Euclid-IR engine
+# is pure Python and handles small knowledge bases on its own.
+RUN pip install --no-cache-dir --break-system-packages . && \
+    rm -rf /root/.cache
+
+# Copy integrations (HTTP API)
+COPY integrations/ integrations/
+
+# Set ownership
+RUN chown -R euclid:euclid /app
+
+# Force the pure-Python native engine (this image ships no SWI-Prolog).
+ENV EUCLID_BACKEND=native
+
+USER euclid
+
+# Default: MCP stdio mode
+# Override with: docker run euclid-mcp-native python3 integrations/euclid_api.py
+CMD ["python3", "-m", "euclid_mcp"]

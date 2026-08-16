@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.3] — 2026-08-16
+
+### Added
+- **Native-only Docker image** — `Dockerfile.native`: a slim image on
+  `python:3.12-slim` (no SWI-Prolog installed) that runs the pure-Python
+  Euclid-IR engine (`EUCLID_BACKEND=native`) for MCP stdio, HTTP API and CLI
+  use. Compose service `euclid-mcp-native`. Docs: README "Docker".
+- **Didactic guide** — `docs/DIDACTIC.md` (12 chapters): a tutorial-style walk
+  from Euclid-IR facts and rules to proof trees and the `euclid-cli` REPL,
+  closing with the chapter "Beyond the 1:1 mapping: the audit layer" on the
+  elements that go beyond a plain Prolog subset (rule IDs, `content_hash`/
+  `version`, `structured_steps`, backend dispatch). Reference links to the
+  SWI-Prolog documentation at first mention.
+
+### Fixed
+- **CI never ran the native backend** — the matrix installed `swi-prolog` but
+  never set `EUCLID_BACKEND`, so `auto` always picked Prolog and native-only
+  tests were silently skipped. The matrix now includes an explicit
+  `EUCLID_BACKEND=native` leg on every push/PR.
+- **Mislabeled Unicode test markers** — `test_reason_tool_unicode` and
+  `test_what_if_unicode` were marked `@native_only` while asserting SWI-Prolog
+  Unicode behaviour that the native engine deliberately rejects (ASCII-only
+  lexer). They are now `@prolog_only`, and two new `@native_only` tests assert
+  the clear rejection error (`Query parsing error: Unexpected character …`),
+  so the limitation is documented instead of silently skipped.
+- **Backend-aware tests** — the API deep-health backend assertion and the
+  engine-metrics test now follow the *resolved* backend (`resolve_backend()`)
+  instead of the presence of `swipl` on `PATH`; in-process CLI tests isolate
+  `EUCLID_BACKEND`, which `cli.main()` writes to the process env and used to
+  leak across tests in the same run.
+
 ## [0.4.2] — 2026-08-16
 
 ### Added

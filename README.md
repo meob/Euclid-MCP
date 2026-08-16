@@ -783,6 +783,31 @@ print(r.solutions[0].substitutions)
 
 **Docker image size:** ~370 MB (SWI-Prolog + Python 3.11 + dependencies).
 
+**Native-only (slim):** a smaller image with the pure-Python Euclid-IR engine
+and no SWI-Prolog (`EUCLID_BACKEND=native`). Best for containers with limited
+space or as the default for small knowledge bases.
+
+```bash
+# Build
+docker build -f Dockerfile.native -t euclid-mcp-native .
+
+# Run MCP stdio (interactive)
+docker compose run --rm euclid-mcp-native
+
+# Run HTTP API
+docker run --rm -p 8080:8080 euclid-mcp-native \
+  python3 integrations/euclid_api.py --port 8080
+
+# Quick test — reason directly from CLI
+docker run --rm euclid-mcp-native python3 -c "
+from euclid_mcp.server import reason
+r = reason(knowledge='human(socrates)\nmortal(\$x) IF human(\$x)\n? mortal(\$who)')
+print(r.solutions[0].substitutions)
+"
+```
+
+Base image: [`python:3.12-slim`](https://hub.docker.com/_/python).
+
 ### CLI pipeline
 
 ```bash
