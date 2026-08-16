@@ -3,7 +3,8 @@
 Teach logical reasoning with **Euclid-IR**: you state what is *true* (facts and
 rules), the engine proves what *follows* — and hands you a **proof tree** that
 shows exactly why. No LLM, no magic: just unification, backtracking and
-recursion, the same three ideas that power Prolog since the 1970s.
+recursion, the same three ideas that power [Prolog](https://en.wikipedia.org/wiki/Prolog)
+since the 1970s.
 
 This guide is written for someone who has never seen logic programming. It uses
 the interactive `euclid-cli` REPL as a laboratory, so you learn by typing.
@@ -185,7 +186,8 @@ builds the proof tree you receive.
 
 ### The Prolog version
 
-SWI-Prolog is the primary backend. When you load a knowledge base, the
+[SWI-Prolog](https://www.swi-prolog.org/) is the primary backend. When you load
+a knowledge base, the
 translator appends this tiny interpreter and runs your query through it
 (`euclid_mcp/translator.py`):
 
@@ -387,7 +389,196 @@ machine-readable output — full reference in [`docs/CLI.md`](CLI.md).
 
 ---
 
-## 8. Progressive exercises
+## 8. Beyond the 1:1 mapping: the audit layer
+
+Section 2 called the Euclid-IR → Prolog mapping "deliberately 1:1", and it is —
+but only for the *core*: facts, rules, conjunction, negation, recursion.
+Euclid-IR is **not just a reskin** of Prolog. It layers features on top of the
+language and the tools that have **no Prolog counterpart**, and they all point
+at the same goal: turning a deduction into **evidence** — something an auditor
+can *cite*, *pin*, and *re-verify*.
+
+A bare Prolog session answers with `true`/`false` or variable bindings.
+Euclid-MCP answers with a **documented decision**: the proof tree, the rule
+that fired, the exact knowledge base it was computed from, and a
+machine-readable explanation.
+
+### Rule IDs: making a conclusion citable
+
+The simplest addition is the **rule ID**, and it costs nothing but a comment. A
+rule can carry an audit-trail identifier on its trailing comment:
+
+```
+mortal($x) IF human($x)  # RULE: BIO-001
+```
+
+The engine strips the comment during parsing but keeps the ID and attaches it
+to that rule's proof node. When `explain` renders the proof, the rule is
+*cited*:
+
+```
+- mortal(socrates) is derived by rule BIO-001 from: human(socrates).
+```
+
+And in the raw JSON the `rule` node carries it:
+
+```json
+{"type": "rule", "goal": "mortal(socrates)", "rule_id": "BIO-001",
+ "subproof": {"type": "fact", "goal": "human(socrates)"}}
+```
+
+For multi-line rules the marker goes on the **last body line**:
+
+```
+can_deploy($user, $env) IF
+    user($user) AND
+    role($user, $role) AND
+    clearance($role, $level) AND
+    $level >= 3  # RULE: DEPLOY-01
+```
+
+A few rules of the road, enforced by the engine:
+
+- `# RULE:` is a **reserved marker** — a plain trailing comment (e.g.
+  `# important rule`) stays an ordinary comment and carries no ID.
+- Putting `# RULE:` on a **fact or a query is a parse error** — only rules get
+  IDs.
+- `check_kb` **warns on duplicate IDs** — an auditor wants IDs to be
+  unambiguous.
+- Rules without an ID behave exactly as before; their proofs simply omit
+  `rule_id`.
+
+The point: *"this conclusion derives from rule RBAC-0043"* is a citation, not a
+guess.
+
+### `@version` and `content_hash`: pinning a result to its source
+
+The first line of a knowledge base may declare a version:
+
+```
+@version 1.1
+
+human(socrates)
+human(plato)
+mortal($x) IF human($x)  # RULE: BIO-001
+```
+
+The version travels with every result. But a version number alone is only as
+trustworthy as the file it names — so every tool result also carries a
+**content hash**: the sha256 of the exact KB text that was reasoned over.
+
+```json
+{
+  "query": "mortal($who)",
+  "solutions": [...],
+  "elapsed_ms": 12.4,
+  "content_hash": "a3f9c1e4b82d55f0…",
+  "version": "1.1"
+}
+```
+
+Two properties make this audit-grade:
+
+- **It is present on every return path**, including error branches — a failed
+  `diagnose` run is as pinnable as a successful `reason`.
+- **It is reproducible by anyone**: whoever holds the `.euclid` text and
+  Euclid-MCP can recompute the sha256 and check that the result they are
+  looking at came from *that exact* knowledge base, byte for byte. Nothing in
+  the pipeline hides behind the server.
+
+This is the foundation for everything heavier — KB versioning, signed knowledge
+bases, audit logs. And when you combine a registered `kb_id` with a
+`delta_knowledge` overlay, the hash is computed over the *effective* source
+(base + delta), so the pin always names exactly what was reasoned over.
+
+### `structured_steps`: explanations for machines
+
+`explain` renders proofs as English sentences, but English is a lossy encoding.
+So each explanation also carries `structured_steps`: the same proof, cut into
+typed, language-independent steps:
+
+```json
+{"explanations": [{
+  "substitutions": {"who": "socrates"},
+  "steps": [
+    "mortal(socrates) is derived by rule BIO-001 from: human(socrates).",
+    "human(socrates) is asserted as a fact in the knowledge base."
+  ],
+  "structured_steps": [
+    {"kind": "rule", "goal": "mortal(socrates)", "rule_id": "BIO-001",
+     "body": ["human(socrates)"]},
+    {"kind": "fact", "goal": "human(socrates)", "rule_id": null, "body": []}
+  ]
+}]}
+```
+
+Each step names its `kind` (`fact`, `rule`, `neg`, ...), the `goal`, the
+`rule_id` that produced it, and the `body` conjuncts. A frontend — or an
+auditor's review tool — renders these with its own templates, in any language,
+without ever re-deriving the reasoning.
+
+### Beyond `?-`: the audit toolbelt
+
+A Prolog prompt gives you `?-`. Euclid-MCP wraps reasoning in tools that a
+reviewer actually needs:
+
+- **`check_kb`** — validate the KB *before* it is used, and get the
+  **predicate inventory** (name → arities, facts, rules counts). That inventory
+  is the derived contract for LLM extraction: what predicates exist, how they
+  are used, and whether any rule ID collides.
+- **`diagnose`** — justify a *denial*. `why` explains a success, `why_not`
+  explains a failure ("facts exist for `human`, but none for `aristotle`"), and
+  `what_needs` suggests the fact that would flip the answer. A denied request
+  becomes a *reasoned* denial.
+- **`what_if`** — show, not guess: `+ human(aristotle)` proves the answer
+  would change from 2 to 3 solutions, *before* touching the real KB. Scenario
+  analysis with the same engine, the same proofs.
+- **`register_kb` / `kb_id` / `delta_knowledge`** — a named, validated base
+  plus a session overlay, with every result still pinned by the hash of the
+  effective source.
+
+### A complete audit trace
+
+Put it together. The knowledge base shipped for review:
+
+```
+@version 1.1
+
+human(socrates)
+human(plato)
+mortal($x) IF human($x)  # RULE: BIO-001
+```
+
+An agent claims: *"mortal(plato) holds, by rule BIO-001."* The auditor does not
+take the claim — the auditor re-runs:
+
+1. **Pin** — `reason` returns `content_hash` and `version: "1.1"`. The auditor
+   recomputes the sha256 over the shipped `.euclid` text and the hashes match:
+   the result was computed from *this* KB, not a stale one.
+2. **Cite** — `explain` renders the proof as sentences and as
+   `structured_steps`; both carry `rule_id: "BIO-001"`. The conclusion maps to
+   a named rule, and the rule maps to its ID in the source.
+3. **Re-verify the boundary** — `what_if - human(plato)` shows the answer would
+   change: the result genuinely depends on that fact, which is exactly what a
+   reviewer wants to know.
+4. **Justify a denial** — `diagnose mortal(aristotle) why_not` finds that the
+   fact is missing, not the rule broken. The denial now has a documented
+   reason.
+
+| Bare Prolog answer | Euclid-MCP result |
+|--------------------|-------------------|
+| `true` / `false` or bindings | solutions + proof trees |
+| anonymous rules | `rule_id` on every `rule` node, cited by `explain` |
+| no provenance | `content_hash` + `version` on every result, re-verifiable by anyone |
+| natural-language-only explanation | `structured_steps`: typed, language-independent |
+| `?-` | `check_kb`, `diagnose`, `what_if`, `register_kb` |
+
+A bare Prolog answer is a yes/no. A Euclid-MCP result is a **documented
+decision**.
+
+---
+
+## 9. Progressive exercises
 
 Try each one in the REPL. Notice *what* the engine prints, not just the answer.
 
@@ -481,7 +672,7 @@ what to add.
 
 ---
 
-## 9. Where to go next
+## 10. Where to go next
 
 - [`docs/EUCLID_IR.md`](EUCLID_IR.md) — the full Euclid-IR language reference
   (syntax, operators, strings, versions).

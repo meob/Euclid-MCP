@@ -869,7 +869,8 @@ included): `monitoring/README.md`.
 
 ## What is Prolog?
 
-**Prolog** (from *PROgrammation en LOGique*) is a declarative logic programming
+[**Prolog**](https://en.wikipedia.org/wiki/Prolog) (from *PROgrammation en
+LOGique*) is a declarative logic programming
 language: instead of telling the machine *how* to compute an answer, you state
 **facts** and **rules** and let it find *what* follows from them, using
 unification and backtracking. Born in the early 1970s, it remains one of the
@@ -877,7 +878,8 @@ most battle-tested tools for symbolic reasoning.
 
 ![SWI-Prolog](docs/swipl.png)
 
-Euclid-MCP uses **SWI-Prolog** as its inference engine. SWI-Prolog is a mature
+Euclid-MCP uses **[SWI-Prolog](https://www.swi-prolog.org/)** as its inference
+engine. SWI-Prolog is a mature
 **open-source** implementation — continuously developed and freely available
 since **1987** — widely used in industry, academia, and research. You write
 your rules in Euclid-IR; the translator compiles them to Prolog, and SWI-Prolog
