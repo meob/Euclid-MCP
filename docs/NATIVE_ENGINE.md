@@ -1,9 +1,8 @@
 # Native Engine
 
 Euclid-MCP's primary inference engine is **SWI-Prolog**. A pure-Python
-**native engine** interprets Euclid-IR directly as a fallback for small
-knowledge bases where SWI-Prolog cannot be installed — e.g. minimal containers
-such as the Glama MCP Server Hosting image.
+**native engine** interprets **Euclid-IR** directly as a fallback for small
+knowledge bases where SWI-Prolog cannot be installed.
 
 It is **not** a full replacement for SWI-Prolog: it targets small, well-formed
 knowledge bases and deliberately implements a subset of the semantics (Horn
@@ -93,6 +92,9 @@ to the Prolog backend — verified per-question on example 07
   `=:=`/`is` do on uninstantiated operands).
 * Solutions whose query variables are not fully bound are dropped (mirrors the
   Prolog backend's JSON serialization).
+* Native Engine is slower than SWI-Prolog
+  (see [`07-native-vs-prolog.md`](../benchmarks/docs/07-native-vs-prolog.md)).
+  Of course it is not *slower by design* but making it faster is not in our roadmap.
 
 ## Test matrix
 

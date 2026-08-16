@@ -85,5 +85,3 @@ the two backends introduced in v0.4.0.
   the Prolog path amortizes translation via `_translate_cached`. A native
   Program memoization keyed on the KB fingerprint (mirroring
   `_translate_cached`) is the obvious next optimization.
-- Earlier incidental timings on the same example (462 ms vs 204 ms, no
-  warm-up) are superseded by this controlled run.
