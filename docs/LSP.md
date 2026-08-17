@@ -165,6 +165,27 @@ language-servers = ["euclid-lsp"]
 command = "euclid-lsp"
 ```
 
+### OpenCode
+
+OpenCode supports custom LSP servers. Add to `opencode.json` in your
+project root:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "euclid": {
+      "command": ["euclid-lsp"],
+      "extensions": [".euclid"]
+    }
+  }
+}
+```
+
+OpenCode will automatically start the LSP server when a `.euclid` file
+is opened, and feed diagnostics back into the agent loop. See the
+[OpenCode LSP docs](https://opencode.ai/docs/lsp/) for details.
+
 ## Troubleshooting
 
 **No diagnostics appear**
