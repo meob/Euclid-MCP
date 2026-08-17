@@ -15,7 +15,8 @@ from pathlib import Path
 import pytest
 
 from euclid_mcp.language import parse
-from euclid_mcp.server import _run_check_kb, reason
+from euclid_mcp.server import reason
+from euclid_mcp.validation import run_check_kb as _run_check_kb
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples" / "13_policy_compiler"
 sys.path.insert(0, str(EXAMPLES / "extract"))

@@ -17,6 +17,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   elements that go beyond a plain Prolog subset (rule IDs, `content_hash`/
   `version`, `structured_steps`, backend dispatch). Reference links to the
   SWI-Prolog documentation at first mention.
+- **LSP server** — `euclid-lsp/`: a full Language Server Protocol
+  implementation for Euclid-IR using pygls v2. Features: real-time
+  diagnostics (parse errors, undefined predicates, circular rules),
+  autocomplete (predicates, keywords, operators, snippets), and hover
+  (predicate info with fact/rule counts). Includes a positioned parser that
+  tracks line/column for every fact, rule, and query.
+- **VS Code extension** — `euclid-lsp/vscode/`: syntax highlighting via
+  TextMate grammar, language configuration (comments, brackets, folding),
+  and LSP client integration. Install with `code --install-extension`.
+- **Shared validation module** — `euclid_mcp/validation.py`: KB validation
+  logic extracted from `server.py` and shared by both the MCP server and the
+  LSP server. Public API: `run_check_kb()`.
+- **New examples** — `examples/00_basics/hello.euclid` (hello world) and
+  `examples/04a_simple_policy/simple_access.euclid` (intermediate example
+  covering all Euclid-IR features: `@version`, `//`, strings, `NOT`,
+  arithmetic, wildcards, rule IDs, conjunction queries).
 
 ### Fixed
 - **CI never ran the native backend** — the matrix installed `swi-prolog` but
@@ -34,6 +50,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   instead of the presence of `swipl` on `PATH`; in-process CLI tests isolate
   `EUCLID_BACKEND`, which `cli.main()` writes to the process env and used to
   leak across tests in the same run.
+- **Example consistency** — normalized comment style (`%` → `#`), translated
+  Italian comments to English, and fixed `=` → `is` for arithmetic assignment
+  in policy compiler examples. Added query lines to `cluedo_rules.euclid` and
+  `role_hierarchy.euclid`.
 
 ## [0.4.2] — 2026-08-16
 

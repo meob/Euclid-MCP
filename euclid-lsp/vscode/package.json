@@ -1,0 +1,60 @@
+{
+  "name": "euclid-ir",
+  "displayName": "Euclid-IR",
+  "description": "Language support for Euclid-IR — deterministic logical reasoning",
+  "version": "0.4.3",
+  "publisher": "euclid-mcp",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "keywords": [
+    "euclid-ir",
+    "prolog",
+    "logic",
+    "reasoning",
+    "mcp"
+  ],
+  "activationEvents": [
+    "onLanguage:euclid"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "euclid",
+        "aliases": ["Euclid-IR", "euclid"],
+        "extensions": [".euclid"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "euclid",
+        "scopeName": "source.euclid",
+        "path": "./syntaxes/euclid.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Euclid-IR",
+      "properties": {
+        "euclid.serverPath": {
+          "type": "string",
+          "default": "euclid-lsp",
+          "description": "Path to the euclid-lsp server executable"
+        },
+        "euclid.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Trace communication between VS Code and the language server"
+        }
+      }
+    }
+  },
+  "dependencies": {}
+}
