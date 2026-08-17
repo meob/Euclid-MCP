@@ -1,0 +1,120 @@
+%YAML 1.2
+---
+name: Euclid-IR
+file_extensions:
+  - euclid
+scope: source.euclid
+
+contexts:
+  main:
+    - include: comments
+    - include: version_directive
+    - include: query
+    - include: rule
+    - include: fact
+    - include: strings
+    - include: variables
+    - include: operators
+    - include: punctuation
+
+  comments:
+    - match: '#.*$'
+      scope: comment.line.number-sign.euclid
+    - match: '//.*$'
+      scope: comment.line.double-slash.euclid
+    - match: '%.*$'
+      scope: comment.line.percent.euclid
+
+  version_directive:
+    - match: '^\s*@version\s+\d+\.\d+'
+      scope: keyword.control.version.euclid
+
+  query:
+    - match: '^\s*\?'
+      scope: keyword.control.query.euclid
+
+  keywords:
+    - match: '\b(IF|AND|NOT)\b'
+      scope: keyword.operator.logical.euclid
+    - match: '\bis\b'
+      scope: keyword.operator.is.euclid
+
+  rule:
+    - match: '^\s*([a-z_]\w*)\s*\('
+      captures:
+        1: entity.name.function.rule-head.euclid
+      push: rule_body
+
+  rule_body:
+    - include: comments
+    - include: strings
+    - include: keywords
+    - include: variables
+    - include: operators
+    - include: punctuation
+    - include: predicate_call
+    - match: '\n'
+      pop: true
+
+  fact:
+    - match: '^\s*([a-z_]\w*)\s*\('
+      captures:
+        1: entity.name.function.fact.euclid
+      push: fact_body
+    - match: '^\s*([a-z_]\w*)\s*(?=$|#|//|%)'
+      captures:
+        1: entity.name.function.fact-zero-arity.euclid
+
+  fact_body:
+    - include: comments
+    - include: strings
+    - include: variables
+    - include: punctuation
+    - include: predicate_call
+    - match: '\n'
+      pop: true
+
+  predicate_call:
+    - match: '\b([a-z_]\w*)\s*(?=\()'
+      captures:
+        1: entity.name.function.predicate-call.euclid
+
+  variables:
+    - match: '\$[a-z_]\w*'
+      scope: variable.other.euclid
+
+  strings:
+    - match: '"'
+      scope: punctuation.definition.string.begin.euclid
+      push: string_double
+    - match: "'"
+      scope: punctuation.definition.string.begin.euclid
+      push: string_single
+
+  string_double:
+    - match: '\\.'
+      scope: constant.character.escape.euclid
+    - match: '"'
+      scope: punctuation.definition.string.end.euclid
+      pop: true
+
+  string_single:
+    - match: '\\.'
+      scope: constant.character.escape.euclid
+    - match: "'"
+      scope: punctuation.definition.string.end.euclid
+      pop: true
+
+  operators:
+    - match: '>=|<=|==|!=|>|<'
+      scope: keyword.operator.comparison.euclid
+    - match: '[+\-*/]'
+      scope: keyword.operator.arithmetic.euclid
+
+  punctuation:
+    - match: '\('
+      scope: punctuation.section.arguments.begin.euclid
+    - match: '\)'
+      scope: punctuation.section.arguments.end.euclid
+    - match: ','
+      scope: punctuation.separator.comma.euclid
