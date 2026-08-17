@@ -1,12 +1,12 @@
-# KB compilata: POL-SEC-042 — Politica di controllo degli accessi (rev. 4.2)
-# Sorgente: examples/13_policy_compiler/source/access_control_policy.md
-# Compilata con il flusso documento -> Euclid-IR -> check_kb (stadio 4: curatela).
-# Ogni regola porta: # RULE: <id> e # src: <sezione del documento sorgente>.
-# NB: il motore cattura il rule_id dal commento a fine regola: # src va quindi
-# prima di # RULE.
+# Compiled KB: POL-SEC-042 — Access Control Policy (rev. 4.2)
+# Source: examples/13_policy_compiler/source/access_control_policy.md
+# Compiled via document → Euclid-IR → check_kb pipeline (stage 4: curation).
+# Each rule carries: # RULE: <id> and # src: <source document section>.
+# NB: the engine captures the rule_id from the trailing comment: # src must therefore
+# come before # RULE.
 
-# --- Fatti di dominio (Sezioni 2-3) ---
-# Sezione 2. Ambienti e livelli minimi
+# --- Domain facts (Sections 2-3) ---
+# Section 2. Environments and minimum levels
 environment(production, tier_1)
 environment(golden, tier_1)
 environment(staging, tier_2)
@@ -17,7 +17,7 @@ deploy_requires_level(golden, 6)
 deploy_requires_level(staging, 4)
 deploy_requires_level(development, 2)
 
-# Sezione 3. Ruoli e gerarchia
+# Section 3. Roles and hierarchy
 role(intern)
 role(junior_dev)
 role(mid_senior_dev)
@@ -38,17 +38,17 @@ deploy_role_level(director, 6)
 deploy_role_level(vp_engineering, 7)
 deploy_role_level(cto, 8)
 
-# --- Fatti di dominio (Sezione 5) ---
+# --- Domain facts (Section 5) ---
 classification(public, 1)
 classification(internal, 2)
 classification(confidential, 3)
 classification(secret, 4)
 
-# --- Regole (Sezione 1) ---
+# --- Rules (Section 1) ---
 can_access_system($u) IF user($u) AND is_active($u)  # src: 1_oggetto_e_ambito_di_applicazione  # RULE: SEC-1-1
 no_access($u) IF user($u) AND NOT is_active($u)  # src: 1_oggetto_e_ambito_di_applicazione  # RULE: SEC-1-2
 
-# --- Regola (Sezione 4) ---
+# --- Rule (Section 4) ---
 can_deploy($u, $env) IF
     user($u) AND
     is_active($u) AND
@@ -58,7 +58,7 @@ can_deploy($u, $env) IF
     deploy_requires_level($env, $min) AND
     $lvl >= $min  # src: 4_facolta_di_rilascio  # RULE: SEC-4-1
 
-# --- Regola (Sezione 5) ---
+# --- Rule (Section 5) ---
 can_access_data($u, $data) IF
     user($u) AND
     is_active($u) AND
@@ -66,11 +66,11 @@ can_access_data($u, $data) IF
     dataset($data, $min) AND
     $level >= $min  # src: 5_accesso_ai_dati_classificati  # RULE: SEC-5-1
 
-# --- Regola (Sezione 6) ---
-# Nota di progettazione: il motore non confronta atomi (== e' aritmetico, non
-# unificazione), quindi la self-approvazione e' rilevata all'ingresso
-# dell'evento e materializzata nel fatto self_approved/1 (pattern
-# denormalizzato, standard nei sistemi di controllo accessi).
+# --- Rule (Section 6) ---
+# Design note: the engine does not compare atoms (== is arithmetic, not
+# unification), so self-approval is detected at event ingress
+# and materialized as the self_approved/1 fact (denormalized pattern,
+# standard in access control systems).
 emergency_access($u) IF
     incident_mode(active) AND
     user($u) AND
@@ -78,14 +78,14 @@ emergency_access($u) IF
     approved_by($u, $approver) AND
     NOT self_approved($u)  # src: 6_accesso_in_emergenza  # RULE: SEC-6-1
 
-# --- Regola (Sezione 7) ---
+# --- Rule (Section 7) ---
 deroga_access_data($u, $data) IF
     user($u) AND
     is_active($u) AND
     written_authorization($u, $data) AND
     NOT suspended($u)  # src: 7_deroghe  # RULE: SEC-7-1
 
-# --- Anagrafiche e dati operativi (non dal documento: dati di sistema) ---
+# --- Registry and operational data (not from document: system data) ---
 user(alice)
 user(bob)
 user(carol)

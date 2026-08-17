@@ -1,0 +1,10 @@
+# Hello World — simplest Euclid-MCP example
+# Facts, one rule, one query.
+
+human(socrates)
+human(plato)
+human(aristotle)
+
+mortal($x) IF human($x)
+
+? mortal($who)

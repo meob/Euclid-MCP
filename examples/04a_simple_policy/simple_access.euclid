@@ -1,0 +1,73 @@
+# Simple Access Policy — Euclid IR
+# Intermediate example: covers string literals, @version, multi-line rules,
+# NOT, arithmetic (>=, ==, !=, <=), wildcards, AND, zero-arity facts,
+# and both comment styles.
+
+@version 1.0
+
+// ── Domain facts ──
+
+user(alice)
+user(bob)
+user(carol)
+user(dave)
+
+# resource(id, name, classification_level)
+# 1 = public, 2 = internal, 3 = confidential, 4 = secret
+resource(database_1, "customer_db", 3)
+resource(storage_2, "analytics_bucket", 1)
+resource(api_3, "payment-gateway", 4)
+resource(docs_4, "internal-wiki", 2)
+
+# Zero-arity fact: system is currently online
+system_online
+
+// ── Role assignments ──
+
+has_role(alice, admin)
+has_role(bob, analyst)
+has_role(carol, analyst)
+has_role(dave, intern)
+
+// ── Policy rules ──
+
+# Admins can access any resource (level >= 1)
+can_access($user, $res) IF
+    user($user) AND
+    has_role($user, admin) AND
+    resource($res, _, $level) AND
+    $level >= 1  # RULE: POL-01
+
+# Analysts can access resources up to confidential (level <= 3)
+can_access($user, $res) IF
+    user($user) AND
+    has_role($user, analyst) AND
+    resource($res, _, $level) AND
+    $level <= 3  # RULE: POL-02
+
+# Any user can access public resources (level == 1) when system is online
+can_access($user, $res) IF
+    user($user) AND
+    system_online AND
+    resource($res, _, $level) AND
+    $level == 1  # RULE: POL-03
+
+# Interns cannot access anything
+blocked($user) IF
+    user($user) AND
+    has_role($user, intern)  # RULE: POL-04
+
+// ── Access check: user must not be blocked AND must have access ──
+
+authorized($user, $res) IF
+    user($user) AND
+    resource($res, _, _) AND
+    NOT blocked($user) AND
+    can_access($user, $res)  # RULE: AUTH-01
+
+# A resource is restricted if level != 1 (not public)
+restricted($res) IF
+    resource($res, _, $level) AND
+    $level != 1  # RULE: META-01
+
+? authorized($who, $what)
