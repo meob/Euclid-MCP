@@ -39,7 +39,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
 
       - name: Install package and dev dependencies (uv.lock)
-        run: uv sync --frozen --extra dev
+        run: uv sync --frozen --all-packages --extra dev
 
       - name: Lint (ruff)
         run: uv run ruff check .
