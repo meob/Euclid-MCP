@@ -243,6 +243,43 @@ def _prove_predicate(self, goal_t, pred, depth, subst):
         if not clause.body:
             yield s, ProofNode(type="fact", goal=render(goal_t, s))
             continue
+        # -----------------------------------------------------------------
+        # Prolog cut (!) — NOT implemented in Euclid-IR
+        # -----------------------------------------------------------------
+        # In Prolog, the cut operator (!) prunes choice points: once a rule
+        # with cut succeeds, the engine does NOT backtrack into alternative
+        # clauses for the same predicate. This is used for:
+        #   - Committing to the first matching rule (if-then-else pattern)
+        #   - Preventing expensive recomputation
+        #   - Implementing deterministic choice
+        #
+        # To implement cut in this engine, you would:
+        #   1. Detect a cut marker in the clause body
+        #   2. After proving the cut's sub-goals, discard all remaining
+        #      choice points for the current predicate
+        #   3. Mark the proof node as "cut" so the backtracking loop stops
+        #
+        # Example pseudo-implementation:
+        #
+        #   if clause.has_cut:
+        #       # Prove goals up to the cut
+        #       cut_proof = self._prove_goals_before_cut(body, depth - 1, s)
+        #       if cut_proof is not None:
+        #           # Commit: yield this solution, stop backtracking
+        #           yield cut_proof.subst, ProofNode(
+        #               type="rule", goal=render(goal_t, cut_proof.subst),
+        #               subproof=cut_proof.proof, rule_id=clause.rule_id,
+        #               cut=True)  # <-- cut flag prevents further backtracking
+        #           return  # <-- exit loop, no more clauses tried
+        #       else:
+        #           continue  # cut's pre-conditions failed, try next clause
+        #
+        # Euclid-IR deliberately omits cut because:
+        #   - It makes reasoning non-monotonic (adding rules changes results)
+        #   - It complicates proof trees (cut nodes need special rendering)
+        #   - Determinism is already achieved via rule ordering + first-match
+        #   - Auditors want full exploration, not pruned search
+        # -----------------------------------------------------------------
         for s2, body_proof in self._prove_goals(body, depth - 1, s):
             yield s2, ProofNode(                      # rule node wraps sub-proof
                 type="rule", goal=render(goal_t, s2),

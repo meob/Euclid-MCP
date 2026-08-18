@@ -52,3 +52,7 @@ still_suspicious($card) IF
 still_suspicious($card) IF
     room($card) AND
     NOT cleared($card)
+
+# ── Query ──
+# Who or what is still a candidate for the envelope?
+? still_suspicious($card)

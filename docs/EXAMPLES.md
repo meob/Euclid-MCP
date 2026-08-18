@@ -8,6 +8,11 @@ Euclid-MCP is a hybrid cognitive architecture: a lightweight LLM describes the w
 After installing Euclid-MCP (via pip or from source with an active virtualenv):
 
 ```bash
+# Hello World — simplest Euclid-IR example (10 lines)
+# Load into the REPL or run via check_kb
+euclid-cli check -f examples/00_basics/hello.euclid
+euclid-cli reason -f examples/00_basics/hello.euclid
+
 # Genealogy — recursive family tree reasoning
 python examples/01_genealogy.py
 
@@ -19,6 +24,10 @@ python examples/03_classification.py
 
 # Business rules — loan eligibility
 python examples/04_loan_eligibility.py
+
+# Simple access policy — intermediate example (NOT, arithmetic, wildcards, rule IDs, @version)
+euclid-cli check -f examples/04a_simple_policy/simple_access.euclid
+euclid-cli reason -f examples/04a_simple_policy/simple_access.euclid
 
 # Compliance auditor — cloud resource policy enforcement
 python examples/05_compliance_auditor/auditor.py
@@ -55,6 +64,24 @@ Examples 05 and 06 demonstrate a **data-driven agent workflow**:
 - Format results into human-readable reports with proof chains
 
 This mirrors how a real agent would work: collect data, describe it as facts, let Euclid reason, and present the results.
+
+### Example 04a: Simple Access Policy
+
+Intermediate example demonstrating all core Euclid-IR features in a single
+readable file: `@version` directive, `//` comments, string literals, zero-arity
+facts, multi-line rules with `# RULE:` IDs, `NOT` (negation), arithmetic
+comparisons (`>=`, `<=`, `==`, `!=`), wildcards (`_`), and conjunction queries.
+
+```bash
+# Validate
+euclid-cli check -f examples/04a_simple_policy/simple_access.euclid
+
+# Reason
+euclid-cli reason -f examples/04a_simple_policy/simple_access.euclid
+
+# Explain with rule ID citations
+euclid-cli explain -f examples/04a_simple_policy/simple_access.euclid
+```
 
 ### Example 07: IT Security & Compliance
 

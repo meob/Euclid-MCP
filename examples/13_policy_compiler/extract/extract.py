@@ -36,7 +36,7 @@ from llm_extractor import (  # noqa: E402
 )
 
 from euclid_mcp.language import parse  # noqa: E402
-from euclid_mcp.server import _run_check_kb  # noqa: E402
+from euclid_mcp.validation import run_check_kb as _run_check_kb  # noqa: E402
 
 PROMPT_PATH = Path(__file__).resolve().parent / "compiler_prompt.md"
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent

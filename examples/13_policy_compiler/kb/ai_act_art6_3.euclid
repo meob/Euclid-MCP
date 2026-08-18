@@ -1,41 +1,41 @@
-# KB compilata: Regolamento (UE) 2024/1689 — articolo 6, paragrafo 3
-# Sorgente: examples/13_policy_compiler/source/ai_act_art6_3.md
-# Compilata con il flusso documento -> Euclid-IR -> check_kb (stadio 4: curatela).
-# Ogni regola porta: # RULE: <id> e # src: <sezione del documento sorgente>.
-# NB: il motore cattura il rule_id dal commento a fine regola: # src va quindi
-# prima di # RULE.
+# Compiled KB: Regulation (EU) 2024/1689 — Article 6, paragraph 3
+# Source: examples/13_policy_compiler/source/ai_act_art6_3.md
+# Compiled via document → Euclid-IR → check_kb pipeline (stage 4: curation).
+# Each rule carries: # RULE: <id> and # src: <source document section>.
+# NB: the engine captures the rule_id from the trailing comment: # src must therefore
+# come before # RULE.
 
-# --- Fatti: sistemi di IA in valutazione (anagrafica, non dal documento) ---
+# --- Facts: AI systems under evaluation (registry, not from document) ---
 ai_system(hr_screening_01)
 ai_system(resume_rank_02)
 ai_system(spam_filter_03)
 ai_system(loan_score_04)
 ai_system(auto_review_05)
 
-# Rientra nell'allegato III dell'AI Act?
+# Listed in Annex III of the AI Act?
 listed_annex3(hr_screening_01)
 listed_annex3(resume_rank_02)
 listed_annex3(loan_score_04)
 listed_annex3(auto_review_05)
 
-# Rischio significativo di danno? Se presente, la deroga non si applica.
+# Significant risk of harm? If present, the exemption does not apply.
 no_significant_risk(hr_screening_01)
 no_significant_risk(resume_rank_02)
 no_significant_risk(loan_score_04)
 no_significant_risk(auto_review_05)
 
-# Condizioni della deroga (lettere a-d)
+# Exemption conditions (letters a-d)
 limited_procedural_task(hr_screening_01)
 improves_prior_result(loan_score_04)
 detects_pattern_deviation(auto_review_05)
 replaces_human_review(auto_review_05)
 preparatory_task(resume_rank_02)
 
-# Profilazione di persone fisiche (art. 3, par. 1, punto 4)
+# Profiling of natural persons (art. 3, para. 1, point 4)
 performs_profiling(hr_screening_01)
 performs_profiling(loan_score_04)
 
-# --- Regole (primo comma) ---
+# --- Rules (first paragraph) ---
 deroga_applicabile($s) IF
     ai_system($s) AND
     listed_annex3($s) AND
@@ -43,7 +43,7 @@ deroga_applicabile($s) IF
     condizione_deroga($s) AND
     NOT performs_profiling($s)  # src: articolo_6_paragrafo_3_primo_comma  # RULE: AIACT-6-3-1
 
-# --- Regole (lettere a-d) ---
+# --- Rules (letters a-d) ---
 condizione_deroga($s) IF ai_system($s) AND limited_procedural_task($s)  # src: articolo_6_paragrafo_3_lettera_a  # RULE: AIACT-6-3-2
 condizione_deroga($s) IF ai_system($s) AND improves_prior_result($s)  # src: articolo_6_paragrafo_3_lettera_b  # RULE: AIACT-6-3-3
 condizione_deroga($s) IF
@@ -52,7 +52,7 @@ condizione_deroga($s) IF
     NOT replaces_human_review($s)  # src: articolo_6_paragrafo_3_lettera_c  # RULE: AIACT-6-3-4
 condizione_deroga($s) IF ai_system($s) AND preparatory_task($s)  # src: articolo_6_paragrafo_3_lettera_d  # RULE: AIACT-6-3-5
 
-# --- Regole (classificazione) ---
+# --- Rules (classification) ---
 high_risk($s) IF
     ai_system($s) AND
     listed_annex3($s) AND

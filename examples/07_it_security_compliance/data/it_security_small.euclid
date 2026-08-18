@@ -1,23 +1,23 @@
-% ═══════════════════════════════════════════════════════════════════
-% IT Security & Compliance — Full Knowledge Base (Small)
-% ═══════════════════════════════════════════════════════════════════
-%
-% 30 users, 50 resources, ~577 facts
-% Combined from policies/ + standards/ + data/
-%
-% For interactive evaluation with Euclid-MCP + Ollama.
-% Usage: paste this entire file as the "knowledge" parameter in reason()
-%
-% For the full dataset (200 users, 300 resources, ~3869 facts),
-% use: examples/07_it_security_compliance/demo.py
-% ═══════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════
+# IT Security & Compliance — Full Knowledge Base (Small)
+# ═══════════════════════════════════════════════════════════════════
+#
+# 30 users, 50 resources, ~577 facts
+# Combined from policies/ + standards/ + data/
+#
+# For interactive evaluation with Euclid-MCP + Ollama.
+# Usage: paste this entire file as the "knowledge" parameter in reason()
+#
+# For the full dataset (200 users, 300 resources, ~3869 facts),
+# use: examples/07_it_security_compliance/demo.py
+# ═══════════════════════════════════════════════════════════════════
 
 
-% ───────────────────────────────────────────────────────────────
-% Layer 1: Standards
-% ───────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────
+# Layer 1: Standards
+# ───────────────────────────────────────────────────────────────
 
-% ── CIS Amazon Web Services Foundations Benchmark ──
+# ── CIS Amazon Web Services Foundations Benchmark ──
 
 cis_control(cis_1_1, 'Maintain separate AWS accounts', high)
 cis_control(cis_1_2, 'Use organizations for multi-account', medium)
@@ -80,7 +80,7 @@ cis_severity(high, 3)
 cis_severity(medium, 2)
 cis_severity(low, 1)
 
-% ── AWS IAM Best Practices ──
+# ── AWS IAM Best Practices ──
 
 violates_separation_of_duties($user) IF
     user($user) AND has_permission($user, deploy_code) AND has_permission($user, approve_deploy)
@@ -94,15 +94,15 @@ excessive_permissions($user, $count) IF
 stale_access($user) IF
     user($user) AND is_active($user) AND last_login_days($user, $days) AND $days > 90
 
-% ── Unused Permissions ──
-% Permissions granted but never used in the last 30 days.
-% NOTE: requires a last_used_days/2 data source not present in the example
-% dataset, so this pattern is not enabled in the example KB.
+# ── Unused Permissions ──
+# Permissions granted but never used in the last 30 days.
+# NOTE: requires a last_used_days/2 data source not present in the example
+# dataset, so this pattern is not enabled in the example KB.
 
-% ── Cross-Account Access ──
-% Cross-account roles should require MFA.
-% NOTE: requires a cross_account_role/1 data source not present in the
-% example dataset, so this pattern is not enabled in the example KB.
+# ── Cross-Account Access ──
+# Cross-account roles should require MFA.
+# NOTE: requires a cross_account_role/1 data source not present in the
+# example dataset, so this pattern is not enabled in the example KB.
 
 privilege_escalation_risk($user) IF
     user($user) AND has_permission($user, attach_user_policy) AND has_permission($user, create_access_key)
@@ -110,10 +110,10 @@ privilege_escalation_risk($user) IF
 privilege_escalation_risk($user) IF
     user($user) AND has_permission($user, put_role_policy) AND has_permission($user, assume_role)
 
-% ── Root Account Protection ──
-% Root account should have no access keys, no MFA bypass.
-% NOTE: requires iam_user/1 root-account facts not present in the example
-% dataset, so this pattern is not enabled in the example KB.
+# ── Root Account Protection ──
+# Root account should have no access keys, no MFA bypass.
+# NOTE: requires iam_user/1 root-account facts not present in the example
+# dataset, so this pattern is not enabled in the example KB.
 
 service_account_risk($user) IF
     user($user) AND account_type($user, service) AND has_console_access($user)
@@ -124,17 +124,17 @@ admin_boundary_violation($user) IF
 admin_boundary_violation($user) IF
     user($user) AND has_permission($user, manage_users) AND has_permission($user, create_invoice)
 
-% ── Resource-Level Permissions ──
-% Permissions should be scoped to specific resources, not wildcards.
-% NOTE: requires a has_wildcard_permission/2 data source not present in the
-% example dataset, so this pattern is not enabled in the example KB.
+# ── Resource-Level Permissions ──
+# Permissions should be scoped to specific resources, not wildcards.
+# NOTE: requires a has_wildcard_permission/2 data source not present in the
+# example dataset, so this pattern is not enabled in the example KB.
 
 
-% ───────────────────────────────────────────────────────────────
-% Layer 2: Policies
-% ───────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────
+# Layer 2: Policies
+# ───────────────────────────────────────────────────────────────
 
-% ── Role Hierarchy ──
+# ── Role Hierarchy ──
 
 role(intern)
 role(junior_dev)
@@ -203,9 +203,9 @@ deploy_role_level(vp_engineering, 7)
 deploy_role_level(cto, 8)
 
 role_level($role, $level) IF deploy_role_level($role, $level)
-role_level($role, $level) IF inherits($role, $parent) AND role_level($parent, $parent_level) AND $level = $parent_level + 1
+role_level($role, $level) IF inherits($role, $parent) AND role_level($parent, $parent_level) AND $level is $parent_level + 1
 
-% ── Environment Tiers ──
+# ── Environment Tiers ──
 
 environment(production, tier_1, highest_security)
 environment(golden, tier_1, highest_security)
@@ -237,7 +237,7 @@ can_access_tier($user, $env) IF user($user) AND has_role($user, $role) AND deplo
 
 can_deploy($user, $env) IF user($user) AND has_role($user, $role) AND deploy_requires_level($env, $min_level) AND deploy_role_level($role, $level) AND $level >= $min_level AND user_has_permission($user, deploy_code)
 
-% ── Data Classification ──
+# ── Data Classification ──
 
 classification(public, 1, no_restrictions)
 classification(internal, 2, need_to_know)
@@ -272,7 +272,7 @@ can_access_resource($user, $resource) IF
 clearance_violation($user, $resource) IF
     user($user) AND resource($resource, _, _, _, _, $res_class) AND classification($res_class, $res_level, _) AND user_max_clearance($user, $user_level) AND $user_level < $res_level
 
-% ── Access Control Rules ──
+# ── Access Control Rules ──
 
 role_permission(intern, read_code)
 role_permission(junior_dev, read_code)
@@ -353,7 +353,7 @@ can_access_database($user) IF user($user) AND user_has_permission($user, access_
 
 production_db_access($user) IF user($user) AND can_access_database($user) AND has_role($user, $role) AND deploy_role_level($role, $level) AND $level >= 5
 
-% ── Approval Workflows ──
+# ── Approval Workflows ──
 
 requires_approval(deploy_production, director, 7)
 requires_approval(deploy_golden, director, 7)
@@ -394,9 +394,9 @@ restricted_during_incident($user) IF
     user($user) AND incident_mode(active) AND has_role($user, $role) AND deploy_role_level($role, $level) AND $level < 5
 
 
-% ───────────────────────────────────────────────────────────────
-% Layer 3: Data
-% ───────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────
+# Layer 3: Data
+# ───────────────────────────────────────────────────────────────
 
 user(ops_0001)
 is_active(ops_0001)
@@ -831,7 +831,7 @@ has_permission(prd_0030, view_analytics)
 has_permission(prd_0030, manage_backlog)
 has_permission(prd_0030, approve_features)
 
-% ── Resources ──
+# ── Resources ──
 
 resource(i_security_ops_0001, staging, not_encrypted, has_backup, private_access, public)
 resource_type(i_security_ops_0001, ec2)

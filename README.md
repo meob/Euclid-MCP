@@ -44,7 +44,7 @@ LLMs describe. Euclid MCP proves.
 For small knowledge bases, facts and rules can be provided with each request.
 
 A knowledge base can be loaded at server startup and reused across
-calls, so agents only pass the session-specific facts for the current query.  
+calls, so agents only pass the session-specific facts for the current query.
 This minimizes token usage, improves performance, and allows small LLMs to reason over large rule sets without reconstructing the entire knowledge base for every request.
 
 
@@ -149,7 +149,7 @@ The external inference gives several advantages:
 In the current implementation Euclid-MCP uses Prolog.  
 Prolog is a 50-year-old battle-tested logic engine. Using it as a "deduction coprocessor" lets small LLMs perform complex multi-step reasoning without needing larger, more expensive models. The intermediate language strips away Prolog's syntax quirks while keeping its logical core.
 
-Some internal [benchmarks](benchmarks/BENCHMARKS.md) demonstrate the difference: with 1 000+ facts, LLMs alone score 2/5 while Euclid-MCP scores 5/5 — and runs 7× faster while outputting 14× fewer tokens.
+A specific [benchmark](benchmarks/docs/02-rbac-at-scale.md) demonstrate the difference: with 1 000+ facts, LLMs alone score 2/5 while Euclid-MCP scores 5/5 — and runs 7× faster while outputting 14× fewer tokens.
 
 
 ## Tools
@@ -317,7 +317,7 @@ A KB can also be **registered once under a `kb_id`** and then referenced on
 every call without resending the text — the in-memory registry is per
 server instance, so replicas re-register their KBs on startup (matching the
 scale-out model of the HTTP API). Up to 32 KBs per instance; `register_kb`
-**overwrites** an existing `kb_id` (update semantics for idempotency).
+overwrites an existing `kb_id` (update semantics for idempotency).
 
 ```python
 # Register once — validated with check_kb first
@@ -906,7 +906,7 @@ most battle-tested tools for symbolic reasoning.
 Euclid-MCP uses **[SWI-Prolog](https://www.swi-prolog.org/)** as its inference
 engine. SWI-Prolog is a mature
 **open-source** implementation — continuously developed and freely available
-since **1987** — widely used in industry, academia, and research. You write
+since 1987 — widely used in industry, academia, and research. You write
 your rules in Euclid-IR; the translator compiles them to Prolog, and SWI-Prolog
 performs the deduction and produces the proof trees that make every Euclid-MCP
 answer verifiable.

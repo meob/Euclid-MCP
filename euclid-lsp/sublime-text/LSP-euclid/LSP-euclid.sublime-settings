@@ -1,0 +1,12 @@
+{
+    "clients": {
+        "LSP-euclid": {
+            "enabled": true,
+            "command": ["euclid-lsp"],
+            "selector": "source.euclid",
+            "env": {},
+            "settings": {},
+            "initialization_options": {}
+        }
+    }
+}

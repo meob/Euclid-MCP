@@ -3,16 +3,16 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "euclid-mcp"
+name = "euclid-lsp"
 version = "0.4.3"
-description = "MCP server for deterministic logical reasoning via Prolog — transforms facts into formal proofs"
+description = "LSP server for Euclid-IR — real-time diagnostics, autocomplete, and hover"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 authors = [
     { name = "Euclid-MCP contributors" }
 ]
-keywords = ["mcp", "prolog", "reasoning", "logic", "proof-trees", "ai-agent"]
+keywords = ["lsp", "euclid-ir", "prolog", "logic", "vscode"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -25,10 +25,8 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "mcp>=2.0",
-    "ollama>=0.6.2",
-    "pydantic>=2.0",
-    "PyYAML>=6.0",
+    "euclid-mcp",
+    "pygls>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -38,50 +36,34 @@ dev = [
     "ruff",
     "mypy",
     "types-PyYAML",
-    "pre-commit",
 ]
 
-[project.urls]
-homepage = "https://github.com/meob/Euclid-MCP"
-repository = "https://github.com/meob/Euclid-MCP"
-
 [project.scripts]
-euclid-mcp = "euclid_mcp:main"
-euclid-cli = "euclid_mcp.cli:main"
+euclid-lsp = "euclid_lsp.server:main"
 
 [tool.setuptools.packages.find]
-include = ["euclid_mcp*"]
+include = ["euclid_lsp*"]
 
 [tool.setuptools.package-data]
-euclid_mcp = ["*.pl"]
+euclid_lsp = ["../grammars/*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "euclid-lsp/tests"]
-pythonpath = [".", "euclid-lsp/src"]
+testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.ruff]
 target-version = "py310"
 line-length = 99
+exclude = ["sublime-text"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
-
-[tool.ruff.lint.per-file-ignores]
-"examples/**" = ["E501"]
-"benchmarks/**" = ["E501"]
-"examples/10_llm_vs_euclid/**" = ["E402"]
 
 [tool.mypy]
 python_version = "3.10"
 ignore_missing_imports = true
 warn_return_any = true
 warn_unused_configs = true
-
-[tool.coverage.report]
-fail_under = 80
-
-[tool.uv.workspace]
-members = ["euclid-lsp"]
 
 [tool.uv.sources]
 euclid-mcp = { workspace = true }
