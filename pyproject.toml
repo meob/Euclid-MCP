@@ -52,6 +52,9 @@ euclid-cli = "euclid_mcp.cli:main"
 [tool.setuptools.packages.find]
 include = ["euclid_mcp*"]
 
+[tool.setuptools.package-data]
+euclid_mcp = ["*.pl"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
