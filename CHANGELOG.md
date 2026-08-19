@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.4] — 2026-08-18
+
+### Added
+- **LSP server for Euclid-IR** — `euclid-lsp/`: a full Language Server Protocol
+  implementation using pygls v2. Features: real-time diagnostics (parse errors,
+  undefined predicates, circular rules), autocomplete (predicates, keywords,
+  operators, snippets), and hover (predicate info with fact/rule counts).
+  Includes a positioned parser that tracks line/column for every fact, rule, and
+  query.
+- **VS Code extension** — `euclid-lsp/vscode/`: syntax highlighting via
+  TextMate grammar, language configuration (comments, brackets, folding), and
+  LSP client integration. Install with `code --install-extension`.
+- **Sublime Text plugin** — `euclid-lsp/sublime-text/`: Euclid-IR syntax
+  support for Sublime Text.
+- **LSP documentation** — `docs/LSP.md`: full LSP server documentation,
+  OpenCode configuration, and editor setup guides.
+- **Didactic cut-operator section** — `docs/DIDACTIC.md` gained a "Pro Tip"
+  section explaining Prolog's cut operator (`!`), why Euclid-IR omits it,
+  and a commented pseudo-implementation for reference.
+- **Improved example coverage** — `examples/00_basics/hello.euclid` and
+  `examples/04a_simple_policy/simple_access.euclid` added; IT Security
+  Compliance example 07 gained `--mode explain` with rule ID citations.
+
+### Fixed
+- **prolog_engine.pl included in wheel** — `package-data` in `pyproject.toml`
+  now includes `*.pl`, so the Prolog engine file is bundled in the wheel and
+  installed correctly via `pip install euclid-mcp`.
+- **server.json indentation** — corrected inconsistent indentation in the
+  package version field.
+- **uv.lock updated for euclid-lsp** — lockfile now includes the euclid-lsp
+  workspace member and its dependencies.
+- **Sublime Text excluded from ruff** — `euclid-lsp/sublime-text` added to
+  ruff's `exclude` list to avoid linting non-Python plugin files.
+- **CI installs workspace packages** — `uv sync` now uses `--all-packages` to
+  install all workspace members (euclid-lsp) in CI, resolving missing test
+  dependencies.
+
+### Changed
+- **CI actions upgraded** — `actions/checkout` v5→v7, `actions/setup-python`
+  v6→v7, `codecov/codecov-action` v6→v7, `astral-sh/setup-uv` pinned to
+  v10.0.1 (replacing v6 to resolve Node.js 20 deprecation warnings).
+
 ## [0.4.3] — 2026-08-16
 
 ### Added

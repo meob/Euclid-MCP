@@ -15,8 +15,7 @@ Euclid-MCP is a hybrid cognitive architecture: a lightweight LLM describes the w
 
 With Euclid-MCP, an 8B model can solve reasoning tasks that stump even 400B+ cloud models — because the engine handles deduction deterministically. Every answer comes with a proof tree, so you can trace *why* a conclusion holds, not just *what* it is. Use it to enforce RBAC policies, audit cloud compliance, validate loan eligibility rules, or reason over any domain where answers must be explainable and verifiable.
 
-Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable intermediate language designed for both AI agents and humans. It uses **SWI-Prolog** as its primary inference engine — and, where SWI-Prolog is not available (e.g. minimal containers), a pure-Python **native engine** that interprets Euclid-IR directly for small knowledge bases
-(see [`docs/NATIVE_ENGINE.md`](docs/NATIVE_ENGINE.md)).
+Euclid-MCP is written in Python and uses **Euclid-IR**, a human-readable intermediate language designed for both AI agents and humans. It uses **SWI-Prolog** as its primary inference engine — and, where SWI-Prolog is not available (e.g. minimal containers), a pure-Python **native engine** that interprets Euclid-IR directly (see [`docs/NATIVE_ENGINE.md`](docs/NATIVE_ENGINE.md)).
 It can be consumed in multiple ways: via **MCP** by AI agents (OpenCode, Claude, Cursor), via **HTTP** by tools and automation platforms (n8n, Zapier, Make), and via **Python API** for direct integration. Euclid-IR rules can also be used to **augment RAG** pipelines with deterministic policy enforcement.
 
 
