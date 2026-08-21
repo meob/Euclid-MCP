@@ -41,8 +41,14 @@ python examples/07_it_security_compliance/demo.py --small
 # Cluedo Detective — solve Cluedo mysteries with deductive elimination
 python examples/08_cluedo/cluedo.py
 
+# Turing Machine — demonstrating Turing-completeness of the language
+python examples/09_turing_machine/tm_machine.py
+
 # LLM vs Euclid-MCP — interactive side-by-side comparison
 python examples/10_llm_vs_euclid/demo.py
+
+# Certainty Factors (mini-MYCIN) — Using both logic and uncertainty
+python examples/11_certainty_factors/certainty_factors.py
 
 # KB validation — check_kb on valid and broken knowledge bases
 python examples/12_kb_check/demo.py

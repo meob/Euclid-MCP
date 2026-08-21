@@ -13,18 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   with SWI-Prolog (see `docs/NATIVE_ENGINE.md`). Numbers stay ASCII (`0-9`),
   so Unicode digits are read as name characters, and variables remain ASCII
   (`$name`) per the Euclid-IR spec — identical on both backends.
-- **Example 09: Turing machine in pure Euclid-IR**
-  (`examples/09_turing_machine/`) — a binary-increment Turing machine with
-  no cut and no lists: the tape is two stacks of nested compound terms and
-  execution is pure deduction (`final/2` reachability over `step/2`),
-  demonstrating Turing-completeness of the language. Runner verifies each
-  halting tape against Python arithmetic on both backends.
-- **Example 11: Certainty factors (mini-MYCIN)**
-  (`examples/11_certainty_factors/`) — MYCIN-style scoring
-  (`rule_CF x min(findings)`) built from `min_of/3`, transitive closure
-  over a canonical symptom order, pattern-shape gates, and exact dyadic
-  arithmetic. Expected ranking flu 0.25 > covid 0.0625 > cold 0.03125,
-  verified on both backends.
+- **Added examples 09 and 11** - a **Turing machine** in pure Euclid-IR
+  demonstrating Turing-completeness of the language and
+  a **Certainty factors implementation** with MYCIN-style scoring and exact dyadic
+  arithmetic.
 
 ### Changed
 - **Unicode parity tests** — `test_reason_tool_unicode` and
