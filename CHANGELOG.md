@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.4.5] — 2026-08-21
+## [0.4.5] — 2026-08-22
 
 ### Added
 - **Unicode atoms in the native engine** — the pure-Python lexer

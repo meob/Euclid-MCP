@@ -109,7 +109,7 @@ are computed from the effective merged source.
 | **Variables** | Start with `$` followed by a lowercase letter: `$x`, `$who`, `$user_name` |
 | **Atoms** | Lowercase identifiers: `tom`, `admin_role`, `us_east_1` |
 | **String literals** | UTF-8 strings in double or single quotes: `"Alice Smith"`, `'http://example.com'` |
-| **Integers** | Digits only: `42`, `0`, `999` |
+| **Numbers** | Decimal integers and floats: `42`, `-7`, `0`, `999`, `3.14`. Scientific notation (`1e3`), hex/binary/octal (`0x10`), digit separators (`1_000`) and trailing name characters (`12abc`) are parse errors. A leading-dot token like `.5` is an **atom**, not a number — write `0.5` |
 | **Comments** | `#`, `//`, or `%` at line start or inline |
 | **Trailing dots** | Optional, ignored (for Prolog familiarity) |
 | **Whitespace** | Newlines separate statements; spaces separate tokens |
@@ -131,7 +131,7 @@ rainy
 
 **Rules:**
 - Predicate name: lowercase, no spaces
-- Arguments: comma-separated (atoms, integers, or variables)
+- Arguments: strictly comma-separated (atoms, numbers, strings, or variables); adjacent terms without a comma (`p(a b)`, `p(1-2)`) are parse errors
 - No arguments → zero-arity fact: `rainy`
 - Zero-arity facts can also be written as bare atoms: `rainy` (equivalent to `rainy.`)
 
@@ -563,6 +563,7 @@ Euclid-IR is a **simplified subset of Horn-clause logic** — the core of Prolog
 | Horn clauses | ✅ Supported | Facts + rules with conjunction |
 | Negation (NOT) | ✅ Supported | Closed-world assumption |
 | Arithmetic | ✅ Supported | `!=`, `<=`, `>`, `>=`, `<`, `==`, `is` |
+| Number literals | ✅ Supported | Decimal integers and floats only — no scientific notation (`1e3`), hex/binary/octal, or digit separators (`1_000`) |
 | Multi-line rules | ✅ Supported | Body spans multiple lines |
 | Conjunction queries | ✅ Supported | `AND` in query |
 | String literals | ✅ Supported | UTF-8 strings in `"..."` or `'...'` |

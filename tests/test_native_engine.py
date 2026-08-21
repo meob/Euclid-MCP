@@ -275,6 +275,34 @@ def test_depth_limit_blocks_recursion():
     assert [s.substitutions["who"] for s in solve_kb(kb, max_depth=1)] == ["bob"]
 
 
+def _chain_kb(n: int) -> str:
+    lines = ["reach(n0)"] + [f"edge(n{i}, n{i + 1})" for i in range(n)]
+    lines.append("reach($b) IF edge($a, $b) AND reach($a)")
+    lines.append(f"? reach(n{n})")
+    return "\n".join(lines)
+
+
+def test_min_max_depth_parity_across_backends(monkeypatch):
+    # A chain of N rule steps requires exactly max_depth = N on both
+    # backends — guards against off-by-one drift in either solver.
+    kb_text = _chain_kb(5)
+    backends = ["native"]
+    if shutil.which("swipl"):
+        backends.append("prolog")
+    for backend in backends:
+        monkeypatch.setenv("EUCLID_BACKEND", backend)
+        minimal = None
+        for m in range(1, 9):
+            res = reason(knowledge=kb_text, max_depth=m)
+            assert res.error is None, f"{backend}: {res.error}"
+            if res.solutions and minimal is None:
+                minimal = m
+                break
+        assert minimal == 5, (
+            f"{backend}: chain of 5 steps needs max_depth=5, got {minimal}"
+        )
+
+
 def test_timeout_raises_matching_message():
     kb = parse(
         "p(a)\np(b)\nq($x) if p($x)\n? q($x)"

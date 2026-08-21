@@ -148,7 +148,7 @@ Native matrix (this release):
 
 | Result | Tests |
 |--------|-------|
-| pass   | `tests/test_native_engine.py` (33) + the whole main suite |
+| pass   | `tests/test_native_engine.py` (34) + the whole main suite |
 | pass   | the Unicode atom tests in `tests/test_unicode_atoms.py`, unmarked — they run on both backends and assert parity (`test_reason_tool_unicode`, `test_what_if_unicode`) |
 
 The CI matrix runs both backends explicitly: the Prolog legs on every supported
