@@ -133,6 +133,26 @@ EUCLID_BACKEND=native python3 examples/08_cluedo/cluedo.py --scenario late
 ```
 
 
+### Example 09: Turing Machine in Pure Euclid-IR
+
+Proof that Euclid-IR is Turing-complete **without** cut, lists, or
+assert/retract: a binary-increment Turing machine where the tape is two
+stacks of nested compound terms (`cell(H, Rest)`) and execution is pure
+deduction — `final/2` reachability over `step/2` transitions. The runner
+feeds initial tapes, the engine halts with the incremented tape, and the
+result is checked against Python's arithmetic.
+
+```bash
+# Run all demo inputs (1011→1100, 111→1000, 100→101, 0→1)
+python3 examples/09_turing_machine/tm_machine.py
+
+# A single input
+python3 examples/09_turing_machine/tm_machine.py --bits 1011
+
+# Native Euclid Engine
+EUCLID_BACKEND=native python3 examples/09_turing_machine/tm_machine.py
+```
+
 ### Example 10: LLM vs Euclid-MCP
 
 Interactive side-by-side comparison: a plain LLM vs the same LLM augmented with Euclid-MCP's reasoning engine. Same model, same knowledge base, dramatically different results.
@@ -164,6 +184,24 @@ python3 examples/10_llm_vs_euclid/generate_kb_markdown.py
 - **Bot B** (Euclid): short system prompt + tool calling via `reason`, `diagnose`, `what_if`, `check_kb`
 - Language-agnostic: speak in any language, the engine translates to Euclid-IR automatically
 - Demonstrates proof trees, deterministic answers, and query diagnosis vs LLM hallucination
+
+### Example 11: Certainty Factors (mini-MYCIN)
+
+A miniature MYCIN-style diagnostic engine: findings carry certainty
+factors, diseases are scored as `rule_CF x min(findings)` via `min_of/3`
+and exact arithmetic (`is`). Includes transitive closure over a canonical
+symptom order, pattern-shape gates so each disease scores through exactly
+one rule, and a dyadic-exact expected ranking: flu 0.25 > covid 0.0625 >
+cold 0.03125. Uncertainty lives in the data; the derivation stays
+deterministic and auditable.
+
+```bash
+# Full ranking with expected-value checks
+python3 examples/11_certainty_factors/certainty_factors.py
+
+# Native Euclid Engine
+EUCLID_BACKEND=native python3 examples/11_certainty_factors/certainty_factors.py
+```
 
 ### Example 13: Policy Compiler — document → Euclid-IR KB → reasoning
 

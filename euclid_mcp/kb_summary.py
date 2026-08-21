@@ -12,6 +12,7 @@ markdown (examples/10_llm_vs_euclid/kb_utils.py).
 import re
 
 from .language import parse
+from .validation import _arity
 
 # Predicate name: a letter (Unicode-aware) followed by word characters.
 _PREDICATE_RE = re.compile(r"([^\W\d_]\w*)\s*(?:\((.*)\))?\s*$", re.UNICODE)
@@ -23,7 +24,7 @@ def _split_predicate(term: str) -> tuple[str, int] | None:
     if not match:
         return None
     name, args = match.group(1), match.group(2)
-    arity = args.count(",") + 1 if args is not None and args.strip() else 0
+    arity = _arity(args) if args is not None else 0
     return name, arity
 
 

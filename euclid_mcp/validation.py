@@ -41,6 +41,34 @@ def _extract_predicate(text: str) -> tuple[str, str] | None:
     return None
 
 
+def _arity(args: str) -> int:
+    """Arity of a predicate argument string: top-level commas + 1.
+
+    Commas inside nested parentheses or quoted strings don't count, so
+    nested compound arguments (e.g. ``cfg(run, tape(cell(1, blank)))``)
+    and string literals containing commas report the correct arity.
+    """
+    if not args.strip():
+        return 0
+    depth = 0
+    quote: str | None = None
+    commas = 0
+    for ch in args:
+        if quote is not None:
+            if ch == quote:
+                quote = None
+            continue
+        if ch in "\"'":
+            quote = ch
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            commas += 1
+    return commas + 1
+
+
 def _split_conjunction(body: str) -> list[str]:
     """Split a rule body on AND, respecting parentheses."""
     parts: list[str] = []
@@ -112,7 +140,7 @@ def run_check_kb(knowledge: str) -> KBCheckResult:
         parsed = _extract_predicate(fact)
         if parsed:
             name, args = parsed
-            arity = args.count(",") + 1 if args else 0
+            arity = _arity(args)
             _add_predicate(name, arity, "facts")
 
     for rule in kb.rules:
@@ -120,7 +148,7 @@ def run_check_kb(knowledge: str) -> KBCheckResult:
         parsed = _extract_predicate(head.strip())
         if parsed:
             name, args = parsed
-            arity = args.count(",") + 1 if args else 0
+            arity = _arity(args)
             _add_predicate(name, arity, "rules")
 
     defined: dict[str, set[int]] = {
@@ -156,7 +184,7 @@ def run_check_kb(knowledge: str) -> KBCheckResult:
                     "true", "false", "is", ">", ">=", "<", "<=", "=<", "==", "=\\=", "!="
                 ):
                     continue
-                goal_arity = goal_args.count(",") + 1 if goal_args else 0
+                goal_arity = _arity(goal_args)
                 if goal_name not in defined:
                     errors.append(KBError(
                         type="undefined_predicate",
@@ -176,11 +204,20 @@ def run_check_kb(knowledge: str) -> KBCheckResult:
             name, _ = parsed
             rule_heads.setdefault(name, []).append(rule)
 
+    # Facts count as base cases too: e.g. a reachability predicate may have
+    # a variable-bearing fact (final(cfg(done, $t), cfg(done, $t))) plus a
+    # single recursive rule.
+    fact_names = {
+        parsed[0]
+        for fact in kb.facts
+        if (parsed := _extract_predicate(fact.strip().rstrip(".")))
+    }
+
     for pred_name, rules in rule_heads.items():
         for rule in rules:
             _, body = _split_rule(rule)
             if pred_name in _body_predicates(body):
-                has_base = any(
+                has_base = pred_name in fact_names or any(
                     pred_name not in _body_predicates(_split_rule(r)[1])
                     for r in rules
                 )

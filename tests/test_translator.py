@@ -114,8 +114,12 @@ def test_query_conjunction_dedup_vars():
         query="ancestor(tom, $who) AND parent($who, $x)",
     )
     code = to_prolog(kb)
-    assert "'who': Who" in code
-    assert "'x': X" in code
+    # bindings go through euclid_json_value/2 so compound terms render as
+    # strings instead of crashing json_write
+    assert "euclid_json_value(Who, JWho)" in code
+    assert "euclid_json_value(X, JX)" in code
+    assert "'who': JWho" in code
+    assert "'x': JX" in code
     assert "'who': Who, 'who': Who" not in code
 
 

@@ -1,0 +1,40 @@
+# Turing Machine in pure Euclid-IR — Example 09
+#
+# A deterministic single-tape Turing machine that increments a binary
+# number by 1, written WITHOUT cut, lists, or any Prolog feature outside
+# Euclid-IR. It proves the language is Turing-complete: lists are just
+# nested compound terms, and the tape is two stacks (left/right of head).
+#
+# Encoding
+# --------
+#   cfg(State, tape(LeftStack, RightStack))
+#
+#   RightStack = cell(Head, Rest)  Head = symbol under the read/write head,
+#                                  Rest = cells to its right.
+#   LeftStack  = cell(Y, LRest)    Y = symbol immediately left of the head,
+#                                  LRest = cells further left.
+#   Both stacks end with `blank` padding; `blank` is also the tape alphabet's
+#   blank symbol. States and moves are atoms: run | done, l | n.
+#
+# The machine walks LEFT only: the head starts on the least significant bit,
+# so incrementing needs no rightward motion.
+#
+# Transition table: delta(State, Read, NextState, Write, Move)
+delta(run, 1, run, 0, l)       # carry: flip trailing 1 to 0, keep moving left
+delta(run, 0, done, 1, n)      # carry lands: flip 0 to 1, halt
+delta(run, blank, done, 1, n)  # overflow past MSB: prepend a carried 1
+
+# One execution step, move-left variant:
+# write B under the head, then the head steps onto Y (the left neighbour).
+step(cfg($q, tape(cell($y, $l2), cell($a, $r))), cfg($q2, tape($l2, cell($y, cell($b, $r))))) IF
+    delta($q, $a, $q2, $b, l)
+
+# One execution step, no-move variant: rewrite in place and switch state.
+step(cfg($q, tape($l, cell($a, $r))), cfg($q2, tape($l, cell($b, $r)))) IF
+    delta($q, $a, $q2, $b, n)
+
+# Reachability: a run terminates in Final when the machine reaches `done`.
+final(cfg(done, $t), cfg(done, $t))
+final($c, $f) IF
+    step($c, $c2) AND
+    final($c2, $f)

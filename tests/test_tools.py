@@ -304,6 +304,37 @@ class TestCheckKB:
         assert r.valid is False
         assert any(e.type == "circular_rule" for e in r.errors)
 
+    def test_fact_counts_as_base_case(self):
+        # A variable-bearing fact is a legitimate base case for a recursive
+        # rule (e.g. reachability over structured states).
+        r = check_kb(
+            "final(cfg(done, $t), cfg(done, $t))\n"
+            "step(cfg(run, tape($l, cell(0, $r))),"
+            " cfg(done, tape($l, cell(1, $r))))\n"
+            "final($c, $f) IF step($c, $c2) AND final($c2, $f)\n"
+            "? final(cfg(run, tape(blank, cell(0, blank))), $end)"
+        )
+        assert r.valid is True
+        assert not any(e.type == "circular_rule" for e in r.errors)
+
+    def test_nested_compound_arity(self):
+        # Arity must count only top-level commas: nested compound arguments
+        # must not inflate it (regression for spurious inconsistent_arity).
+        r = check_kb(
+            "delta(run, 1, run, 0, l)\n"
+            "step(cfg(run, tape(cell(1, blank), blank)),"
+            " cfg(done, tape(blank, cell(0, blank))))\n"
+            "? step(cfg(run, tape(blank, blank)), $next)"
+        )
+        assert r.valid is True
+        assert not any(w.type == "inconsistent_arity" for w in r.warnings)
+        assert not any(e.type == "inconsistent_arity" for e in r.errors)
+
+    def test_string_literal_with_comma_arity(self):
+        r = check_kb('address(bob, \'Via Roma, 15\')\n? address(bob, $a)')
+        assert r.valid is True
+        assert not any(w.type == "inconsistent_arity" for w in r.warnings)
+
     def test_garbage_input_no_errors(self):
         r = check_kb("??? INVALID @#$%")
         assert r.valid is True
