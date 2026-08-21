@@ -13,6 +13,7 @@ over. Grammar:
 Examples::
 
     parent(tom, bob)                compound parent [atom tom, atom bob]
+    父(张三)                         compound 父 [atom 张三]   (Unicode atoms)
     $days > 90                      compound > [var days, number 90]
     $level = $parent_level + 1      compound = [var level, compound + [...]]
     not active($u)                  compound not [compound active [...]]
@@ -88,8 +89,13 @@ class Compound:
 
 # ── Lexer ───────────────────────────────────────────────────────────────────
 
-# Characters allowed inside an unquoted atom (beyond [A-Za-z0-9_]).
+# Characters allowed inside an unquoted atom beyond ``\w`` (Unicode letters,
+# digits, underscore): email/host-style punctuation, per Euclid-IR.
 _ATOM_EXTRA = "@._+-"
+
+# Numbers are ASCII 0-9 only (like Prolog); other Unicode digits are part of
+# atom names instead of being misread as numeric literals.
+_ASCII_DIGITS = "0123456789"
 
 # Infix operators expressed as punctuation.
 _MULTI_CHAR_OPS = (">=", "<=", "==", "!=")
@@ -103,7 +109,10 @@ _QUERY_CONJUNCTION = re.compile(r"\s+and\s+", re.IGNORECASE)
 # Lowercase var pattern:  $name  (name = [a-z][a-zA-Z0-9_]*)
 _VAR_RE = re.compile(r"\$([a-z][a-zA-Z0-9_]*)")
 
-_ATOM_RE = re.compile(r"[A-Za-z0-9@._+\-]+")
+# Unquoted atom: ``\w`` (Unicode-aware) plus _ATOM_EXTRA punctuation, so
+# predicate/atom names like 父, смертный or Бог parse natively (matching
+# SWI-Prolog). Case folding stays ASCII-only upstream in language.py.
+_ATOM_RE = re.compile(r"[\w@.+\-]+", re.UNICODE)
 
 
 def _read_string(text: str, i: int) -> tuple[str, int]:
@@ -133,13 +142,18 @@ def _read_number(text: str, i: int) -> tuple[int | float, int]:
     j = i
     if text[j] in "+-":
         j += 1
-    while j < len(text) and text[j].isdigit():
+    while j < len(text) and text[j] in _ASCII_DIGITS:
         j += 1
     is_float = False
-    if j < len(text) and text[j] == "." and j + 1 < len(text) and text[j + 1].isdigit():
+    if (
+        j < len(text)
+        and text[j] == "."
+        and j + 1 < len(text)
+        and text[j + 1] in _ASCII_DIGITS
+    ):
         is_float = True
         j += 1
-        while j < len(text) and text[j].isdigit():
+        while j < len(text) and text[j] in _ASCII_DIGITS:
             j += 1
     s = text[i:j]
     return (float(s) if is_float else int(s)), j
@@ -176,13 +190,24 @@ def _lex(text: str) -> list[Token]:
         ):
             tokens.append(Token("anon", ""))
             i += 1
-        elif ch.isdigit() or (
+        elif ch in _ASCII_DIGITS or (
             ch in "+-"
             and i + 1 < n
-            and text[i + 1].isdigit()
+            and text[i + 1] in _ASCII_DIGITS
         ):
-            value, i = _read_number(text, i)
+            value, j = _read_number(text, i)
+            # A number immediately followed by name characters would be a
+            # scientific-notation / hex / digit-separated literal, which
+            # Euclid-IR does not support. Reject it instead of silently
+            # splitting it into a number plus an atom.
+            if j < n and (text[j].isalnum() or text[j] == "_"):
+                raise ValueError(
+                    f"Unsupported numeric literal near {text[i:j + 3]!r}: "
+                    "Euclid-IR numbers are decimal integers or floats "
+                    "(no scientific notation, hex, or digit separators)"
+                )
             tokens.append(Token("num", str(value)))
+            i = j
         else:
             two = text[i : i + 2]
             if two in _MULTI_CHAR_OPS:
@@ -315,6 +340,13 @@ class _Parser:
                 self.i += 1
                 continue
             args.append(self.parse_expr())
+            sep = self.peek()
+            if sep is None:
+                raise ValueError("Expected ')'")
+            if sep[0] not in ("comma", "rparen"):
+                raise ValueError(
+                    f"Expected ',' or ')' after argument, got {sep.value!r}"
+                )
 
 
 def parse_goal(text: str, counter: VarCounter) -> Term:

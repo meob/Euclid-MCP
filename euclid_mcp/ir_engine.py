@@ -105,6 +105,8 @@ def _eval_arith(t, subst) -> int | float:
             return left - right
         if op == "*":
             return left * right
+        if right == 0:
+            raise RuntimeError("Arithmetic error: division by zero")
         return left / right  # '/' is float division, like Prolog
     raise _NotNumeric(
         f"Arithmetic error: {render(t, subst)} is not a numeric expression"
@@ -411,3 +413,9 @@ def solve_kb(
         return solver.solve()
     except ValueError as exc:
         raise RuntimeError(f"Query parsing error: {exc}") from exc
+    except RecursionError as exc:
+        raise RuntimeError(
+            "Native engine exceeded the Python evaluation stack "
+            "(proof too deep or term too large); "
+            "reduce max_depth or simplify the knowledge base"
+        ) from exc

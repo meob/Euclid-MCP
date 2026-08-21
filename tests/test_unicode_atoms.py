@@ -1,35 +1,17 @@
 """Tests for Unicode atoms (\\p{L}) and ASCII-only case folding.
 
-Unicode atoms are handled by SWI-Prolog; the native engine's lexer is
-ASCII-only (see docs/NATIVE_ENGINE.md). The backend markers below are resolved
-against the *active* backend — not the raw ``EUCLID_BACKEND`` value — so
-``auto`` picks the right one: ``prolog_only`` tests exercise SWI-Prolog's
-Unicode support, while ``native_only`` tests assert the native engine rejects
-non-ASCII input with a clear error instead of being silently skipped.
+Unicode predicate/atom names are supported by **both** backends: SWI-Prolog
+natively, and the native engine through its Unicode-aware lexer (see
+docs/NATIVE_ENGINE.md). Tool-level tests below run unmarked so the suite
+exercises parity on whichever backend is active; native-engine-specific
+behaviour lives in ``tests/test_native_engine.py``.
 """
 
-import pytest
-
-from euclid_mcp.engine import (
-    BACKEND_NATIVE,
-    BACKEND_PROLOG,
-    resolve_backend,
-)
 from euclid_mcp.language import _fold_ascii, parse
 from euclid_mcp.models import KB
 from euclid_mcp.prolog_bridge import execute
 from euclid_mcp.server import check_kb, reason, what_if
 from euclid_mcp.translator import build_query_snippet, kb_to_decls_clauses
-
-prolog_only = pytest.mark.skipif(
-    resolve_backend() != BACKEND_PROLOG,
-    reason="requires the SWI-Prolog engine",
-)
-
-native_only = pytest.mark.skipif(
-    resolve_backend() != BACKEND_NATIVE,
-    reason="requires the native Euclid-IR engine (EUCLID_BACKEND=native)",
-)
 
 # ── case folding ────────────────────────────────────────────────────────────
 
@@ -136,14 +118,12 @@ def test_check_kb_unicode():
     assert res.predicates_count == 1
 
 
-@prolog_only
 def test_reason_tool_unicode():
     res = reason(knowledge="父(张三)\n父(李四)\n? 父($c)")
     assert len(res.solutions) == 2
     assert {s.substitutions["c"] for s in res.solutions} == {"张三", "李四"}
 
 
-@prolog_only
 def test_what_if_unicode():
     res = what_if(
         base_knowledge="human(Сократ)",
@@ -152,29 +132,6 @@ def test_what_if_unicode():
     )
     assert res.after_count == 2
     assert res.before_count == 1
-
-
-@native_only
-def test_reason_tool_unicode_rejected_native():
-    res = reason(knowledge="父(张三)\n父(李四)\n? 父($c)")
-    assert res.solutions == []
-    assert res.error is not None
-    assert "Query parsing error" in res.error
-    assert "Unexpected character" in res.error
-
-
-@native_only
-def test_what_if_unicode_rejected_native():
-    res = what_if(
-        base_knowledge="human(Сократ)",
-        modifications="+ human(Платон)",
-        query="human($w)",
-    )
-    assert res.before_count == 0
-    assert res.after_count == 0
-    assert res.error is not None
-    assert "Query parsing error" in res.error
-    assert "Unexpected character" in res.error
 
 
 def test_yaml_unicode():

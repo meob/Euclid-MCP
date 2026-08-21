@@ -129,3 +129,24 @@ def test_close_is_idempotent_and_engine_relaunches():
     assert len(solutions) == 1
     assert solutions[0].substitutions == {}
     close()
+
+
+def test_compound_binding_rendered_as_string():
+    # A query variable bound to a nested compound term must come back as a
+    # rendered string, not crash json_write with type_error(json_term, ...).
+    kb = KB(
+        facts=[
+            "final(cfg(done, $t), cfg(done, $t))",
+            "step(cfg(run, tape($l, cell(0, $r))),"
+            " cfg(done, tape($l, cell(1, $r))))",
+        ],
+        rules=["final($c, $f) IF step($c, $c2) AND final($c2, $f)"],
+        query="final(cfg(run, tape($l, cell(0, cell(blank, blank)))), $end)",
+    )
+    solutions = _run(kb)
+    assert len(solutions) == 1
+    end = solutions[0].substitutions["end"]
+    assert isinstance(end, str)
+    flat = end.replace(" ", "")
+    assert flat.startswith("cfg(done,tape(")
+    assert "cell(1," in flat

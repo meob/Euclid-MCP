@@ -4,6 +4,64 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.5] — 2026-08-22
+
+### Added
+- **Unicode atoms in the native engine** — the pure-Python lexer
+  (`euclid_mcp/ir_parser.py`) now accepts Unicode predicate/atom names
+  (`父(张三)`, `смертный($x)`, `Бог(Иван)`), closing the last documented gap
+  with SWI-Prolog (see `docs/NATIVE_ENGINE.md`). Numbers stay ASCII (`0-9`),
+  so Unicode digits are read as name characters, and variables remain ASCII
+  (`$name`) per the Euclid-IR spec — identical on both backends.
+- **Added examples 09 and 11** - a **Turing machine** in pure Euclid-IR
+  demonstrating Turing-completeness of the language and
+  a **Certainty factors implementation** with MYCIN-style scoring and exact dyadic
+  arithmetic.
+
+### Changed
+- **Unicode parity tests** — `test_reason_tool_unicode` and
+  `test_what_if_unicode` in `tests/test_unicode_atoms.py` lost their
+  `prolog_only` marker and now run on both backends; the two
+  `native_only` rejection tests were removed together with the limitation.
+  New native-engine-level Unicode tests live in `tests/test_native_engine.py`
+  (predicates, args, rules with rule IDs, negation, case sensitivity).
+
+### Fixed
+- **Native engine crashed on division by zero** — `$x is 1 / 0` raised an
+  uncaught `ZeroDivisionError` that escaped the tool layer (which only
+  catches `RuntimeError`), crashing the `reason` call instead of returning
+  an error result. The native evaluator now raises a clean
+  "Arithmetic error: division by zero", matching the Prolog backend's
+  `engine_error`. A deep proof that exhausts the Python stack is likewise
+  converted into a clear error asking to lower `max_depth`.
+- **Native parser silently split malformed numeric literals** — the lexer
+  read only the leading decimal part of unsupported literal forms
+  (`1e3`, `0x10`, `1_000`, `12abc`) and the argument parser tolerated
+  missing commas, so e.g. `n(1e3)` silently became the arity-2 term
+  `n(1, e3)` and queries failed with zero solutions and no error. Both are
+  now explicit parse errors; `p(1-2)` is rejected too instead of parsing as
+  `p(1, -2)` (see `docs/NATIVE_ENGINE.md`). Regression tests in
+  `tests/test_native_engine.py`.
+- **Preloaded-KB digest dropped Unicode predicates** — the predicate regex in
+  `euclid_mcp/kb_summary.py` was ASCII-lowercase-only, so a preloaded KB with
+  e.g. `Бог(Иван)` omitted that predicate from the server-instructions digest.
+- **Prolog engine crashed on compound-term bindings** — a query variable bound
+  to a nested compound term (e.g. a structured state) made `json_write/3`
+  raise `type_error(json_term, ...)`, surfaced only as an opaque
+  `engine_error`. Both snippet generators now route every binding through a
+  new `euclid_json_value/2` engine helper: atoms become strings, numbers pass
+  through, other terms are rendered via `term_string/2` — matching how the
+  native engine already renders compound bindings. Regression test in
+  `tests/test_prolog_bridge.py`.
+- **Spurious arity warnings/circular-rule errors on nested-compound KBs** —
+  `check_kb` counted *all* commas in a predicate's argument list, so nested
+  compounds (`cfg(run, tape(cell(1, blank)))`) reported inflated arities and
+  triggered false `inconsistent_arity` warnings. Arity counting is now
+  depth- and quote-aware (shared `_arity` helper in `euclid_mcp/validation.py`,
+  also used by the preloaded-KB digest). Additionally, the circular-rule check
+  now accepts a variable-bearing **fact** as a legitimate base case for a
+  recursive rule (e.g. `final(cfg(done, $t), cfg(done, $t))`).
+
 ## [0.4.4] — 2026-08-18
 
 ### Added

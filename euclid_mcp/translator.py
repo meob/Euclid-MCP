@@ -53,6 +53,14 @@ proof_to_json(and(P1, P2), _{type:"and", left:J1, right:J2}) :-
 proof_to_json(neg(G, _), _{type:"neg", goal:S, result:"negated"}) :-
     term_string(G, S), !.
 proof_to_json(true, _{type:"true"}) :- !.
+
+% JSON-safe conversion for solution bindings: atoms become strings,
+% numbers pass through unchanged, any other term (compound, list, free
+% variable) is rendered with term_string/2 — mirroring the native
+% engine's rendering of compound bindings.
+euclid_json_value(V, S) :- atom(V), !, atom_string(V, S).
+euclid_json_value(V, V) :- number(V), !.
+euclid_json_value(V, S) :- term_string(V, S).
 """
 
 
@@ -364,7 +372,7 @@ def build_query_snippet(
     instead of buffering every solution up to the engine timeout.
     """
     query_pl, var_names = _translate_query(query)
-    var_entries = [f"'{vn}': {vn.capitalize()}" for vn in var_names]
+    var_entries = [f"'{vn}': J{vn.capitalize()}" for vn in var_names]
     subs_dict = ", ".join(var_entries)
     if var_entries:
         result_line = "Result = _{{'solution': _{{{s}}}, 'proof': JProof}}".format(
@@ -372,6 +380,14 @@ def build_query_snippet(
         )
     else:
         result_line = "Result = _{'solution': _{}, 'proof': JProof}"
+
+    # Convert every query variable to a JSON-safe value before building the
+    # result dict: json_write/3 raises type_error(json_term, ...) on compound
+    # bindings (e.g. structured terms returned by nested-compound KBs).
+    conv_lines = [
+        f"euclid_json_value({vn.capitalize()}, J{vn.capitalize()}),"
+        for vn in var_names
+    ]
 
     return "\n".join(
         [
@@ -388,6 +404,7 @@ def build_query_snippet(
             "      C1 is C0 + 1,",
             "      nb_setval(euclid_solution_count, C1) ),",
             "    ( proof_to_json(Proof, JProof),",
+            *conv_lines,
             "      array_separator,",
             f"      {result_line},",
             "      json_write(current_output, Result, [width(0)])",
@@ -406,9 +423,12 @@ def _generate_output(kb: KB, max_depth: int, max_solutions: int) -> list[str]:
     query_pl, var_names = _translate_query(query)
 
     var_entries = []
+    conv_entries = []
     for vn in var_names:
         prolog_var = vn.capitalize()
-        var_entries.append(f"'{vn}': {prolog_var}")
+        json_var = f"J{prolog_var}"
+        var_entries.append(f"'{vn}': {json_var}")
+        conv_entries.append(f"euclid_json_value({prolog_var}, {json_var}),")
     subs_dict = ", ".join(var_entries)
 
     lines = [
@@ -424,6 +444,7 @@ def _generate_output(kb: KB, max_depth: int, max_solutions: int) -> list[str]:
         "          C1 is C0 + 1,",
         "          nb_setval(euclid_solution_count, C1) ),",
         "        ( proof_to_json(Proof, JProof),",
+        *conv_entries,
     ]
     if var_entries:
         line = "          Result = _{{'solution': _{{{s}}}, 'proof': JProof}},".format(

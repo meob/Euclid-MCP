@@ -1,0 +1,92 @@
+# Certainty Factors — Example 11
+#
+# A miniature MYCIN-style diagnostic engine: diseases are linked to
+# symptom patterns, each finding carries a certainty factor (CF), and a
+# diagnosis scores rule_CF x min(CF of its findings) — the classic
+# conservative combination. All weights are dyadic fractions (0.75, 0.5,
+# 0.25, 0.125) so every product is exact in binary floating point.
+#
+# The point: the derivation stays fully deterministic. Uncertainty lives
+# in the DATA (an LLM can supply the scores); the ENGINE does exact,
+# auditable arithmetic over it.
+
+# ── findings: symptom + certainty factor ──────────────────────────────
+finding(fever, 0.75)
+finding(cough, 0.5)
+finding(fatigue, 0.25)
+finding(loss_of_smell, 0.125)
+
+# ── canonical symptom order ───────────────────────────────────────────
+# One direction only: keeps pair/triple enumeration duplicate-free and
+# deterministic (no != on atoms needed).
+precedes(fever, cough)
+precedes(cough, fatigue)
+precedes(fatigue, loss_of_smell)
+
+# Transitive closure so any earlier-later pair is reachable.
+precedes($a, $c) IF precedes($a, $b) AND precedes($b, $c)
+
+# ── min_of: third argument is the smaller of two weights ──────────────
+min_of($a, $b, $a) IF $a < $b
+min_of($a, $b, $b) IF $b <= $a
+
+# ── symptom combinations ──────────────────────────────────────────────
+# Every unordered pair once, with the minimum CF of its members.
+symptom_pair($s1, $s2, $m) IF
+    precedes($s1, $s2) AND
+    finding($s1, $w1) AND
+    finding($s2, $w2) AND
+    min_of($w1, $w2, $m)
+
+# Every ordered triple s1 < s2 < s3 once: extend a pair with a later
+# symptom and fold the minimum through.
+symptom_triple($s1, $s2, $s3, $m) IF
+    precedes($s2, $s3) AND
+    symptom_pair($s1, $s2, $m12) AND
+    finding($s3, $w3) AND
+    min_of($m12, $w3, $m)
+
+# ── knowledge base: disease → symptoms + rule certainty factor ────────
+rule_cf(flu, 0.5)
+rule_cf(covid, 0.5)
+rule_cf(cold, 0.125)
+
+supports(flu, fever)
+supports(flu, cough)
+supports(covid, fever)
+supports(covid, cough)
+supports(covid, loss_of_smell)
+supports(cold, cough)
+supports(cold, fatigue)
+
+# Pattern-shape gates: a disease scores ONLY through its declared shape,
+# otherwise partial evidence (e.g. covid's {fever, cough}) would score
+# through the pair rule and distort the ranking.
+pair_disease(flu)
+triple_disease(covid)
+pair_disease(cold)
+
+# ── scoring: rule_CF x min(findings) ──────────────────────────────────
+# Two-symptom diseases
+score($disease, $cf) IF
+    pair_disease($disease) AND
+    rule_cf($disease, $rcf) AND
+    symptom_pair($s1, $s2, $m) AND
+    supports($disease, $s1) AND
+    supports($disease, $s2) AND
+    $cf is $rcf * $m
+
+# Three-symptom diseases
+score($disease, $cf) IF
+    triple_disease($disease) AND
+    rule_cf($disease, $rcf) AND
+    symptom_triple($s1, $s2, $s3, $m) AND
+    supports($disease, $s1) AND
+    supports($disease, $s2) AND
+    supports($disease, $s3) AND
+    $cf is $rcf * $m
+
+# Expected ranking (exact):
+#   flu   = 0.5  * min(0.75, 0.5)            = 0.25
+#   covid = 0.5  * min(0.75, 0.5, 0.125)     = 0.0625
+#   cold  = 0.125 * min(0.5, 0.25)           = 0.03125

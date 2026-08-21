@@ -3,11 +3,10 @@
 These run without SWI-Prolog. They exercise the semantics that the native
 engine must share with the Prolog backend: facts/rules, recursion,
 conjunctions, negation as failure, arithmetic, rule ids, strings, wildcards,
-depth/time limits and the ``EUCLID_BACKEND`` dispatcher.
+Unicode atoms, depth/time limits and the ``EUCLID_BACKEND`` dispatcher.
 
-See ``docs/NATIVE_ENGINE.md`` for the documented limitations (Unicode
-tool-level tests are ``prolog_only`` and live in the main suite; the native
-rejection behaviour is asserted there too).
+See ``docs/NATIVE_ENGINE.md``. Tool-level Unicode tests live in the main
+suite (``tests/test_unicode_atoms.py``) and run on both backends.
 """
 
 import shutil
@@ -205,6 +204,56 @@ def test_hyphenated_atom():
     ]
 
 
+# ── Unicode atoms ────────────────────────────────────────────────────────────
+
+
+def test_unicode_predicate_and_args():
+    kb = parse("父(张三)\n父(李四)\n? 父($c)")
+    assert {s.substitutions["c"] for s in solve_kb(kb, max_solutions=5)} == {
+        "张三",
+        "李四",
+    }
+
+
+def test_unicode_rule_with_rule_id():
+    kb = parse(
+        "human(Сократ)\n"
+        "смертный($x) IF human($x)  # RULE: Т-001\n"
+        "? смертный($who)"
+    )
+    sols = solve_kb(kb, max_solutions=5)
+    assert [s.substitutions["who"] for s in sols] == ["Сократ"]
+    assert sols[0].proof.type == "rule"
+    assert sols[0].proof.rule_id == "Т-001"
+
+
+def test_unicode_negation_and_hyphenated_atom():
+    kb = parse(
+        "пользователь(анна)\n"
+        "активный(боб-1)\n"
+        "неактивный($u) IF пользователь($u) AND NOT активный($u)\n"
+        "? неактивный($who)"
+    )
+    assert [s.substitutions["who"] for s in solve_kb(kb, max_solutions=5)] == [
+        "анна"
+    ]
+
+
+def test_unicode_digit_is_atom_not_number():
+    # Unicode digits are name characters (like SWI-Prolog), not numeric
+    # literals — only ASCII 0-9 starts a number.
+    kb = parse("код(абв-٣)\n? код($k)")
+    assert [s.substitutions["k"] for s in solve_kb(kb, max_solutions=5)] == [
+        "абв-٣"
+    ]
+
+
+def test_unicode_case_sensitive_predicates():
+    # Case folding is ASCII-only, so these are two distinct predicates.
+    kb = parse("БОГ(иван)\n? бог($x)")
+    assert solve_kb(kb, max_solutions=5) == []
+
+
 # ── Limits ───────────────────────────────────────────────────────────────────
 
 
@@ -226,6 +275,34 @@ def test_depth_limit_blocks_recursion():
     assert [s.substitutions["who"] for s in solve_kb(kb, max_depth=1)] == ["bob"]
 
 
+def _chain_kb(n: int) -> str:
+    lines = ["reach(n0)"] + [f"edge(n{i}, n{i + 1})" for i in range(n)]
+    lines.append("reach($b) IF edge($a, $b) AND reach($a)")
+    lines.append(f"? reach(n{n})")
+    return "\n".join(lines)
+
+
+def test_min_max_depth_parity_across_backends(monkeypatch):
+    # A chain of N rule steps requires exactly max_depth = N on both
+    # backends — guards against off-by-one drift in either solver.
+    kb_text = _chain_kb(5)
+    backends = ["native"]
+    if shutil.which("swipl"):
+        backends.append("prolog")
+    for backend in backends:
+        monkeypatch.setenv("EUCLID_BACKEND", backend)
+        minimal = None
+        for m in range(1, 9):
+            res = reason(knowledge=kb_text, max_depth=m)
+            assert res.error is None, f"{backend}: {res.error}"
+            if res.solutions and minimal is None:
+                minimal = m
+                break
+        assert minimal == 5, (
+            f"{backend}: chain of 5 steps needs max_depth=5, got {minimal}"
+        )
+
+
 def test_timeout_raises_matching_message():
     kb = parse(
         "p(a)\np(b)\nq($x) if p($x)\n? q($x)"
@@ -238,6 +315,57 @@ def test_query_parse_error_message():
     kb = KB(facts=["p(a)"], rules=[], query="p(a) extra")
     with pytest.raises(RuntimeError, match="Query parsing error"):
         solve_kb(kb, max_solutions=5)
+
+
+# ── Error robustness ─────────────────────────────────────────────────────────
+
+
+def test_division_by_zero_is_a_clean_runtime_error():
+    kb = parse("bad($x) IF $x is 1 / 0\n? bad($n)")
+    with pytest.raises(RuntimeError, match="division by zero"):
+        solve_kb(kb, max_solutions=5)
+
+
+def test_division_by_zero_surfaces_as_tool_error_not_crash(monkeypatch):
+    monkeypatch.setenv("EUCLID_BACKEND", "native")
+    res = reason(
+        knowledge="bad($x) IF $x is 1 / 0\n? bad($n)",
+        max_solutions=5,
+    )
+    assert res.solutions == []
+    assert res.error is not None
+    assert "division by zero" in res.error
+
+
+def test_unsupported_numeric_literals_are_rejected():
+    # Scientific notation, hex and digit separators are not Euclid-IR
+    # numbers; they must fail loudly instead of silently splitting into
+    # a number plus an atom (which would change the arity).
+    for lit in ("1e3", "0x10", "1_000", "12abc"):
+        kb = parse(f"n({lit})\n? n(_)")
+        with pytest.raises(
+            RuntimeError, match="Query parsing error.*Unsupported numeric literal"
+        ):
+            solve_kb(kb, max_solutions=5)
+
+
+def test_missing_argument_comma_is_a_parse_error():
+    # Adjacent terms without a comma used to be silently accepted as
+    # additional arguments (so p(1-2) parsed as p(1, -2)); they are now
+    # rejected like everywhere else in the grammar.
+    for text in ("p(a b)", "p(1-2)"):
+        kb = parse(f"{text}\n? p($x)")
+        with pytest.raises(RuntimeError, match=r"Expected ',' or '\)'"):
+            solve_kb(kb, max_solutions=5)
+
+
+def test_proof_deeper_than_python_stack_reports_clear_error():
+    lines = ["reach(n0)"] + [f"edge(n{i}, n{i + 1})" for i in range(400)]
+    lines.append("reach($b) IF edge($a, $b) AND reach($a)")
+    lines.append("? reach(n400)")
+    kb = parse("\n".join(lines))
+    with pytest.raises(RuntimeError, match="evaluation stack"):
+        solve_kb(kb, max_depth=500)
 
 
 # ── Integration through the tool layer ───────────────────────────────────────

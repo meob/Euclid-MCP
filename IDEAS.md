@@ -21,6 +21,9 @@
 
 ## Deployment
 - Docker image (`swipl:stable` base) — MCP stdio + HTTP API modes
+- Native-only slim image (`Dockerfile.native`, `python:3.12-slim`) — pure-Python engine, no SWI-Prolog installed
+- Production reference: `docs/PRODUCTION.md` (stateless replicas behind HAProxy); monitoring stack in `monitoring/` (Prometheus + Grafana + cAdvisor)
+- Tooling: `euclid-cli` (subcommands + interactive Euclid-IR REPL), `euclid-lsp/` (Language Server for Euclid-IR)
 
 
 ## NON GOALs
@@ -86,7 +89,10 @@ The following ideas are not approved and maybe they will not be implemented
 ### Explainability
 
 - Graphviz proof tree
-- HTML explanations
+- HTML / localized explanations — the typed `structured_steps` shipped in
+  v0.4.0 (`kind`/`goal`/`rule_id`/`body`) are the intended rendering source,
+  so a UI no longer re-walks proof trees; what remains open is the actual
+  renderer (HTML/SVG front end)
 
 ### IR
 
@@ -96,7 +102,8 @@ It is important to keep Euclid-IR as simple as possible...
 - Temporal predicates
 - **Schema / arity declarations** — `@predicate has_role(person, role)`; validator
   checks arity/args against the schema and gives the LLM a clear "contract" of
-  available predicates (check_kb already collects arities internally)
+  available predicates (check_kb already collects arities internally and flags
+  inconsistent arities as a warning)
 - **`@use "kb_name"`** — reference a pre-loaded named KB from within Euclid-IR
   (`kb_id` + `delta_knowledge` already ship the session overlay; `@use` would be
   its in-IR counterpart)
@@ -107,41 +114,14 @@ It is important to keep Euclid-IR as simple as possible...
 - **Aggregations COUNT/SUM** — DEFERRED (scope risk: violates "Euclid-IR must not
   become another Prolog"; tracked here so it stays a conscious rejection)
 
+### Positioning & docs
 
+Recovered from the Jul 2026 external review when its section was removed:
 
-## External review: by Gemini & ChatGPT (Jul 2026)
-
-Independent reviews.
-
-**Overall verdict: strongly positive.** Both models independently identify the
-same core value — separating probabilistic understanding (LLM) from deterministic
-inference (engine), with Euclid-IR as the auditable intermediate layer. Criticisms
-are constructive extensions, not fundamental objections. No reviewer challenged
-the architecture.
-
-### Already implemented (comments now obsolete)
-
-| Suggestion | Source | Where |
-|---|---|---|
-| String literals `"Alice Smith"` | Gemini P1, ChatGPT P3 | `"..."` / `'...'` UTF-8 |
-| `!=` operator | Gemini P1, ChatGPT P3 | `!=` → `=\=` in translator |
-| Safe negation / unbound-variable check | Gemini P1, ChatGPT P3 | `linter.py` + `check_kb` warning |
-| Persistent-KB teaser in README | ChatGPT | README "Knowledge Base" section |
-| "LLMs describe, Euclid proves" | ChatGPT | README tagline (short form) |
-| Convenience operators `==`/`!=`/`<=` | ChatGPT P1 | canonical forms, mapped by translator |
-
-### Still open — prioritized
-
-Strategic framing (enterprise/consulting angle) lives in an unpublished internal doc.
-
-| # | Idea | Source | Priority |
-|---|---|---|---|
-| 1 | `@use "kb_name"` within Euclid-IR | Gemini P1/P2, ChatGPT P2/P3 | MEDIUM — `kb_id` + `delta_knowledge` already shipped |
-| 2 | Schema/arity declarations (`@predicate`) | ChatGPT P1/P3, Gemini P3 | HIGH — LLM contract + validation |
-| 3 | Confidence split (translation vs inference) | ChatGPT P1 | MEDIUM — positioning/docs |
-| 4 | "Less expressive by design" stated | ChatGPT P1 | MEDIUM — docs |
-| 5 | COUNT/SUM aggregations | Gemini P1 | DEFERRED — scope risk |
-| 6 | Rename "Why External Inference?" | ChatGPT | LOW — cosmetic |
+- **Confidence split (translation vs inference)** — make explicit in docs and
+  tool output which part of an answer comes from the LLM translation step and
+  which from deterministic inference (MEDIUM)
+- Rename README section "Why External Inference?" (LOW, cosmetic)
 
 ## Euclid-IR Language Evolution - Design philosophy
 
