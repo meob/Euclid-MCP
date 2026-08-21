@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.5] — 2026-08-21
+
+### Added
+- **Unicode atoms in the native engine** — the pure-Python lexer
+  (`euclid_mcp/ir_parser.py`) now accepts Unicode predicate/atom names
+  (`父(张三)`, `смертный($x)`, `Бог(Иван)`), closing the last documented gap
+  with SWI-Prolog (see `docs/NATIVE_ENGINE.md`). Numbers stay ASCII (`0-9`),
+  so Unicode digits are read as name characters, and variables remain ASCII
+  (`$name`) per the Euclid-IR spec — identical on both backends.
+
+### Changed
+- **Unicode parity tests** — `test_reason_tool_unicode` and
+  `test_what_if_unicode` in `tests/test_unicode_atoms.py` lost their
+  `prolog_only` marker and now run on both backends; the two
+  `native_only` rejection tests were removed together with the limitation.
+  New native-engine-level Unicode tests live in `tests/test_native_engine.py`
+  (predicates, args, rules with rule IDs, negation, case sensitivity).
+
+### Fixed
+- **Preloaded-KB digest dropped Unicode predicates** — the predicate regex in
+  `euclid_mcp/kb_summary.py` was ASCII-lowercase-only, so a preloaded KB with
+  e.g. `Бог(Иван)` omitted that predicate from the server-instructions digest.
+
 ## [0.4.4] — 2026-08-18
 
 ### Added

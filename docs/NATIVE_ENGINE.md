@@ -60,6 +60,10 @@ server.py ──► engine.py (dispatcher) ──► prolog_bridge.py ──► 
 * Rule ids (`# RULE: <id>`) surfaced as `rule_id` in proofs and cited by
   `explain`
 * String literals (`"..."`, `'...'`) preserved as UTF-8
+* **Unicode predicate/atom names** (`父(张三)`, `смертный($x)`, `Бог(Иван)`),
+  matching SWI-Prolog; case folding stays ASCII-only, so non-ASCII names are
+  case-sensitive (`БОГ` and `бог` are distinct predicates). Variables remain
+  ASCII (`$name`), as in Euclid-IR itself.
 * Wildcards (`_`), negative numbers (`-90`), hyphenated atoms (`security-ops`)
 * Clause ordering matches the Prolog backend (sort by predicate name, then
   statement text), so solution order is identical for typical KBs
@@ -73,11 +77,6 @@ to the Prolog backend — verified per-question on example 07
 
 ## Limitations (by design)
 
-* **ASCII-only lexer**: Unicode predicate/atom names (e.g. `父(张三)`) are not
-  supported natively (SWI-Prolog handles them). The tool-level Unicode support
-  tests are therefore `prolog_only`; the native matrix instead asserts the
-  clear rejection error (`Query parsing error: Unexpected character …`), so the
-  limit is documented rather than silently skipped.
 * **No cut** (`!`), lists, `findall`/`bagof`, dynamic `assert`/`retract`,
   modules, or disjunction — same restriction as Euclid-IR itself.
 * **Depth-limited recursion** (`max_depth`, default 30) and a wall-clock
@@ -112,9 +111,8 @@ Native matrix (this release):
 
 | Result | Tests |
 |--------|-------|
-| pass   | `tests/test_native_engine.py` (23) + the whole main suite |
-| pass   | `test_reason_tool_unicode_rejected_native`, `test_what_if_unicode_rejected_native` (assert the ASCII-only rejection) |
-| skip   | `test_reason_tool_unicode`, `test_what_if_unicode` (`prolog_only` — SWI-Prolog Unicode support) |
+| pass   | `tests/test_native_engine.py` (28) + the whole main suite |
+| pass   | the Unicode atom tests in `tests/test_unicode_atoms.py`, unmarked — they run on both backends and assert parity (`test_reason_tool_unicode`, `test_what_if_unicode`) |
 
 The CI matrix runs both backends explicitly: the Prolog legs on every supported
 Python, plus a `EUCLID_BACKEND=native` leg, so native-specific behaviour is

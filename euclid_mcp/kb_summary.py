@@ -13,7 +13,8 @@ import re
 
 from .language import parse
 
-_PREDICATE_RE = re.compile(r"([a-z_]\w*)\s*(?:\((.*)\))?\s*$")
+# Predicate name: a letter (Unicode-aware) followed by word characters.
+_PREDICATE_RE = re.compile(r"([^\W\d_]\w*)\s*(?:\((.*)\))?\s*$", re.UNICODE)
 
 
 def _split_predicate(term: str) -> tuple[str, int] | None:

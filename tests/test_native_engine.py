@@ -3,11 +3,10 @@
 These run without SWI-Prolog. They exercise the semantics that the native
 engine must share with the Prolog backend: facts/rules, recursion,
 conjunctions, negation as failure, arithmetic, rule ids, strings, wildcards,
-depth/time limits and the ``EUCLID_BACKEND`` dispatcher.
+Unicode atoms, depth/time limits and the ``EUCLID_BACKEND`` dispatcher.
 
-See ``docs/NATIVE_ENGINE.md`` for the documented limitations (Unicode
-tool-level tests are ``prolog_only`` and live in the main suite; the native
-rejection behaviour is asserted there too).
+See ``docs/NATIVE_ENGINE.md``. Tool-level Unicode tests live in the main
+suite (``tests/test_unicode_atoms.py``) and run on both backends.
 """
 
 import shutil
@@ -203,6 +202,56 @@ def test_hyphenated_atom():
     assert [s.substitutions["p"] for s in solve_kb(kb, max_solutions=5)] == [
         "security-ops"
     ]
+
+
+# ── Unicode atoms ────────────────────────────────────────────────────────────
+
+
+def test_unicode_predicate_and_args():
+    kb = parse("父(张三)\n父(李四)\n? 父($c)")
+    assert {s.substitutions["c"] for s in solve_kb(kb, max_solutions=5)} == {
+        "张三",
+        "李四",
+    }
+
+
+def test_unicode_rule_with_rule_id():
+    kb = parse(
+        "human(Сократ)\n"
+        "смертный($x) IF human($x)  # RULE: Т-001\n"
+        "? смертный($who)"
+    )
+    sols = solve_kb(kb, max_solutions=5)
+    assert [s.substitutions["who"] for s in sols] == ["Сократ"]
+    assert sols[0].proof.type == "rule"
+    assert sols[0].proof.rule_id == "Т-001"
+
+
+def test_unicode_negation_and_hyphenated_atom():
+    kb = parse(
+        "пользователь(анна)\n"
+        "активный(боб-1)\n"
+        "неактивный($u) IF пользователь($u) AND NOT активный($u)\n"
+        "? неактивный($who)"
+    )
+    assert [s.substitutions["who"] for s in solve_kb(kb, max_solutions=5)] == [
+        "анна"
+    ]
+
+
+def test_unicode_digit_is_atom_not_number():
+    # Unicode digits are name characters (like SWI-Prolog), not numeric
+    # literals — only ASCII 0-9 starts a number.
+    kb = parse("код(абв-٣)\n? код($k)")
+    assert [s.substitutions["k"] for s in solve_kb(kb, max_solutions=5)] == [
+        "абв-٣"
+    ]
+
+
+def test_unicode_case_sensitive_predicates():
+    # Case folding is ASCII-only, so these are two distinct predicates.
+    kb = parse("БОГ(иван)\n? бог($x)")
+    assert solve_kb(kb, max_solutions=5) == []
 
 
 # ── Limits ───────────────────────────────────────────────────────────────────
