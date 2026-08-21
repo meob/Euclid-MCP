@@ -27,6 +27,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (predicates, args, rules with rule IDs, negation, case sensitivity).
 
 ### Fixed
+- **Native engine crashed on division by zero** — `$x is 1 / 0` raised an
+  uncaught `ZeroDivisionError` that escaped the tool layer (which only
+  catches `RuntimeError`), crashing the `reason` call instead of returning
+  an error result. The native evaluator now raises a clean
+  "Arithmetic error: division by zero", matching the Prolog backend's
+  `engine_error`. A deep proof that exhausts the Python stack is likewise
+  converted into a clear error asking to lower `max_depth`.
+- **Native parser silently split malformed numeric literals** — the lexer
+  read only the leading decimal part of unsupported literal forms
+  (`1e3`, `0x10`, `1_000`, `12abc`) and the argument parser tolerated
+  missing commas, so e.g. `n(1e3)` silently became the arity-2 term
+  `n(1, e3)` and queries failed with zero solutions and no error. Both are
+  now explicit parse errors; `p(1-2)` is rejected too instead of parsing as
+  `p(1, -2)` (see `docs/NATIVE_ENGINE.md`). Regression tests in
+  `tests/test_native_engine.py`.
 - **Preloaded-KB digest dropped Unicode predicates** — the predicate regex in
   `euclid_mcp/kb_summary.py` was ASCII-lowercase-only, so a preloaded KB with
   e.g. `Бог(Иван)` omitted that predicate from the server-instructions digest.

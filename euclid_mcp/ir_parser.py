@@ -195,8 +195,19 @@ def _lex(text: str) -> list[Token]:
             and i + 1 < n
             and text[i + 1] in _ASCII_DIGITS
         ):
-            value, i = _read_number(text, i)
+            value, j = _read_number(text, i)
+            # A number immediately followed by name characters would be a
+            # scientific-notation / hex / digit-separated literal, which
+            # Euclid-IR does not support. Reject it instead of silently
+            # splitting it into a number plus an atom.
+            if j < n and (text[j].isalnum() or text[j] == "_"):
+                raise ValueError(
+                    f"Unsupported numeric literal near {text[i:j + 3]!r}: "
+                    "Euclid-IR numbers are decimal integers or floats "
+                    "(no scientific notation, hex, or digit separators)"
+                )
             tokens.append(Token("num", str(value)))
+            i = j
         else:
             two = text[i : i + 2]
             if two in _MULTI_CHAR_OPS:
@@ -329,6 +340,13 @@ class _Parser:
                 self.i += 1
                 continue
             args.append(self.parse_expr())
+            sep = self.peek()
+            if sep is None:
+                raise ValueError("Expected ')'")
+            if sep[0] not in ("comma", "rparen"):
+                raise ValueError(
+                    f"Expected ',' or ')' after argument, got {sep.value!r}"
+                )
 
 
 def parse_goal(text: str, counter: VarCounter) -> Term:

@@ -289,6 +289,57 @@ def test_query_parse_error_message():
         solve_kb(kb, max_solutions=5)
 
 
+# ── Error robustness ─────────────────────────────────────────────────────────
+
+
+def test_division_by_zero_is_a_clean_runtime_error():
+    kb = parse("bad($x) IF $x is 1 / 0\n? bad($n)")
+    with pytest.raises(RuntimeError, match="division by zero"):
+        solve_kb(kb, max_solutions=5)
+
+
+def test_division_by_zero_surfaces_as_tool_error_not_crash(monkeypatch):
+    monkeypatch.setenv("EUCLID_BACKEND", "native")
+    res = reason(
+        knowledge="bad($x) IF $x is 1 / 0\n? bad($n)",
+        max_solutions=5,
+    )
+    assert res.solutions == []
+    assert res.error is not None
+    assert "division by zero" in res.error
+
+
+def test_unsupported_numeric_literals_are_rejected():
+    # Scientific notation, hex and digit separators are not Euclid-IR
+    # numbers; they must fail loudly instead of silently splitting into
+    # a number plus an atom (which would change the arity).
+    for lit in ("1e3", "0x10", "1_000", "12abc"):
+        kb = parse(f"n({lit})\n? n(_)")
+        with pytest.raises(
+            RuntimeError, match="Query parsing error.*Unsupported numeric literal"
+        ):
+            solve_kb(kb, max_solutions=5)
+
+
+def test_missing_argument_comma_is_a_parse_error():
+    # Adjacent terms without a comma used to be silently accepted as
+    # additional arguments (so p(1-2) parsed as p(1, -2)); they are now
+    # rejected like everywhere else in the grammar.
+    for text in ("p(a b)", "p(1-2)"):
+        kb = parse(f"{text}\n? p($x)")
+        with pytest.raises(RuntimeError, match=r"Expected ',' or '\)'"):
+            solve_kb(kb, max_solutions=5)
+
+
+def test_proof_deeper_than_python_stack_reports_clear_error():
+    lines = ["reach(n0)"] + [f"edge(n{i}, n{i + 1})" for i in range(400)]
+    lines.append("reach($b) IF edge($a, $b) AND reach($a)")
+    lines.append("? reach(n400)")
+    kb = parse("\n".join(lines))
+    with pytest.raises(RuntimeError, match="evaluation stack"):
+        solve_kb(kb, max_depth=500)
+
+
 # ── Integration through the tool layer ───────────────────────────────────────
 
 

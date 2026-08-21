@@ -85,10 +85,18 @@ to the Prolog backend — verified per-question on example 07
 * **One statement per line**: multiple `.`-terminated Prolog-style facts on a
   single line are not supported natively (the Cluedo example was converted to
   idiomatic Euclid-IR for this reason).
+* **Decimal numbers only**: integers and floats (`42`, `-7`, `3.14`). Other
+  literal forms accepted by SWI-Prolog are rejected with a parse error instead
+  of being misread: scientific notation (`1e3`), hex/binary/octal (`0x10`),
+  digit separators (`1_000`), trailing garbage (`12abc`). Write big magnitudes
+  with explicit arithmetic (`1000000`, `$n * 1000`).
 * A `-` immediately after a number is read as a negative number, not
-  subtraction, so `p(1-2)` parses as two arguments `p(1, -2)` and `$x > 90-1`
-  is a parse error. Write arithmetic with spaces (`$a - $b`, `90 - 1`);
-  `$a-$b` is rejected with a parse error.
+  subtraction, so both `p(1-2)` and `$x > 90-1` are parse errors — arguments
+  must be comma-separated and arithmetic needs spaces (`$a - $b`, `90 - 1`;
+  `$a-$b` is rejected too).
+* **Division by zero** raises a clean arithmetic error (the tool layer returns
+  it as an error result, matching the Prolog backend's `engine_error`), not a
+  Python crash.
 * Unbound variables in comparisons/`is` raise an arithmetic error (as Prolog's
   `=:=`/`is` do on uninstantiated operands).
 * Solutions whose query variables are not fully bound are dropped (mirrors the
@@ -96,6 +104,35 @@ to the Prolog backend — verified per-question on example 07
 * Native Engine is slower than SWI-Prolog
   (see [`07-native-vs-prolog.md`](../benchmarks/docs/07-native-vs-prolog.md)).
   Of course it is not *slower by design* but making it faster is not in our roadmap.
+
+## Resource ceilings vs SWI-Prolog
+
+SWI-Prolog documents its own limits
+([representation limits](https://www.swi-prolog.org/pldoc/man?section=limits));
+the native engine's practical ceilings come from the Python interpreter it
+runs on. Measured on CPython 3.12 with the default recursion limit (1000) —
+expect the same *order of magnitude*, not exact values, on other versions:
+
+| Resource | Native ceiling (measured) | Notes |
+|----------|---------------------------|-------|
+| Proof depth (linear chain) | ~320 levels | The API accepts `max_depth` up to 500, but deep proofs hit the Python stack first; exceeding it returns a clear error asking to lower `max_depth`. SWI-Prolog handles chains of 400+ natively. |
+| Conjunction width | ~950 goals `AND`-ed in one query/rule body | Beyond that the solver exhausts the Python stack. |
+| Nested term depth | ~250 | Parser, unifier and renderer all recurse per nesting level. |
+| Timeout coverage | solving only (default 30s) | KB parsing is bounded by the shared 500 KB knowledge-size cap instead. |
+
+Depth *semantics* are identical on both backends: a chain of N rule steps
+needs exactly `max_depth = N` on each — verified empirically (no off-by-one).
+
+Where the native engine differs from SWI-Prolog's documented limits:
+
+| Aspect | Native engine | SWI-Prolog |
+|--------|---------------|------------|
+| Compound arity | no limit (verified at 1500 args) | max arity 1024 |
+| Integers | arbitrary precision (Python `int`) | arbitrary precision (GMP) — parity |
+| Occurs check | always on (`$x = $x + 1` fails cleanly) | off by default (`X = X + 1` builds a cyclic term) |
+| Float literals like `.5` | parsed as an **atom**, not a number | number (`0.5`) — write `0.5` explicitly |
+| `==` / `!=` on non-numeric terms | syntactic equality (native extension) | `=:=` raises a type error |
+
 
 ## Test matrix
 
@@ -111,7 +148,7 @@ Native matrix (this release):
 
 | Result | Tests |
 |--------|-------|
-| pass   | `tests/test_native_engine.py` (28) + the whole main suite |
+| pass   | `tests/test_native_engine.py` (33) + the whole main suite |
 | pass   | the Unicode atom tests in `tests/test_unicode_atoms.py`, unmarked — they run on both backends and assert parity (`test_reason_tool_unicode`, `test_what_if_unicode`) |
 
 The CI matrix runs both backends explicitly: the Prolog legs on every supported
