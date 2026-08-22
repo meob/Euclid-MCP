@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.6] — 2026-08-22
+
+### Fixed
+- **Backend divergence on non-ASCII variables** — `$città`, `$кто` and any
+  other Unicode variable now behave identically on both backends. The
+  variable-name pattern (`language.VAR_NAME_RE`, single source of truth for
+  the native parser, the Prolog translator and the linter) accepts Unicode
+  letters, and the translator masks variables (`__VAR_name__`) during
+  atom-quoting so they can never be wrapped into quoted atoms. Previously
+  the native engine raised a parse error while SWI-Prolog silently
+  truncated the name (or quoted it into an atom that unified with nothing).
+- **NFC normalization at every entry point** — `parse()` normalizes KB text
+  and `strip_query_prefix()` normalizes explicit queries to NFC, so
+  decomposed (NFD) spellings unify symmetrically on both backends instead
+  of failing on the native engine and matching only byte-identical forms
+  on SWI-Prolog.
+- **String literals bind bare values on both backends** — IR quoted values
+  are translated to single-quoted Prolog *atoms* instead of SWI string
+  terms; bindings are now identical to the native engine's bare content
+  (e.g. `müller`, not `"müller"`). Operators inside literals were already
+  inert data and remain so.
+
+### Added
+- `prova_unicode.py` / `divergenze.py` — Unicode conformance suite and
+  backend-divergence isolator used to pin the fixes above.
+
 ## [0.4.5] — 2026-08-22
 
 ### Added

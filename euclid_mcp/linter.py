@@ -6,6 +6,8 @@ by previous positive goals in the same rule body.
 
 import re
 
+from .language import VAR_NAME_RE
+
 
 def lint_rule(rule: str) -> list[str]:
     """Check a rule for unsafe negation.
@@ -35,7 +37,7 @@ def lint_rule(rule: str) -> list[str]:
                 r"\bNOT\b\s+", "", goal, count=1, flags=re.IGNORECASE
             ).strip()
             # Extract variables from the negated goal
-            neg_vars = set(re.findall(r"\$([a-z][a-zA-Z0-9_]*)", neg_content))
+            neg_vars = set(VAR_NAME_RE.findall(neg_content))
             unbound = neg_vars - bound_vars
             if unbound:
                 warnings.append(
@@ -44,6 +46,6 @@ def lint_rule(rule: str) -> list[str]:
                 )
         else:
             # Positive goal: extract variables and add to bound set
-            bound_vars.update(re.findall(r"\$([a-z][a-zA-Z0-9_]*)", goal))
+            bound_vars.update(VAR_NAME_RE.findall(goal))
 
     return warnings

@@ -1,6 +1,11 @@
 import re
 
-from .language import _extract_strings, _restore_strings, strip_query_prefix
+from .language import (
+    VAR_NAME_RE,
+    _extract_strings,
+    _restore_strings,
+    strip_query_prefix,
+)
 from .models import KB
 
 META_INTERPRETER = """
@@ -121,14 +126,12 @@ def to_prolog(kb: KB, max_depth: int = 30, max_solutions: int = 1000) -> str:
 
 
 def _translate_vars(s: str) -> str:
-    """Translate $vars to Prolog vars, preserving quoted strings."""
+    """Mask $vars as ``__VAR_name__`` placeholders, preserving quoted strings."""
     cleaned, strings = _extract_strings(s)
-    result = re.sub(
-        r"\$([a-z][a-zA-Z0-9_]*)", lambda m: m.group(1).capitalize(), cleaned
-    )
+    masked = _mask_vars(cleaned)
     for i, str_literal in enumerate(strings):
-        result = result.replace(f"__STR_{i}__", str_literal)
-    return result
+        masked = masked.replace(f"__STR_{i}__", str_literal)
+    return masked
 
 
 def _translate_operators(s: str) -> str:
@@ -158,6 +161,50 @@ def _prolog_escape_str(s: str) -> str:
 
 _PLACEHOLDER_RE = re.compile(r"^__STR_\d+__$")
 
+_VAR_MASK_RE = re.compile(r"__VAR_(.+?)__")
+
+
+def _mask_vars(s: str) -> str:
+    """Replace ``$vars`` with ``__VAR_name__`` placeholders.
+
+    Masking instead of translating directly to capitalized variables keeps
+    the later atom-quoting pass from ever seeing variables: a naive quoter
+    would wrap a non-ASCII variable like ``$кто`` into the atom ``'Кто'``
+    (uppercase-initial looks unsafe), which then never unifies.
+    """
+    return VAR_NAME_RE.sub(lambda m: f"__VAR_{m.group(1)}__", s)
+
+
+def _unmask_vars(s: str) -> str:
+    """Replace ``__VAR_name__`` placeholders with Prolog variables."""
+    return _VAR_MASK_RE.sub(lambda m: m.group(1).capitalize(), s)
+
+
+def _literal_to_prolog(literal: str) -> str:
+    """Convert an IR quoted literal (``"..."`` or ``'...'``) to a Prolog atom.
+
+    Euclid-IR strings are opaque atomic values: the native engine binds
+    their unquoted content, while SWI double-quoted syntax produces *string*
+    terms that serialize with their quotes via ``term_string/3`` — a silent
+    backend divergence. Re-emitting as a single-quoted atom keeps both
+    backends byte-identical.
+    """
+    if len(literal) >= 2 and literal[0] == literal[-1] and literal[0] in "\"'":
+        # Unescape exactly like ir_parser._read_string: \x -> x.
+        out: list[str] = []
+        body = literal[1:-1]
+        i = 0
+        while i < len(body):
+            ch = body[i]
+            if ch == "\\" and i + 1 < len(body):
+                out.append(body[i + 1])
+                i += 2
+            else:
+                out.append(ch)
+                i += 1
+        return _prolog_escape_str("".join(out))
+    return literal
+
 
 def _quote_atom(name: str) -> str:
     """Single-quote a Prolog atom whose first char would be misread.
@@ -184,6 +231,8 @@ def _quote_term(term: str) -> str:
         return term
     if _PLACEHOLDER_RE.match(term):
         return term
+    if term.startswith("__VAR_"):
+        return term  # masked variable token
     if term.startswith("(") and term.endswith(")"):
         inner = term[1:-1]
         args = _split_args(inner)
@@ -196,6 +245,10 @@ def _quote_term(term: str) -> str:
         return f"{_quote_atom(name)}({', '.join(_quote_term(a) for a in args)})"
     # atomic token
     if term == "_":
+        return term
+    if term.startswith("__VAR_") or "__STR_" in term:
+        # Masked variable / string placeholder inside an operator expression
+        # (e.g. "__VAR_days__ > 90"): leave the whole expression untouched.
         return term
     if term[0].isascii() and term[0].isupper():
         return term  # translated $var -> Variable
@@ -212,8 +265,8 @@ def _quote_goal(pl_goal: str) -> str:
     cleaned, strings = _extract_strings(pl_goal)
     result = _quote_term(cleaned)
     for i, s in enumerate(strings):
-        result = result.replace(f"__STR_{i}__", s)
-    return result
+        result = result.replace(f"__STR_{i}__", _literal_to_prolog(s))
+    return _unmask_vars(result)
 
 
 def _quote_body(pl_body: str) -> str:
@@ -229,8 +282,8 @@ def _quote_body(pl_body: str) -> str:
             quoted.append(_quote_term(g))
     result = ", ".join(quoted)
     for i, s in enumerate(strings):
-        result = result.replace(f"__STR_{i}__", s)
-    return result
+        result = result.replace(f"__STR_{i}__", _literal_to_prolog(s))
+    return _unmask_vars(result)
 
 
 def _split_args(s: str) -> list[str]:
@@ -314,7 +367,7 @@ def _translate_query(query: str) -> tuple[str, list[str]]:
     # Deduplicate variable names while preserving order
     seen: set[str] = set()
     var_names: list[str] = []
-    for vn in re.findall(r"\$([a-z][a-zA-Z0-9_]*)", query):
+    for vn in VAR_NAME_RE.findall(query):
         if vn not in seen:
             seen.add(vn)
             var_names.append(vn)

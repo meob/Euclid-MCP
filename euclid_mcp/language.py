@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 from .models import KB
 from .sanitizer import sanitize
@@ -7,6 +8,12 @@ VERSION_PATTERN = re.compile(r"^@version\s+(\d+\.\d+)", re.IGNORECASE)
 
 # Trailing comment reserved for rule IDs:  # rule: <id>
 _RULE_ID_PATTERN = re.compile(r"(?<!\S)\s*#\s*rule:\s*(.+?)\s*$", re.IGNORECASE)
+
+# Variable names: "$" + one Unicode letter, then Unicode letters/digits/
+# underscores — e.g. $x, $città, $кто. Single source of truth shared by the
+# native parser (ir_parser), the Prolog translator and the linter, so all
+# three agree on what a variable is regardless of script or accents.
+VAR_NAME_RE = re.compile(r"\$([^\W\d_]\w*)", re.UNICODE)
 
 _RESERVED_KEYWORDS = {"if", "and", "not", "is"}
 
@@ -49,13 +56,17 @@ def strip_query_prefix(text: str) -> str:
     parser), but the same documented prefix is also accepted on the
     ``query`` parameter of the tools, CLI, and HTTP API; the engines
     need the bare goal, so normalize at every entry point.
+
+    The result is also NFC-normalized: queries may arrive from clients that
+    emit decomposed (NFD) spellings, and the two backends must see byte
+    identical atoms to unify them symmetrically.
     """
     normalized = text.strip()
     if normalized.startswith("?-"):
         normalized = normalized[2:]
     elif normalized.startswith("?"):
         normalized = normalized[1:]
-    return normalized.strip()
+    return unicodedata.normalize("NFC", normalized.strip())
 
 
 def _normalize_term(term: str) -> str:
@@ -84,6 +95,11 @@ def parse(text: str) -> KB:
     text = text.strip()
     if not text:
         return KB()
+
+    # Canonical equivalence: normalize decomposed (NFD) spellings to NFC so
+    # identifiers unify symmetrically on every backend (SWI-Prolog compares
+    # raw code points; the native tokenizer rejects combining marks).
+    text = unicodedata.normalize("NFC", text)
 
     # Security: reject dangerous Prolog patterns before parsing
     sanitize(text)
