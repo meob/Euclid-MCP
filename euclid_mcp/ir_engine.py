@@ -32,6 +32,7 @@ from .ir_parser import (
     parse_term,
     query_var_names,
 )
+from .language import strip_query_prefix
 from .models import KB, ProofNode, Solution
 
 _COMPARISON_OPS = {">", ">=", "<", "<=", "==", "!="}
@@ -403,10 +404,11 @@ def solve_kb(
     if not kb.query:
         return []
     try:
+        query_text = strip_query_prefix(kb.query)
         counter = VarCounter()
         program = Program(kb, counter)
-        goals = parse_goals(kb.query, counter)
-        var_map = {name: counter.var(name) for name in query_var_names(kb.query)}
+        goals = parse_goals(query_text, counter)
+        var_map = {name: counter.var(name) for name in query_var_names(query_text)}
         solver = _Solver(
             program, goals, var_map, max_depth, max_solutions, timeout, counter
         )

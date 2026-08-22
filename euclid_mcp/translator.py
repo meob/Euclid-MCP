@@ -1,6 +1,6 @@
 import re
 
-from .language import _extract_strings, _restore_strings
+from .language import _extract_strings, _restore_strings, strip_query_prefix
 from .models import KB
 
 META_INTERPRETER = """
@@ -305,6 +305,7 @@ _ENGINE_PREDICATES = frozenset(
 
 def _translate_query(query: str) -> tuple[str, list[str]]:
     """Translate a Euclid-IR query into (prolog goal, ordered var names)."""
+    query = strip_query_prefix(query)
     query_body = re.sub(r"\s+[Aa][Nn][Dd]\s+", ", ", query.strip().rstrip("."))
     # Wrap in parentheses if it's a conjunction (contains commas at top level)
     if ", " in query_body:

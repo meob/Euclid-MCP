@@ -42,6 +42,22 @@ def _restore_strings(text: str, strings: list[str]) -> str:
     return text
 
 
+def strip_query_prefix(text: str) -> str:
+    """Strip the optional ``?`` / ``?-`` query prefix and surrounding whitespace.
+
+    Query lines inside a KB text carry a leading ``?`` (stripped by the
+    parser), but the same documented prefix is also accepted on the
+    ``query`` parameter of the tools, CLI, and HTTP API; the engines
+    need the bare goal, so normalize at every entry point.
+    """
+    normalized = text.strip()
+    if normalized.startswith("?-"):
+        normalized = normalized[2:]
+    elif normalized.startswith("?"):
+        normalized = normalized[1:]
+    return normalized.strip()
+
+
 def _normalize_term(term: str) -> str:
     """Normalize identifiers in a term to lowercase.
 

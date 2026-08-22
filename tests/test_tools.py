@@ -61,6 +61,36 @@ class TestReason:
         assert r.error is None
         assert len(r.solutions) >= 1
 
+    def test_override_query_with_question_prefix(self):
+        r = reason(
+            "human(socrates)\nhuman(plato)",
+            query="? human(plato)",
+        )
+        assert r.error is None
+        assert len(r.solutions) >= 1
+
+    def test_override_query_with_question_dash_prefix(self):
+        r = reason(
+            "human(socrates)\nhuman(plato)",
+            query="?- human(plato)",
+        )
+        assert r.error is None
+        assert len(r.solutions) >= 1
+
+    def test_override_query_with_question_prefix_and_arithmetic(self):
+        kb = (
+            "merchant(acme_pay)\n"
+            "annual_txn_volume(acme_pay, 6500000)\n"
+            "level_1($m) IF merchant($m) AND annual_txn_volume($m, $n) "
+            "AND $n >= 6000000\n"
+            "roc_required($m) IF level_1($m)\n"
+        )
+        r = reason(knowledge=kb, query="? roc_required($who)")
+        assert r.error is None
+        assert any(
+            s.substitutions.get("who") == "acme_pay" for s in r.solutions
+        )
+
     def test_repeated_same_kb_is_consistent(self):
         kb = (
             "parent(tom, bob)\nparent(bob, ann)\n"
