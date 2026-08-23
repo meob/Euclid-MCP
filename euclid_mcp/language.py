@@ -15,7 +15,7 @@ _RULE_ID_PATTERN = re.compile(r"(?<!\S)\s*#\s*rule:\s*(.+?)\s*$", re.IGNORECASE)
 # three agree on what a variable is regardless of script or accents.
 VAR_NAME_RE = re.compile(r"\$([^\W\d_]\w*)", re.UNICODE)
 
-_RESERVED_KEYWORDS = {"if", "and", "not", "is"}
+_RESERVED_KEYWORDS = {"if", "and", "not", "is", "true", "false"}
 
 
 def _fold_ascii(s: str) -> str:
@@ -88,6 +88,22 @@ def _validate_no_keywords(term: str) -> None:
     if m and m.group(1) in _RESERVED_KEYWORDS:
         raise ValueError(
             f"Reserved keyword '{m.group(1)}' cannot be used as predicate name"
+        )
+
+
+def _validate_no_bare_literal(statement: str, kind: str) -> None:
+    """Reject a bare ``true``/``false`` used as a fact or rule head.
+
+    The two words are boolean literals for rule bodies; as standalone
+    statements they are meaningless and would break the Prolog backend
+    (asserting a clause over a built-in). Vocabulary declarations for
+    expected-input predicates use ``pred($x) IF false`` instead.
+    """
+    stripped = statement.strip()
+    if stripped in ("true", "false"):
+        raise ValueError(
+            f"Reserved keyword '{stripped}' cannot be used as {kind}; "
+            "use it only inside a rule body (e.g. 'pred($x) IF false')"
         )
 
 
@@ -283,9 +299,11 @@ def _normalize_kb(kb: KB) -> KB:
         kb.query = _normalize_term(kb.query)
     for f in kb.facts:
         _validate_no_keywords(f)
+        _validate_no_bare_literal(f, "a fact")
     for r in kb.rules:
         head = re.split(r"\s+if\s+", r, maxsplit=1)[0].strip()
         _validate_no_keywords(head)
+        _validate_no_bare_literal(head, "a rule head")
     if kb.query:
         _validate_no_keywords(kb.query)
     return kb

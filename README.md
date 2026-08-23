@@ -86,6 +86,7 @@ Full language reference: [`docs/EUCLID_IR.md`](docs/EUCLID_IR.md)
 | Implication | `IF` | `mortal($x) IF human($x)` |
 | Conjunction | `AND` | `p($x) AND q($x)` |
 | Negation | `NOT` | `NOT active($user)` |
+| Boolean literals | `true` / `false` in rule bodies | `merchant($m) IF false` |
 | Query | `? predicate` | `? ancestor(tom, $who)` |
 | String literals | `"..."` or `'...'` | `"alice@example.com"` |
 | Multi-line rules | Body on next line | `rule($x) IF\n    body($x)` |

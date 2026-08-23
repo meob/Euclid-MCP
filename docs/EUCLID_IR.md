@@ -41,6 +41,7 @@ Output: `$who = bob`, `$who = ann` (with full proof trees).
 | `head IF body` | Rule | `mortal($x) IF human($x)` |
 | `a AND b` | Conjunction | `p($x) AND q($x)` |
 | `NOT a` | Negation | `NOT active($user)` |
+| `true` / `false` | Boolean body literals | `declared($x) IF false` |
 | `? goal` | Query | `? mortal($who)` |
 | `# RULE: <id>` | Rule ID (trailing comment) | `mortal($x) IF human($x)  # RULE: BIO-001` |
 | `a != b` | Inequality | `$x != 0` |
@@ -222,6 +223,41 @@ eligible($user) IF registered($user) AND NOT blocked($user)
 
 **Warning:** Negation as failure is not logical negation. `NOT mortal(socrates)` succeeds if `mortal(socrates)` cannot be derived — not if it is "false."
 
+### Boolean Literals (`true` / `false`)
+
+The two reserved words are boolean literals for rule bodies:
+
+```
+always($x) IF true      # body always satisfied — the rule proves like a fact
+never($x) IF false      # body never satisfied — the rule can prove nothing
+```
+
+**Semantics** (identical on both engines):
+
+- `true` in a body always succeeds; a rule whose only body goal is `true`
+  proves exactly like a fact (proof node `fact`, or `rule` when it carries
+  a Rule ID).
+- `false` in a body always fails: the rule can never contribute a solution.
+  Under negation it behaves as an empty relation —
+  `NOT declared($x)` holds.
+
+**Reserved:** `true` and `false` cannot be used as predicate names, as bare
+facts, or as rule heads. As *arguments* they are plain atom data:
+`parent(false, x)` is fine. A query goal may use them directly
+(`? false` simply returns zero solutions).
+
+**Vocabulary declarations** — the main use of `IF false`. Knowledge bases
+that follow the load-once/query-many lifecycle keep rules and input facts in
+separate layers: the stable KB declares every predicate whose facts arrive at
+query time via `delta_knowledge`, so it validates green on its own while the
+declarations can never contribute solutions:
+
+```
+# ── Vocabulary declarations (facts arrive via delta_knowledge) ──
+merchant($m) IF false  # RULE: VOCAB-MERCHANT
+annual_txn_volume($m, $n) IF false  # RULE: VOCAB-TXN-VOL
+```
+
 ### Query
 
 The `?` prefix marks a query — what you want to prove:
@@ -237,6 +273,32 @@ The `?` prefix marks a query — what you want to prove:
 - Can include variables (to find bindings) or be ground (boolean check)
 - Can use `AND` for conjunctions
 - Ground queries return empty substitution `{}` if true
+
+#### Unbound query variables
+
+A solution may leave some query variables unbound — e.g. rules whose head
+variable does not occur in the body (*non-range-restricted*), or negation
+over an empty declared predicate:
+
+```
+report($user) IF system_compromised
+system_compromised
+unflagged($m) IF NOT merchant($m)
+
+? report($who)
+```
+
+Both engines keep such solutions and surface the unbound variable as an
+explicit `null` binding instead of dropping the answer:
+
+```json
+{"substitutions": {"who": null}, "proof": {"type": "rule", "goal": "report(_)"}}
+```
+
+Unbound variables inside proof-tree goals render as the wildcard `_`, so
+proof trees are identical across backends and deterministic across runs.
+Treat `null` as "proved regardless of this value" — combine with a bound
+query (e.g. `? report(alice)`) when you need per-value answers.
 
 ### Arithmetic Comparisons
 
@@ -568,6 +630,7 @@ Euclid-IR is a **simplified subset of Horn-clause logic** — the core of Prolog
 | Conjunction queries | ✅ Supported | `AND` in query |
 | String literals | ✅ Supported | UTF-8 strings in `"..."` or `'...'` |
 | Rule IDs | ✅ Supported | `# RULE: <id>` trailing comment, surfaced as `rule_id` in proofs |
+| Boolean literals | ✅ Supported | `true` / `false` in rule bodies; reserved as predicate names |
 | Case-insensitive | ✅ Supported | `Human(ALICE)` → `human(alice)` |
 | Disjunction (OR) | ❌ Not supported | Use multiple rules instead |
 | Cut (!) | ❌ Not supported | No backtracking control |
@@ -658,7 +721,7 @@ Common parsing errors and fixes:
 | "No query found" | Missing `?` line | Add `? predicate(...)` at the end |
 | "Invalid variable" | `$X` or `$123` | Use `$x` or `$name` (lowercase after `$`) |
 | "Unterminated rule" | Missing body after `IF` | Add at least one condition |
-| "Unknown keyword" | A reserved keyword used as a predicate name | Rename the predicate (`if`, `and`, `not` are reserved) |
+| "Unknown keyword" | A reserved keyword used as a predicate name | Rename the predicate (`if`, `and`, `not`, `is`, `true`, `false` are reserved) |
 
 ---
 

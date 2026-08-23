@@ -51,6 +51,11 @@ server.py ──► engine.py (dispatcher) ──► prolog_bridge.py ──► 
 * Facts and rules (Horn clauses), including recursive rules
 * Conjunctions (`AND`), multi-line rule bodies
 * Negation as failure (`NOT`), same depth limit as the Prolog meta-interpreter
+* **Boolean body literals** (`true` / `false`): `p IF false` never proves,
+  `p IF true` proves like a fact (proof node `fact`, or `rule` when the rule
+  carries an ID) — identical to the Prolog meta-interpreter, which has
+  dedicated branches for both literals and a built-in guard so no built-in
+  body goal can raise inside `clause/2`
 * Arithmetic: `> >= < <= == != is =` with `+ - * /` expressions
   (`$level >= $min_level + 1` works; expressions are evaluated recursively)
 * `=` is **unification**, not arithmetic (matches Prolog: `$x = $y + 1`
@@ -99,8 +104,11 @@ to the Prolog backend — verified per-question on example 07
   Python crash.
 * Unbound variables in comparisons/`is` raise an arithmetic error (as Prolog's
   `=:=`/`is` do on uninstantiated operands).
-* Solutions whose query variables are not fully bound are dropped (mirrors the
-  Prolog backend's JSON serialization).
+* Solutions with unbound query variables are kept: unbound variables surface
+  as explicit `null` bindings (`{"who": null}`) and render as the wildcard
+  `_` in proof-tree goals — identical to the Prolog backend, including SWI's
+  fresh-variable normalization (see `docs/EUCLID_IR.md`, "Unbound query
+  variables").
 * Native Engine is slower than SWI-Prolog
   (see [`07-native-vs-prolog.md`](../benchmarks/docs/07-native-vs-prolog.md)).
   Of course it is not *slower by design* but making it faster is not in our roadmap.

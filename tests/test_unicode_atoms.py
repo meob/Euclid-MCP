@@ -7,7 +7,7 @@ exercises parity on whichever backend is active; native-engine-specific
 behaviour lives in ``tests/test_native_engine.py``.
 
 Covers three historically divergent areas (fixed together, see
-NEXT_STEPS.md / CHANGELOG):
+CHANGELOG):
 
 * **non-ASCII variables** (``$città``, ``$кто``) — must survive parsing,
   translation (never quoted into atoms) and end-to-end unification;

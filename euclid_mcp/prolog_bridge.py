@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 # Pattern to remove temp file paths from error messages
 _TEMP_PATH_PATTERN = re.compile(r"/[^\s:]+\.pl:\d+:?\s*")
 
+# SWI-Prolog writes string/quoted-atom literals with either quote style;
+# masking them keeps the fresh-variable rewrite below out of user data.
+_QUOTED_RE = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'')
+_FRESH_VAR_RE = re.compile(r"\b_\d+\b")
+
 _default_server: PrologServer | None = None
 _server_lock = threading.Lock()
 
@@ -26,6 +31,33 @@ _server_lock = threading.Lock()
 def _sanitize_error(msg: str) -> str:
     """Remove internal file paths from Prolog error messages."""
     return _TEMP_PATH_PATTERN.sub("<input>: ", msg).strip()
+
+
+def _normalize_fresh_vars(text: str) -> str:
+    """Rewrite SWI fresh-variable tokens (``_28498``) to wildcards.
+
+    ``term_string`` renders free variables with nondeterministic internal
+    names, which would make proof trees differ run-to-run and from the
+    native engine. They are normalized to the Euclid-IR wildcard ``_``;
+    quoted literals are masked first so user data inside goal text is
+    never rewritten.
+
+    Applies ONLY to engine-generated proof strings (goal/body text).
+    Binding *values* must not go through this: their quoting context is
+    lost during JSON decoding, so a legitimate ``"_123"`` datum is
+    indistinguishable from a fresh token there.
+    """
+    quoted: list[str] = []
+
+    def _mask(m: re.Match) -> str:
+        quoted.append(m.group(0))
+        return f"\x00{len(quoted) - 1}\x00"
+
+    masked = _QUOTED_RE.sub(_mask, text)
+    masked = _FRESH_VAR_RE.sub("_", masked)
+    for i, original in enumerate(quoted):
+        masked = masked.replace(f"\x00{i}\x00", original)
+    return masked
 
 
 def _get_server() -> PrologServer:
@@ -147,10 +179,10 @@ def _parse_proof(d: dict[str, Any]) -> ProofNode:
     t = d.get("type", "true")
     node = ProofNode(type=t)
     if t == "fact":
-        node.goal = d.get("goal")
+        node.goal = _clean(d.get("goal"))
     elif t == "rule":
-        node.goal = d.get("goal")
-        node.body = d.get("body")
+        node.goal = _clean(d.get("goal"))
+        node.body = _clean(d.get("body"))
         node.rule_id = d.get("rule_id")
         if "subproof" in d and isinstance(d["subproof"], dict):
             node.subproof = _parse_proof(d["subproof"])
@@ -160,5 +192,11 @@ def _parse_proof(d: dict[str, Any]) -> ProofNode:
         if "right" in d and isinstance(d["right"], dict):
             node.right = _parse_proof(d["right"])
     elif t == "neg":
-        node.goal = d.get("goal")
+        node.goal = _clean(d.get("goal"))
     return node
+
+
+def _clean(value: Any) -> Any:
+    if isinstance(value, str):
+        return _normalize_fresh_vars(value)
+    return value

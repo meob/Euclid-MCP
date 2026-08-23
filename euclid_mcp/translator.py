@@ -16,6 +16,9 @@ is_arith_goal(Goal) :-
     member(Op, [>, >=, =<, <, =:=, =\\=, is]).
 
 prove(true, _, true) :- !.
+% false literal: always fails, never reaches clause/2 (clause/2 over the
+% built-in false/fail raises permission_error in SWI-Prolog 10).
+prove(false, _, _) :- !, fail.
 prove((A, B), D, and(PA, PB)) :- !,
     prove(A, D, PA),
     prove(B, D, PB).
@@ -24,9 +27,15 @@ prove(Goal, _, true) :-
     Goal.
 prove(\\+ Goal, D, neg(Goal, negated)) :- !,
     \\+ prove(Goal, D, _).
+% Built-in guard: user clauses can never exist for a built-in predicate
+% (SWI-Prolog forbids asserting them), so any built-in body goal simply
+% fails cleanly instead of raising permission_error inside clause/2.
+% This mirrors the native engine, where unknown predicates fail cleanly.
 prove(Goal, _, fact(Goal)) :-
+    \\+ predicate_property(Goal, built_in),
     clause(Goal, true).
 prove(Goal, D, rule(Goal, Rest, BodyProof, Id)) :-
+    \\+ predicate_property(Goal, built_in),
     D > 0,
     D1 is D - 1,
     clause(Goal, Body),
@@ -59,10 +68,11 @@ proof_to_json(neg(G, _), _{type:"neg", goal:S, result:"negated"}) :-
     term_string(G, S), !.
 proof_to_json(true, _{type:"true"}) :- !.
 
-% JSON-safe conversion for solution bindings: atoms become strings,
-% numbers pass through unchanged, any other term (compound, list, free
-% variable) is rendered with term_string/2 — mirroring the native
-% engine's rendering of compound bindings.
+% JSON-safe conversion for solution bindings: unbound variables become
+% JSON null (so non-range-restricted rules keep their solutions, like the
+% native engine), atoms become strings, numbers pass through unchanged,
+% any other term (compound, list) is rendered with term_string/2.
+euclid_json_value(V, @(null)) :- var(V), !.
 euclid_json_value(V, S) :- atom(V), !, atom_string(V, S).
 euclid_json_value(V, V) :- number(V), !.
 euclid_json_value(V, S) :- term_string(V, S).
@@ -323,8 +333,15 @@ def _translate_rule(rule: str, rule_id: str | None = None) -> str:
 
 
 def _extract_pred_sig(term: str) -> str | None:
-    m = re.match(r"(\w+)\s*\((.*)\)\s*$", term.strip())
+    term = term.strip()
+    m = re.match(r"(\w+)\s*\((.*)\)\s*$", term)
     if not m:
+        # Bare zero-arity statement (e.g. "rainy" or a "t IF true" head).
+        # Without a signature the predicate is never declared dynamic nor
+        # registered in the engine workspace, so its clause survives
+        # clear_workspace and duplicates on every subsequent load.
+        if re.fullmatch(r"\w+", term):
+            return f"{_quote_atom(term)}/0"
         return None
     name = m.group(1)
     args_str = m.group(2).strip()
