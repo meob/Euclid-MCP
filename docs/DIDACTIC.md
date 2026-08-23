@@ -193,19 +193,19 @@ translator appends this tiny interpreter and runs your query through it
 
 ```prolog
 % prove(+Goal, +MaxDepth, -ProofTree)
-prove(true, _, true) :- !.                        % (1) an empty body is trivially true
-prove((A, B), D, and(PA, PB)) :- !,               % (2) a conjunction (A AND B):
-    prove(A, D, PA),                             %       prove A, capture its proof,
-    prove(B, D, PB).                             %       prove B, capture its proof
-prove(\+ Goal, D, neg(Goal, negated)) :- !,       % (3) negation as failure:
-    \+ prove(Goal, D, _).                        %       holds iff Goal cannot be proven
-prove(Goal, _, fact(Goal)) :-                    % (4) a fact:
-    clause(Goal, true).                          %       Goal is a clause with no body
-prove(Goal, D, rule(Goal, Rest, BodyProof, Id)) :-% (5) a rule:
-    D > 0, D1 is D - 1,                          %       depth limit (guards recursion)
-    clause(Goal, Body), Body \= true,            %       find a clause with a body
-    decompose_rule_id(Body, Rest, Id),           %       extract the # RULE: <id>, if any
-    prove(Rest, D1, BodyProof).                  %       prove the body, capture its proof
+prove(true, _, true) :- !.                         % (1) an empty body is trivially true
+prove((A, B), D, and(PA, PB)) :- !,                % (2) a conjunction (A AND B):
+    prove(A, D, PA),                               %       prove A, capture its proof,
+    prove(B, D, PB).                               %       prove B, capture its proof
+prove(\+ Goal, D, neg(Goal, negated)) :- !,        % (3) negation as failure:
+    \+ prove(Goal, D, _).                          %       holds iff Goal cannot be proven
+prove(Goal, _, fact(Goal)) :-                      % (4) a fact:
+    clause(Goal, true).                            %       Goal is a clause with no body
+prove(Goal, D, rule(Goal, Rest, BodyProof, Id)) :- % (5) a rule:
+    D > 0, D1 is D - 1,                            %       depth limit (guards recursion)
+    clause(Goal, Body), Body \= true,              %       find a clause with a body
+    decompose_rule_id(Body, Rest, Id),             %       extract the # RULE: <id>, if any
+    prove(Rest, D1, BodyProof).                    %       prove the body, capture its proof
 ```
 
 Line by line: facts are clauses whose body is `true` (4); rules are anything
@@ -404,6 +404,10 @@ Modifications: + human(aristotle)
 Solutions: 2 -> 3 (delta: more)
 Conclusion: Solutions increased: 2 -> 3.
 ```
+
+> **Historical note:** you have just run the oldest inference pattern on record —
+> a syllogism, first formalized by Aristotle in his *Prior Analytics* (~350 BC).
+> Same logic, 2,400 years later, executed by a machine in under a millisecond.
 
 ### Batch mode
 
