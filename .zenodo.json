@@ -1,0 +1,40 @@
+{
+  "title": "Euclid-MCP",
+  "upload_type": "software",
+  "access_right": "open",
+  "license": "apache-2.0",
+  "language": "eng",
+  "description": "<p>Euclid-MCP is an open-source MCP (Model Context Protocol) server for deterministic logical reasoning. A lightweight LLM describes the world as facts and rules in <b>Euclid-IR</b>, a human-readable intermediate representation; a deterministic engine performs the deduction and returns solutions with full proof trees.</p><p>Deduction is delegated to SWI-Prolog via a persistent process (JSON-lines protocol); where SWI-Prolog is unavailable, a pure-Python native engine interprets Euclid-IR directly with identical semantics. The server exposes eight tools over MCP, HTTP, CLI, and Python APIs: reason, explain, diagnose, what_if, check_kb, register_kb, unregister_kb, list_kbs. Knowledge bases can be preloaded at startup or registered under a kb_id with per-session delta overlays; every result carries a content_hash and version pinning it to the exact knowledge reasoned over.</p>",
+  "creators": [
+    {
+      "name": "meob",
+      "affiliation": "Independent"
+    }
+  ],
+  "keywords": [
+    "MCP",
+    "Model Context Protocol",
+    "logical reasoning",
+    "Prolog",
+    "SWI-Prolog",
+    "proof trees",
+    "LLM",
+    "AI agents",
+    "neuro-symbolic AI",
+    "explainable AI",
+    "knowledge representation",
+    "Euclid-IR"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/meob/Euclid-MCP",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    },
+    {
+      "identifier": "10.48550/arXiv.2607.21412",
+      "relation": "references",
+      "scheme": "doi"
+    }
+  ]
+}
