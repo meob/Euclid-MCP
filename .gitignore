@@ -30,3 +30,6 @@ coverage.xml
 
 # ArXiv paper & articles (not for public repo)
 paper/
+
+# Regulation KB samples (not for public repo)
+/samples/

@@ -5,13 +5,38 @@ natively, and the native engine through its Unicode-aware lexer (see
 docs/NATIVE_ENGINE.md). Tool-level tests below run unmarked so the suite
 exercises parity on whichever backend is active; native-engine-specific
 behaviour lives in ``tests/test_native_engine.py``.
+
+Covers three historically divergent areas (fixed together, see
+CHANGELOG):
+
+* **non-ASCII variables** (``$città``, ``$кто``) — must survive parsing,
+  translation (never quoted into atoms) and end-to-end unification;
+* **NFC normalization** — decomposed (NFD) spellings must behave exactly
+  like composed ones on every entry point;
+* **string literals** — IR quoted values bind their *bare* content, never
+  SWI string terms with quotes.
 """
 
-from euclid_mcp.language import _fold_ascii, parse
+import unicodedata
+
+from euclid_mcp.ir_parser import query_var_names
+from euclid_mcp.language import (
+    VAR_NAME_RE,
+    _fold_ascii,
+    parse,
+    strip_query_prefix,
+)
 from euclid_mcp.models import KB
 from euclid_mcp.prolog_bridge import execute
 from euclid_mcp.server import check_kb, reason, what_if
-from euclid_mcp.translator import build_query_snippet, kb_to_decls_clauses
+from euclid_mcp.translator import (
+    _literal_to_prolog,
+    _quote_goal,
+    _translate_vars,
+    _unmask_vars,
+    build_query_snippet,
+    kb_to_decls_clauses,
+)
 
 # ── case folding ────────────────────────────────────────────────────────────
 
@@ -137,3 +162,126 @@ def test_what_if_unicode():
 def test_yaml_unicode():
     kb = parse("facts:\n  - 父(张三)\n  - 父(李四)\nquery: 父($c)")
     assert kb.facts == ["父(张三)", "父(李四)"]
+
+
+# ── non-ASCII variables ($città, $кто) ─────────────────────────────────────
+
+
+def test_var_name_regex_accepts_non_ascii():
+    assert VAR_NAME_RE.findall("$città + $кто + $x9") == ["città", "кто", "x9"]
+    assert VAR_NAME_RE.findall("$9x $_x") == []  # digits/underscore can't lead
+
+
+def test_non_ascii_variable_parses():
+    kb = parse("city(roma)\ngrande($città) IF city($città)\n? grande($città)")
+    assert kb.rules == ["grande($città) if city($città)"]
+    assert kb.query == "grande($città)"
+
+
+def test_query_var_names_unicode():
+    assert query_var_names("父($chi) AND city($città)") == ["chi", "città"]
+
+
+def test_translate_vars_masks_instead_of_translating():
+    # Masking keeps the atom-quoter from ever seeing variables.
+    assert _translate_vars("grande($città)") == "grande(__VAR_città__)"
+    assert _unmask_vars("grande(__VAR_кто__)") == "grande(Кто)"
+
+
+def test_quote_goal_never_quotes_variables():
+    # A quoted 'Кто' would be an *atom*: it could never unify. Regression
+    # for the SWI backend returning [] on Cyrillic variables. Note how the
+    # unsafe-looking Cyrillic *predicate* still gets quoted, while the
+    # masked variable never does.
+    assert _quote_goal("grande(__VAR_città__)") == "grande(Città)"
+    assert _quote_goal("родитель(__VAR_кто__)") == "'родитель'(Кто)"
+
+
+def test_non_ascii_variable_end_to_end_prolog_bridge():
+    decls, clauses = kb_to_decls_clauses(
+        parse("city(roma)\ngrande($città) IF city($città)")
+    )
+    sols = execute(decls, clauses, "grande($città)")
+    assert [s.substitutions["città"] for s in sols] == ["roma"]
+
+
+def test_cyrillic_variable_end_to_end_prolog_bridge():
+    decls, clauses = kb_to_decls_clauses(parse("родитель(толстой)"))
+    sols = execute(decls, clauses, "родитель($кто)")
+    assert [s.substitutions["кто"] for s in sols] == ["толстой"]
+
+
+def test_query_snippet_binds_non_ascii_variables():
+    sn = build_query_snippet("родитель($кто)")
+    assert "Query = 'родитель'(Кто)" in sn
+    assert "'кто': JКто" in sn
+
+
+# ── NFC normalization (NFD input behaves exactly like NFC) ────────────────
+
+
+def test_parse_normalizes_nfd_facts_and_queries():
+    nfd = unicodedata.normalize("NFD", "città")
+    kb = parse(f"{nfd}(roma)\n? {nfd}($quale)")
+    assert kb.facts == ["città(roma)"]  # composed spelling
+    assert kb.query == "città($quale)"
+
+
+def test_strip_query_prefix_normalizes_nfc():
+    nfd_q = unicodedata.normalize("NFD", "città") + "($x)"
+    assert strip_query_prefix(nfd_q) == "città($x)"
+    assert strip_query_prefix("? " + nfd_q) == "città($x)"
+
+
+def test_nfc_fact_unifies_with_nfd_query():
+    nfd = unicodedata.normalize("NFD", "città")
+    decls, clauses = kb_to_decls_clauses(parse("città(roma)"))
+    sols = execute(decls, clauses, f"{nfd}($quale)")
+    assert [s.substitutions["quale"] for s in sols] == ["roma"]
+
+
+def test_nfd_fact_unifies_with_nfc_query():
+    nfd = unicodedata.normalize("NFD", "città")
+    decls, clauses = kb_to_decls_clauses(parse(f"{nfd}(roma)"))
+    sols = execute(decls, clauses, "città($quale)")
+    assert [s.substitutions["quale"] for s in sols] == ["roma"]
+
+
+# ── string literals bind bare values (never SWI string terms with quotes) ──
+
+
+def test_literal_to_prolog_strips_quotes_and_escapes():
+    assert _literal_to_prolog('"müller"') == "'müller'"
+    assert _literal_to_prolog("'Via Roma, 15'") == "'Via Roma, 15'"
+    # IR unescape (\x -> x) then Prolog single-quote escaping ('' for ').
+    assert _literal_to_prolog('"a\\"b"') == "'a\"b'"
+    assert _literal_to_prolog("'It\\'s'") == "'It''s'"
+
+
+def test_string_literals_translate_to_single_quoted_atoms():
+    decls, clauses = kb_to_decls_clauses(KB(facts=['user("müller", "münchen")']))
+    assert "user('müller', 'münchen')." in "\n".join(clauses)
+
+
+def test_string_literal_binds_bare_value_end_to_end():
+    decls, clauses = kb_to_decls_clauses(parse('user("müller")\n? user($name)'))
+    sols = execute(decls, clauses, "user($name)")
+    assert [s.substitutions["name"] for s in sols] == ["müller"]
+
+
+# ── server-level parity (runs on whichever backend is active) ──────────────
+
+
+def test_reason_tool_non_ascii_variable():
+    res = reason(
+        knowledge="city(roma)\ngrande($città) IF city($città)\n? grande($città)"
+    )
+    assert res.error is None
+    assert [s.substitutions["città"] for s in res.solutions] == ["roma"]
+
+
+def test_reason_tool_nfd_spelling():
+    nfd = unicodedata.normalize("NFD", "città")
+    res = reason(knowledge=f"città(roma)\n? {nfd}($quale)")
+    assert res.error is None
+    assert [s.substitutions["quale"] for s in res.solutions] == ["roma"]

@@ -143,7 +143,7 @@ stale($user) IF user($user) AND last_login($user, $days) AND $days > 90
 - Wildcards: `_` (anonymous variable)
 - Comments: `#` or `//`
 - Rule IDs: trailing `# RULE: <id>` → surfaced as `rule_id` in proofs, cited by `explain`
-- Multi-line rules: continuation implied after `IF` or `AND`
+- Multi-line rules: continuation implied after `IF` or `AND`, and for lines starting with `AND`
 
 ### Supported operators
 `>`, `>=`, `<`, `<=`, `==`, `is`, `!=`

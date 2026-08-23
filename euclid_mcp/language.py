@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 from .models import KB
 from .sanitizer import sanitize
@@ -8,7 +9,13 @@ VERSION_PATTERN = re.compile(r"^@version\s+(\d+\.\d+)", re.IGNORECASE)
 # Trailing comment reserved for rule IDs:  # rule: <id>
 _RULE_ID_PATTERN = re.compile(r"(?<!\S)\s*#\s*rule:\s*(.+?)\s*$", re.IGNORECASE)
 
-_RESERVED_KEYWORDS = {"if", "and", "not", "is"}
+# Variable names: "$" + one Unicode letter, then Unicode letters/digits/
+# underscores — e.g. $x, $città, $кто. Single source of truth shared by the
+# native parser (ir_parser), the Prolog translator and the linter, so all
+# three agree on what a variable is regardless of script or accents.
+VAR_NAME_RE = re.compile(r"\$([^\W\d_]\w*)", re.UNICODE)
+
+_RESERVED_KEYWORDS = {"if", "and", "not", "is", "true", "false"}
 
 
 def _fold_ascii(s: str) -> str:
@@ -42,6 +49,26 @@ def _restore_strings(text: str, strings: list[str]) -> str:
     return text
 
 
+def strip_query_prefix(text: str) -> str:
+    """Strip the optional ``?`` / ``?-`` query prefix and surrounding whitespace.
+
+    Query lines inside a KB text carry a leading ``?`` (stripped by the
+    parser), but the same documented prefix is also accepted on the
+    ``query`` parameter of the tools, CLI, and HTTP API; the engines
+    need the bare goal, so normalize at every entry point.
+
+    The result is also NFC-normalized: queries may arrive from clients that
+    emit decomposed (NFD) spellings, and the two backends must see byte
+    identical atoms to unify them symmetrically.
+    """
+    normalized = text.strip()
+    if normalized.startswith("?-"):
+        normalized = normalized[2:]
+    elif normalized.startswith("?"):
+        normalized = normalized[1:]
+    return unicodedata.normalize("NFC", normalized.strip())
+
+
 def _normalize_term(term: str) -> str:
     """Normalize identifiers in a term to lowercase.
 
@@ -64,10 +91,31 @@ def _validate_no_keywords(term: str) -> None:
         )
 
 
+def _validate_no_bare_literal(statement: str, kind: str) -> None:
+    """Reject a bare ``true``/``false`` used as a fact or rule head.
+
+    The two words are boolean literals for rule bodies; as standalone
+    statements they are meaningless and would break the Prolog backend
+    (asserting a clause over a built-in). Vocabulary declarations for
+    expected-input predicates use ``pred($x) IF false`` instead.
+    """
+    stripped = statement.strip()
+    if stripped in ("true", "false"):
+        raise ValueError(
+            f"Reserved keyword '{stripped}' cannot be used as {kind}; "
+            "use it only inside a rule body (e.g. 'pred($x) IF false')"
+        )
+
+
 def parse(text: str) -> KB:
     text = text.strip()
     if not text:
         return KB()
+
+    # Canonical equivalence: normalize decomposed (NFD) spellings to NFC so
+    # identifiers unify symmetrically on every backend (SWI-Prolog compares
+    # raw code points; the native tokenizer rejects combining marks).
+    text = unicodedata.normalize("NFC", text)
 
     # Security: reject dangerous Prolog patterns before parsing
     sanitize(text)
@@ -165,6 +213,21 @@ def _extract_rule_id(raw_line: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _strip_statement_line(raw: str) -> tuple[str, list[str], str | None]:
+    """Comment-strip, fold and rule-id-extract one raw source line.
+
+    Returns ``(line, strings, rule_id)``; ``line`` is ``""`` for blank or
+    comment-only lines. Shared by the statement loop and the rule-body
+    continuation logic so both treat source lines identically.
+    """
+    raw, strings = _extract_strings(raw)
+    rule_id = _extract_rule_id(raw)
+    line = re.sub(r"(?<!\S)\s*(#|//|%).*$", "", raw).strip()
+    if not line:
+        return "", strings, rule_id
+    return _fold_ascii(line.rstrip(".")), strings, rule_id
+
+
 def _parse_text(text: str) -> KB:
     facts: list[str] = []
     rules: list[str] = []
@@ -172,24 +235,25 @@ def _parse_text(text: str) -> KB:
     query: str | None = None
 
     lines = text.split("\n")
-    i = 0
-    while i < len(lines):
-        raw_line = lines[i]
-        # Extract strings before stripping comments (strings may contain #)
-        raw_line, line_strings = _extract_strings(raw_line)
-        rule_id = _extract_rule_id(raw_line)
-        # Strip comments (#, //, %)
-        line = re.sub(r"(?<!\S)\s*(#|//|%).*$", "", raw_line).strip()
-        i += 1
-        if not line:
-            continue
+    idx = 0
+
+    def next_line() -> tuple[str | None, list[str], str | None]:
+        """Next meaningful (non-blank) processed line, or None at EOF."""
+        nonlocal idx
+        while idx < len(lines):
+            line, strings, rid = _strip_statement_line(lines[idx])
+            idx += 1
+            if line:
+                return line, strings, rid
+        return None, [], None
+
+    while True:
+        line, line_strings, rule_id = next_line()
+        if line is None:
+            break
         # Skip @version directive
         if VERSION_PATTERN.match(line):
             continue
-        line = line.rstrip(".")
-        # Keywords are case-insensitive: normalize to lowercase while
-        # preserving quoted-string placeholders for later restoration.
-        line = _fold_ascii(line)
 
         if line.startswith("?"):
             if rule_id:
@@ -205,28 +269,37 @@ def _parse_text(text: str) -> KB:
                 head = line[:-3]  # Remove trailing " if"
                 body_str = ""
             body_str = body_str.strip()
-            # Multi-line rule: if body is empty or ends with and, keep reading
-            while body_str == "" or body_str.endswith("and"):
-                if i >= len(lines):
-                    break
-                next_raw = lines[i]
-                next_raw, next_strings = _extract_strings(next_raw)
-                line_strings.extend(next_strings)
-                next_rule_id = _extract_rule_id(next_raw)
-                if next_rule_id:
-                    rule_id = next_rule_id  # last body line wins
-                next_line = re.sub(r"(?<!\S)\s*(#|//|%).*$", "", next_raw).strip()
-                i += 1
-                if not next_line:
+            # Multi-line rule bodies. A line is a continuation when the
+            # body so far is empty or ends with `and` (trailing style),
+            # or when the NEXT meaningful line opens with `and`
+            # (leading style — the common Prolog habit):
+            #
+            #     p($x) IF $x > 0
+            #           AND $y is $x - 1
+            #
+            # A non-continuation line is pushed back for the main loop.
+            pieces: list[str] = [body_str] if body_str else []
+            while True:
+                if not pieces or pieces[-1].endswith("and"):
+                    nxt, nxt_strings, nxt_rid = next_line()
+                    if nxt is None:
+                        break
+                    line_strings.extend(nxt_strings)
+                    if nxt_rid:
+                        rule_id = nxt_rid  # last body line wins
+                    pieces.append(nxt)
                     continue
-                next_line = _fold_ascii(next_line.rstrip("."))
-                if body_str == "":
-                    body_str = next_line
-                elif body_str.endswith("and"):
-                    body_str = body_str + " " + next_line
-                else:
-                    body_str = body_str + " " + next_line
-            body_parts = re.split(r"\s+and\s+", body_str)
+                mark = idx
+                nxt, nxt_strings, nxt_rid = next_line()
+                if nxt is not None and (nxt == "and" or nxt.startswith("and ")):
+                    line_strings.extend(nxt_strings)
+                    if nxt_rid:
+                        rule_id = nxt_rid
+                    pieces.append(nxt)
+                    continue
+                idx = mark  # not a continuation: unread it
+                break
+            body_parts = re.split(r"\s+and\s+", " ".join(pieces))
             body = ", ".join(p.strip() for p in body_parts)
             rule_index = len(rules)
             rules.append(_restore_strings(f"{head.strip()} if {body}", line_strings))
@@ -237,6 +310,11 @@ def _parse_text(text: str) -> KB:
                 raise ValueError(
                     "`# rule:` is not allowed on a fact. "
                     "It applies only to rules."
+                )
+            if line == "and" or line.startswith("and "):
+                raise ValueError(
+                    "Statement starts with 'and': continuation lines belong "
+                    "to a rule written above them."
                 )
             facts.append(_restore_strings(line, line_strings))
 
@@ -251,9 +329,11 @@ def _normalize_kb(kb: KB) -> KB:
         kb.query = _normalize_term(kb.query)
     for f in kb.facts:
         _validate_no_keywords(f)
+        _validate_no_bare_literal(f, "a fact")
     for r in kb.rules:
         head = re.split(r"\s+if\s+", r, maxsplit=1)[0].strip()
         _validate_no_keywords(head)
+        _validate_no_bare_literal(head, "a rule head")
     if kb.query:
         _validate_no_keywords(kb.query)
     return kb

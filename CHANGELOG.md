@@ -4,6 +4,127 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.6] — 2026-08-23
+
+### Fixed
+- **Backend divergence on `true`/`false` body literals** — `pred($x) IF false`
+  crashed the SWI-Prolog backend with an opaque `engine_error`: the
+  meta-interpreter had no branch for the literal, so it reached `clause/2`,
+  and SWI-Prolog 10 raises `permission_error(access, private_procedure,
+  fail/0)` over the built-in `false`/`fail`; the engine loop's catch-all
+  discarded the message. The native engine failed cleanly, so the same KB
+  behaved differently per backend — and `IF true` was divergent in the other
+  direction (succeeded on Prolog, failed natively). Both engines now give the
+  literals explicit, identical semantics: `IF false` never proves, `IF true`
+  proves like a fact (proof node `fact`, or `rule` when the rule carries an
+  ID). This makes `IF false` the legitimate spelling for vocabulary
+  declarations in rules-only KBs.
+- **Backend divergence on unbound query variables** — solutions from
+  non-range-restricted rules (a head variable absent from the body, e.g.
+  `report($user) IF system_compromised`, or negation over an empty declared
+  predicate with a variable goal) were dropped by the native engine and
+  stringified as SWI fresh tokens (`_28498`) — or lost entirely — by
+  SWI-Prolog. Both engines now keep the solution and surface unbound query
+  variables as explicit `null` bindings (`{"any": null}`). Proof trees are
+  also aligned: SWI's nondeterministic fresh-variable names are normalized
+  to the Euclid-IR wildcard `_` (quoted literals masked, so user data is
+  never rewritten), making proof trees byte-identical across backends and
+  across runs.
+- **Built-in body goals raised instead of failing** — a rule body naming any
+  SWI-Prolog built-in (e.g. `atom_length`) hit `clause/2` and surfaced as an
+  opaque `engine_error`. Both meta-interpreter branches now carry a
+  `\+ predicate_property(Goal, built_in)` guard: since user clauses can never
+  exist for a built-in, the goal fails cleanly — matching the native engine,
+  where unknown predicates simply fail.
+- **Zero-arity predicates leaked across engine loads** — `_extract_pred_sig`
+  required parentheses, so bare statements (`rainy`, or a `t IF true` head)
+  were never declared dynamic nor registered in the persistent engine's
+  workspace; their clauses survived `clear_workspace` and duplicated on every
+  subsequent load, silently multiplying solutions. Bare atoms now produce a
+  `/0` signature. Parity tests pin single-solution behavior across reloads.
+- **Backend divergence on non-ASCII variables** — `$città`, `$кто` and any
+  other Unicode variable now behave identically on both backends. The
+  variable-name pattern (`language.VAR_NAME_RE`, single source of truth for
+  the native parser, the Prolog translator and the linter) accepts Unicode
+  letters, and the translator masks variables (`__VAR_name__`) during
+  atom-quoting so they can never be wrapped into quoted atoms. Previously
+  the native engine raised a parse error while SWI-Prolog silently
+  truncated the name (or quoted it into an atom that unified with nothing).
+- **NFC normalization at every entry point** — `parse()` normalizes KB text
+  and `strip_query_prefix()` normalizes explicit queries to NFC, so
+  decomposed (NFD) spellings unify symmetrically on both backends instead
+  of failing on the native engine and matching only byte-identical forms
+  on SWI-Prolog.
+- **`--backend` flag silently discarded an exported `EUCLID_BACKEND`** — the
+  CLI wrote the flag's default (`auto`) into the environment on every run,
+  so `EUCLID_BACKEND=native euclid-cli` still launched SWI-Prolog. The flag
+  is now applied only when explicitly passed: an exported value is honored,
+  and an explicit `--backend` wins over it.
+- **Multi-line rules with leading `AND` split into garbage statements** — a
+  rule continued with the conjunction at the START of each line (the common
+  Prolog habit) was cut at its first complete body goal, while the leftover
+  `AND ...` lines were accepted as facts by the lenient language parser and
+  then rejected at runtime by both engines. The parser now absorbs
+  AND-leading continuation lines (and rejects orphan ones with a clear
+  message), and the interactive REPL holds a completed rule until the next
+  input settles whether a continuation follows. Continuation detection is
+  buffer-aware: a line trails the open statement when the buffered text ends
+  with `IF`/`AND` or the line itself opens with `AND`, so trailing-style and
+  leading-style multi-line rules both work in files, seeded KBs and live
+  sessions (previously a continuation line without an inner `IF`, e.g.
+  `$y is $x - 1 AND`, was flushed as its own statement).
+- **`:check` could stay green on statements the engines refuse** —
+  validation relied only on the lenient parser while both backends re-parse
+  every statement with the strict term parser. `run_check_kb` now runs each
+  fact, rule and the query through that same parser, so a green check
+  guarantees the KB loads and queries on either backend.
+- **REPL errors vanished into stderr** — engine and parse errors printed
+  only a terse message to stderr, easy to lose next to the tool-call log
+  lines (and invisible in piped sessions). They now print to stdout.
+- **String literals bind bare values on both backends** — IR quoted values
+  are translated to single-quoted Prolog *atoms* instead of SWI string
+  terms; bindings are now identical to the native engine's bare content
+  (e.g. `müller`, not `"müller"`). Operators inside literals were already
+  inert data and remain so.
+
+### Changed
+- **REPL banner renamed** — `Euclid-MCP REPL …` → `Euclid-IR REPL vX.Y.Z —
+  type facts and rules, then `? query`.`. The REPL calls the tool functions
+  in-process; no MCP server or protocol is involved, so the banner now names
+  the language. The version comes from the in-tree package constant (with a
+  new drift test against `pyproject.toml`), not from possibly stale install
+  metadata.
+
+### Added
+- **Reserved boolean keywords** — `true` / `false` join `if`, `and`, `not`,
+  `is` as reserved words: rejected as predicate names, bare facts and rule
+  heads with a clear message (previously such KBs broke the Prolog load with
+  the same opaque error). As *arguments* they remain plain atom data.
+- **Vocabulary-declaration idiom documented** — `docs/EUCLID_IR.md` documents
+  the `true`/`false` literals and the load-once/query-many pattern where a
+  rules-only stable layer declares its input vocabulary with `IF false`
+  bodies (validated green by `check_kb`, zero inference impact); the PCI-DSS
+  sample was migrated from the `IF 1 > 2` workaround.
+- `prova_unicode.py` / `divergenze.py` — Unicode conformance suite and
+  backend-divergence isolator used to pin the fixes above.
+- `tests/test_true_false_literals.py` — backend-parity suite for the boolean
+  literals, negation over declared predicates, clean built-in failure, the
+  zero-arity reload regression, and the end-to-end vocabulary +
+  `delta_knowledge` flow.
+- `tests/test_unbound_variables.py` — backend-parity suite for unbound query
+  variables: explicit `null` bindings, cross-backend proof-tree identity,
+  run-to-run determinism, and quoted-data safety of the wildcard
+  normalization.
+- `tests/test_multiline_continuations.py` — AND-leading rule continuations
+  in parser and REPL, plus stdout visibility of engine errors.
+- `tests/test_check_kb_engine_alignment.py` — statements the engines reject
+  are flagged at check time; unicode/quoted KBs stay green.
+- `tests/test_backend_precedence.py` — `EUCLID_BACKEND` survives a run
+  without `--backend`; an explicit flag overrides it.
+- `tests/test_version.py` — package version matches `pyproject.toml`.
+- REPL: `:kb` listing gained a paste-safe counts header (`# session KB: N
+  facts, M rules`) and the help documents the hidden `:list` alias.
+
 ## [0.4.5] — 2026-08-22
 
 ### Added

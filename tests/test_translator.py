@@ -168,4 +168,7 @@ def test_operators_inside_string_preserved():
         query="note($who, $text)",
     )
     code = to_prolog(kb)
-    assert '"a <= b != c == d"' in code
+    # IR string literals become single-quoted atoms (opaque values, matching
+    # the native engine's bare bindings): operators inside them are inert
+    # data and must NOT be translated to Prolog arithmetic.
+    assert "'a <= b != c == d'" in code

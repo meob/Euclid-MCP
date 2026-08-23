@@ -32,6 +32,7 @@ from .ir_parser import (
     parse_term,
     query_var_names,
 )
+from .language import strip_query_prefix
 from .models import KB, ProofNode, Solution
 
 _COMPARISON_OPS = {">", ">=", "<", "<=", "==", "!="}
@@ -146,7 +147,11 @@ def render(t, subst) -> str:
             return f'"{content}"'
         return t.name
     if isinstance(t, Var):
-        return f"_G{t.id}"
+        # Unbound variables render as the Euclid-IR wildcard. SWI-Prolog's
+        # term_string emits nondeterministic fresh tokens (_28498) which the
+        # bridge normalizes to the same wildcard, keeping proof trees
+        # byte-identical across backends.
+        return "_"
     if isinstance(t, Compound):
         if t.functor == "not":
             inner = ",".join(render(a, subst) for a in t.args)
@@ -163,6 +168,8 @@ def render(t, subst) -> str:
 
 def _json_value(t, subst):
     t = _deref(t, subst)
+    if isinstance(t, Var):
+        return None  # unbound query variable → explicit JSON null binding
     if isinstance(t, Number):
         return t.value
     if isinstance(t, Atom):
@@ -197,6 +204,26 @@ class _Clause:
     head: Term
     body: tuple[Term, ...]
     rule_id: str | None = None
+
+
+def _proves_as_fact(clause: _Clause) -> bool:
+    """True for clauses the Prolog meta-interpreter surfaces as fact nodes.
+
+    A bodyless clause (fact) and a rule whose single body literal is
+    ``true`` both prove through ``clause(Goal, true)`` on SWI-Prolog and
+    yield a ``fact`` node — but only when the rule carries no ID: a rule
+    ID makes the translated body compound (``euclid_rule_id(Id), true``),
+    so the meta-interpreter keeps a ``rule`` node. The native engine must
+    mirror exactly that split to stay in lockstep.
+    """
+    if not clause.body:
+        return True
+    return (
+        len(clause.body) == 1
+        and isinstance(clause.body[0], Atom)
+        and clause.body[0].name == "true"
+        and not clause.rule_id
+    )
 
 
 class Program:
@@ -263,22 +290,22 @@ class _Solver:
     def solve(self) -> list[Solution]:
         results: list[Solution] = []
         for subst, proof in self._prove_goals(self.goals, self.max_depth, {}):
-            subs = self._build_substitutions(subst)
-            if subs is None:
-                continue
-            results.append(Solution(substitutions=subs, proof=proof))
+            results.append(
+                Solution(substitutions=self._build_substitutions(subst), proof=proof)
+            )
             if len(results) >= self.max_solutions:
                 break
             self._check_deadline()
         return results
 
-    def _build_substitutions(self, subst: dict[int, Term]) -> dict[str, object] | None:
+    def _build_substitutions(self, subst: dict[int, Term]) -> dict[str, object]:
         out: dict[str, object] = {}
         for name, var in self.var_map.items():
             t = _deref(var, subst)
-            if isinstance(t, Var):
-                return None  # unbound variable: dropped, like json_write groundness
-            out[name] = _json_value(t, subst)
+            # Unbound query variables surface as None (JSON null) instead of
+            # dropping the whole solution — mirroring SWI-Prolog, which
+            # always emits an entry per query variable.
+            out[name] = None if isinstance(t, Var) else _json_value(t, subst)
         return out
 
     def _prove_goals(self, goals, depth: int, subst: dict[int, Term]):
@@ -332,6 +359,14 @@ class _Solver:
                 )
             yield from self._prove_predicate(goal_t, f, depth, subst)
         elif isinstance(goal_t, Atom):
+            # true/false literals: explicit semantics, identical to the
+            # Prolog meta-interpreter's dedicated branches (prove(true,...)
+            # succeeds; prove(false,...) fails) so both backends agree.
+            if goal_t.name == "false":
+                return
+            if goal_t.name == "true":
+                yield subst, ProofNode(type="true")
+                return
             yield from self._prove_predicate(goal_t, goal_t.name, depth, subst)
         elif isinstance(goal_t, Var):
             return  # an unbound variable cannot be proven
@@ -345,7 +380,7 @@ class _Solver:
             s = _unify(goal_t, head, subst)
             if s is None:
                 continue
-            if not clause.body:
+            if _proves_as_fact(clause):
                 yield s, ProofNode(type="fact", goal=render(goal_t, s))
                 continue
             if depth <= 0:
@@ -403,10 +438,11 @@ def solve_kb(
     if not kb.query:
         return []
     try:
+        query_text = strip_query_prefix(kb.query)
         counter = VarCounter()
         program = Program(kb, counter)
-        goals = parse_goals(kb.query, counter)
-        var_map = {name: counter.var(name) for name in query_var_names(kb.query)}
+        goals = parse_goals(query_text, counter)
+        var_map = {name: counter.var(name) for name in query_var_names(query_text)}
         solver = _Solver(
             program, goals, var_map, max_depth, max_solutions, timeout, counter
         )

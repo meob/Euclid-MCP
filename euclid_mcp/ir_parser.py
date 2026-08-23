@@ -28,6 +28,8 @@ import re
 from dataclasses import dataclass
 from typing import NamedTuple, Union
 
+from .language import VAR_NAME_RE
+
 Term = Union["Var", "Atom", "Number", "Compound"]
 
 
@@ -106,8 +108,9 @@ _WORD_OPS = {"is", "+", "-"}
 
 _QUERY_CONJUNCTION = re.compile(r"\s+and\s+", re.IGNORECASE)
 
-# Lowercase var pattern:  $name  (name = [a-z][a-zA-Z0-9_]*)
-_VAR_RE = re.compile(r"\$([a-z][a-zA-Z0-9_]*)")
+# Lowercase var pattern:  $name  — shared definition lives in language.py
+# (Unicode letters/digits/underscores after the leading letter).
+_VAR_RE = VAR_NAME_RE
 
 # Unquoted atom: ``\w`` (Unicode-aware) plus _ATOM_EXTRA punctuation, so
 # predicate/atom names like 父, смертный or Бог parse natively (matching
@@ -423,7 +426,7 @@ def query_var_names(query: str) -> list[str]:
     """Ordered, de-duplicated names of the ``$vars`` appearing in a query."""
     seen: set[str] = set()
     names: list[str] = []
-    for vn in re.findall(r"\$([a-z][a-zA-Z0-9_]*)", query):
+    for vn in VAR_NAME_RE.findall(query):
         if vn not in seen:
             seen.add(vn)
             names.append(vn)

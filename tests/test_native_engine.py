@@ -39,6 +39,16 @@ def test_socrates_rule_and_rule_id():
     assert sols[0].proof.rule_id == "BIO-001"
 
 
+def test_query_with_question_prefix_is_normalized():
+    kb = parse("human(socrates)\nmortal($x) if human($x)")
+    kb = kb.model_copy(update={"query": "? mortal($who)"})
+    sols = solve_kb(kb, max_solutions=5)
+    assert [s.substitutions["who"] for s in sols] == ["socrates"]
+    kb = kb.model_copy(update={"query": "?- mortal($who)"})
+    sols = solve_kb(kb, max_solutions=5)
+    assert [s.substitutions["who"] for s in sols] == ["socrates"]
+
+
 def test_recursive_ancestor_order_and_multi_solution():
     kb = parse(
         "parent(tom, bob)\n"

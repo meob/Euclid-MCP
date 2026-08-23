@@ -13,7 +13,7 @@ from euclid_mcp.engine import kb_fingerprint
 from euclid_mcp.explain import explain_solution, explain_solution_typed
 from euclid_mcp.kb_store import KBRecord, KbStore, is_valid_kb_id
 from euclid_mcp.kb_summary import build_kb_summary
-from euclid_mcp.language import parse
+from euclid_mcp.language import parse, strip_query_prefix
 from euclid_mcp.metrics import Counter, Histogram, register
 from euclid_mcp.models import (
     KB,
@@ -271,6 +271,10 @@ def reason(
 ) -> ReasonResult:
     start = time.monotonic()
 
+    # Accept the documented "?" / "?-" prefix on explicit queries too.
+    if query:
+        query = strip_query_prefix(query)
+
     kb_source, resolve_error = _resolve(knowledge, kb_id, delta_knowledge)
     if resolve_error:
         return ReasonResult(
@@ -396,6 +400,10 @@ def explain(
 ) -> ExplanationResult:
     start = time.monotonic()
 
+    # Accept the documented "?" / "?-" prefix on explicit queries too.
+    if query:
+        query = strip_query_prefix(query)
+
     kb_source, resolve_error = _resolve(knowledge, kb_id, delta_knowledge)
     if resolve_error:
         return ExplanationResult(
@@ -460,6 +468,10 @@ def diagnose(
     max_depth: int = 30,
 ) -> DiagnosisResult:
     start = time.monotonic()
+
+    # Accept the documented "?" / "?-" prefix on explicit queries too.
+    if query:
+        query = strip_query_prefix(query)
 
     kb_source, resolve_error = _resolve(knowledge, kb_id, delta_knowledge)
     if resolve_error:
@@ -649,6 +661,10 @@ def what_if(
     max_depth: int = 30,
 ) -> WhatIfResult:
     start = time.monotonic()
+
+    # Accept the documented "?" / "?-" prefix on explicit queries too.
+    if query:
+        query = strip_query_prefix(query)
 
     kb_source, resolve_error = _resolve(base_knowledge, kb_id, delta_knowledge)
     if resolve_error:

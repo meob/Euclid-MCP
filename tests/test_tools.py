@@ -61,6 +61,36 @@ class TestReason:
         assert r.error is None
         assert len(r.solutions) >= 1
 
+    def test_override_query_with_question_prefix(self):
+        r = reason(
+            "human(socrates)\nhuman(plato)",
+            query="? human(plato)",
+        )
+        assert r.error is None
+        assert len(r.solutions) >= 1
+
+    def test_override_query_with_question_dash_prefix(self):
+        r = reason(
+            "human(socrates)\nhuman(plato)",
+            query="?- human(plato)",
+        )
+        assert r.error is None
+        assert len(r.solutions) >= 1
+
+    def test_override_query_with_question_prefix_and_arithmetic(self):
+        kb = (
+            "merchant(acme_pay)\n"
+            "annual_txn_volume(acme_pay, 6500000)\n"
+            "level_1($m) IF merchant($m) AND annual_txn_volume($m, $n) "
+            "AND $n >= 6000000\n"
+            "roc_required($m) IF level_1($m)\n"
+        )
+        r = reason(knowledge=kb, query="? roc_required($who)")
+        assert r.error is None
+        assert any(
+            s.substitutions.get("who") == "acme_pay" for s in r.solutions
+        )
+
     def test_repeated_same_kb_is_consistent(self):
         kb = (
             "parent(tom, bob)\nparent(bob, ann)\n"
@@ -335,9 +365,13 @@ class TestCheckKB:
         assert r.valid is True
         assert not any(w.type == "inconsistent_arity" for w in r.warnings)
 
-    def test_garbage_input_no_errors(self):
+    def test_garbage_input_flagged_without_crashing(self):
+        # Garbage used to slip through as a valid-but-empty KB (a green
+        # check followed by engine errors at query time); it must now be
+        # flagged with a parse_error while still not raising.
         r = check_kb("??? INVALID @#$%")
-        assert r.valid is True
+        assert r.valid is False
+        assert any(e.type == "parse_error" for e in r.errors)
         assert r.facts_count == 0
         assert r.rules_count == 0
 
