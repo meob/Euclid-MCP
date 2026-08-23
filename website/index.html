@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Euclid-MCP — Deterministic reasoning for AI agents</title>
+<meta name="description" content="An MCP server that turns facts into formal proofs. Your LLM describes the world in Euclid-IR; a deterministic engine does the deduction. Every answer comes with a proof tree.">
+<!-- mcp-name: io.github.meob/euclid-mcp -->
+<style>
+  :root {
+    --bg: #0b0e14;
+    --bg-soft: #11151f;
+    --card: #151a26;
+    --border: #232a3a;
+    --text: #e6e9f0;
+    --muted: #9aa4b8;
+    --accent: #34d399;
+    --accent-dim: rgba(52, 211, 153, 0.12);
+    --code-bg: #0d1117;
+    --amber: #fbbf24;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre, .mono { font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace; }
+
+  /* Nav */
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 32px;
+    background: rgba(11, 14, 20, 0.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  nav .logo { font-weight: 700; font-size: 18px; color: var(--text); }
+  nav .logo span { color: var(--accent); }
+  nav ul { display: flex; gap: 24px; list-style: none; }
+  nav ul li a { color: var(--muted); font-size: 14px; }
+  nav ul li a:hover { color: var(--text); text-decoration: none; }
+  .gh-btn {
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 14px; font-size: 14px; color: var(--text);
+  }
+  .gh-btn:hover { border-color: var(--accent); text-decoration: none; }
+
+  /* Layout */
+  section { max-width: 1080px; margin: 0 auto; padding: 72px 24px; }
+  h2 { font-size: 30px; margin-bottom: 10px; letter-spacing: -0.02em; }
+  .section-sub { color: var(--muted); max-width: 720px; margin-bottom: 40px; }
+  .kicker {
+    color: var(--accent); font-size: 13px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px;
+  }
+
+  /* Hero */
+  .hero { text-align: center; padding-top: 96px; padding-bottom: 80px; }
+  .hero h1 { font-size: clamp(38px, 6vw, 62px); letter-spacing: -0.03em; line-height: 1.12; }
+  .hero h1 em { color: var(--accent); font-style: normal; }
+  .hero p.tagline {
+    color: var(--muted); font-size: 19px; max-width: 700px; margin: 22px auto 0;
+  }
+  .install-pill {
+    display: inline-flex; gap: 10px; align-items: center;
+    margin-top: 34px; padding: 12px 22px;
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--accent); font-size: 15px;
+  }
+  .hero-badges { margin-top: 26px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .hero-badges img { height: 20px; }
+  .hero-cta-row { margin-top: 26px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    padding: 11px 22px; border-radius: 9px; font-size: 15px; font-weight: 600;
+  }
+  .btn.primary { background: var(--accent); color: #06281c; }
+  .btn.primary:hover { text-decoration: none; filter: brightness(1.1); }
+  .btn.ghost { border: 1px solid var(--border); color: var(--text); }
+  .btn.ghost:hover { border-color: var(--accent); text-decoration: none; }
+
+  /* Cards */
+  .grid { display: grid; gap: 18px; }
+  .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 900px) { .grid.cols-3, .grid.cols-4 { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .grid.cols-3, .grid.cols-4 { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 22px;
+  }
+  .card h3 { font-size: 17px; margin-bottom: 8px; }
+  .card p { color: var(--muted); font-size: 14.5px; }
+  .card .icon { font-size: 24px; margin-bottom: 12px; display: block; }
+
+  /* Pipeline */
+  .pipeline {
+    display: flex; align-items: stretch; justify-content: center;
+    gap: 0; flex-wrap: wrap; margin-top: 20px;
+  }
+  .pipe-box {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 22px; text-align: center; min-width: 190px;
+  }
+  .pipe-box b { display: block; font-size: 15px; }
+  .pipe-box small { color: var(--muted); font-size: 12.5px; }
+  .pipe-arrow {
+    align-self: center; color: var(--accent); padding: 0 14px; font-size: 20px;
+  }
+  .pipe-steps { max-width: 760px; margin: 42px auto 0; counter-reset: step; }
+  .pipe-steps li {
+    list-style: none; padding: 10px 0 10px 46px; position: relative; color: var(--muted); font-size: 15px;
+  }
+  .pipe-steps li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 0; top: 8px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent-dim); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+  }
+
+  /* Code blocks */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+  pre.code {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; overflow-x: auto; font-size: 13.5px; line-height: 1.65;
+    color: #c9d1d9;
+  }
+  .c-com { color: #8b949e; }        /* comment */
+  .c-kw  { color: #ff7b72; }        /* keyword IF AND NOT */
+  .c-var { color: #79c0ff; }        /* variable */
+  .c-str { color: #a5d6ff; }        /* string */
+  .c-num { color: #f2cc60; }        /* number */
+  .c-key { color: #d2a8ff; }        /* json key */
+
+  /* Chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .chip {
+    background: var(--accent-dim); color: var(--accent);
+    font-size: 12.5px; padding: 5px 12px; border-radius: 999px; font-weight: 600;
+  }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+  td.win { color: var(--accent); font-weight: 700; }
+  .table-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .bench-note { color: var(--muted); font-size: 13.5px; margin-top: 14px; }
+
+  /* Quickstart */
+  .qs-block { margin-bottom: 26px; }
+  .qs-block h3 { font-size: 16px; margin-bottom: 10px; color: var(--text); }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border); margin-top: 40px;
+    padding: 40px 24px; text-align: center; color: var(--muted); font-size: 14px;
+  }
+  footer .links { display: flex; gap: 22px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">Euclid<span>-MCP</span></div>
+  <ul>
+    <li><a href="#why">Why</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#language">Euclid-IR</a></li>
+    <li><a href="#tools">Tools</a></li>
+    <li><a href="#benchmarks">Benchmarks</a></li>
+    <li><a href="#quickstart">Quickstart</a></li>
+  </ul>
+  <a class="gh-btn" href="https://github.com/meob/Euclid-MCP">★ GitHub</a>
+</nav>
+
+<header class="hero">
+  <h1>LLMs describe.<br><em>Euclid proves.</em></h1>
+  <p class="tagline">
+    An open-source MCP server for deterministic logical reasoning.
+    A lightweight LLM describes the world as facts and rules in <b>Euclid-IR</b>;
+    a Prolog-backed engine performs the deduction — and every answer ships with a
+    <b>proof tree</b> you can trace, cite, and audit.
+  </p>
+  <div class="install-pill mono">pip install euclid-mcp</div>
+  <div class="hero-cta-row">
+    <a class="btn primary" href="#quickstart">Get started</a>
+    <a class="btn ghost" href="https://arxiv.org/abs/2607.21412">Read the paper</a>
+  </div>
+  <div class="hero-badges">
+    <img src="https://img.shields.io/pypi/v/euclid-mcp?color=blue" alt="PyPI version">
+    <img src="https://img.shields.io/pypi/pyversions/euclid-mcp" alt="Python versions">
+    <img src="https://img.shields.io/github/license/meob/Euclid-MCP" alt="License">
+    <img src="https://img.shields.io/github/actions/workflow/status/meob/Euclid-MCP/ci.yml?branch=main&label=CI" alt="CI">
+  </div>
+</header>
+
+<section id="why">
+  <div class="kicker">The problem</div>
+  <h2>Your agent is guessing. Make it prove its answers.</h2>
+  <p class="section-sub">
+    LLMs process information statistically, not logically. Ask one to evaluate access policies
+    across hundreds of records and it hallucinates systematically — wrong counts, missed conflicts,
+    fabricated permissions. For rules that matter, "approximately correct" isn't correct.
+  </p>
+  <div class="grid cols-3">
+    <div class="card">
+      <span class="icon">🎲</span>
+      <h3>No more hallucinated logic</h3>
+      <p>Deduction is delegated to a deterministic engine. The same knowledge base plus the same query always yields the same answer.</p>
+    </div>
+    <div class="card">
+      <span class="icon">🌳</span>
+      <h3>Proof trees, not vibes</h3>
+      <p>Every conclusion comes with a formal derivation chain. Rule IDs surface in proofs, so a decision can be cited: "derived from rule RBAC-0043."</p>
+    </div>
+    <div class="card">
+      <span class="icon">🔍</span>
+      <h3>RAG retrieves. Euclid derives.</h3>
+      <p>Semantic search finds similar documents; rule enforcement needs the exact logical chain. Encode policies once, derive answers forever.</p>
+    </div>
+  </div>
+</section>
+
+<section id="how" style="background: var(--bg-soft);">
+  <div class="kicker">Architecture</div>
+  <h2>How it works</h2>
+  <p class="section-sub">
+    The LLM never reasons — it only describes. All deduction happens outside the model,
+    which is why a local 8B model can outperform 400B+ cloud models on reasoning tasks.
+  </p>
+  <div class="pipeline">
+    <div class="pipe-box"><b>LLM / Agent</b><small>MCP client<br>(Claude, OpenCode, Cursor…)</small></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-box"><b>Euclid-MCP</b><small>8 reasoning tools<br>over MCP / HTTP / CLI</small></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-box"><b>Translator</b><small>Euclid-IR → Prolog<br>+ meta-interpreter</small></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-box"><b>Solutions + Proof trees</b><small>structured JSON,<br>deterministic</small></div>
+  </div>
+  <ul class="pipe-steps">
+    <li>The LLM translates the problem into facts, rules, and a query in Euclid-IR.</li>
+    <li>A persistent SWI-Prolog engine executes the deduction (JSON-lines protocol, no per-call spawn overhead).</li>
+    <li>Solutions come back with variable bindings and full proof trees — or a diagnosis of why the query fails.</li>
+    <li>No SWI-Prolog available? A pure-Python <b>native engine</b> interprets Euclid-IR directly, byte-identical semantics.</li>
+  </ul>
+</section>
+
+<section id="language">
+  <div class="kicker">The language</div>
+  <h2>Euclid-IR — logic without the Prolog syntax</h2>
+  <p class="section-sub">
+    A declarative intermediate representation designed for both humans and LLMs:
+    variables start with <code>$</code>, implication is <code>IF</code>, conjunction is <code>AND</code>.
+  </p>
+  <div class="split">
+    <pre class="code"><span class="c-com"># Facts</span>
+parent(tom, bob)
+parent(bob, ann)
+
+<span class="c-com"># Rules (recursion is fine)</span>
+ancestor(<span class="c-var">$x</span>, <span class="c-var">$y</span>) <span class="c-kw">IF</span> parent(<span class="c-var">$x</span>, <span class="c-var">$y</span>)
+ancestor(<span class="c-var">$x</span>, <span class="c-var">$y</span>) <span class="c-kw">IF</span> parent(<span class="c-var">$x</span>, <span class="c-var">$z</span>) <span class="c-kw">AND</span> ancestor(<span class="c-var">$z</span>, <span class="c-var">$y</span>)
+
+<span class="c-com"># Audit-trail ID on any rule</span>
+can_deploy(<span class="c-var">$user</span>) <span class="c-kw">IF</span>
+    user(<span class="c-var">$user</span>) <span class="c-kw">AND</span>
+    has_role(<span class="c-var">$user</span>, deployer)  <span class="c-com"># RULE: DEPLOY-POL-1</span>
+
+<span class="c-com"># Arithmetic &amp; negation</span>
+stale(<span class="c-var">$u</span>) <span class="c-kw">IF</span> last_login(<span class="c-var">$u</span>, <span class="c-var">$d</span>) <span class="c-kw">AND</span> <span class="c-var">$d</span> &gt; <span class="c-num">90</span>
+blocked(<span class="c-var">$u</span>) <span class="c-kw">IF</span> <span class="c-kw">NOT</span> active(<span class="c-var">$u</span>)
+
+<span class="c-com"># Query</span>
+<span class="c-kw">?</span> ancestor(tom, <span class="c-var">$who</span>)</pre>
+    <pre class="code">{
+  <span class="c-key">"query"</span>: <span class="c-str">"ancestor(tom, $who)"</span>,
+  <span class="c-key">"solutions"</span>: [
+    {
+      <span class="c-key">"substitutions"</span>: { <span class="c-key">"who"</span>: <span class="c-str">"bob"</span> },
+      <span class="c-key">"proof"</span>: {
+        <span class="c-key">"type"</span>: <span class="c-str">"rule"</span>,
+        <span class="c-key">"goal"</span>: <span class="c-str">"ancestor(tom, bob)"</span>,
+        <span class="c-key">"rule_id"</span>: null,
+        <span class="c-key">"subproof"</span>:
+          { <span class="c-key">"type"</span>: <span class="c-str">"fact"</span>,
+            <span class="c-key">"goal"</span>: <span class="c-str">"parent(tom, bob)"</span> }
+      }
+    },
+    { <span class="c-key">"substitutions"</span>: { <span class="c-key">"who"</span>: <span class="c-str">"ann"</span> }, <span class="c-key">"proof"</span>: { … } }
+  ],
+  <span class="c-key">"elapsed_ms"</span>: 12.4,
+  <span class="c-key">"content_hash"</span>: <span class="c-str">"a3f9c1e4…"</span>
+}</pre>
+  </div>
+  <div class="chips">
+    <span class="chip">Horn-clause core</span>
+    <span class="chip">Negation (NOT)</span>
+    <span class="chip">Arithmetic comparisons</span>
+    <span class="chip">Rule IDs for audits</span>
+    <span class="chip">@version directives</span>
+    <span class="chip">String literals</span>
+    <span class="chip">YAML format too</span>
+    <span class="chip">.euclid files</span>
+  </div>
+</section>
+
+<section id="tools" style="background: var(--bg-soft);">
+  <div class="kicker">Tooling</div>
+  <h2>Eight tools, one purpose</h2>
+  <p class="section-sub">
+    Not just deduction — a complete lifecycle: validate, reason, explain, diagnose, explore scenarios.
+  </p>
+  <div class="grid cols-4">
+    <div class="card"><h3><code>reason</code></h3><p>Main deduction — solutions with variable bindings and proof trees.</p></div>
+    <div class="card"><h3><code>explain</code></h3><p>Natural-language reasoning steps derived deterministically from the proof tree. No LLM involved.</p></div>
+    <div class="card"><h3><code>diagnose</code></h3><p>Why does a query succeed or fail? Missing facts, missing rules, what would make it true.</p></div>
+    <div class="card"><h3><code>what_if</code></h3><p>Apply modifications to a KB and compare results before touching production.</p></div>
+    <div class="card"><h3><code>check_kb</code></h3><p>Validate consistency before reasoning; returns the predicate inventory as an extraction contract.</p></div>
+    <div class="card"><h3><code>register_kb</code></h3><p>Register a knowledge base once under a <code>kb_id</code>; reference it by name on every call.</p></div>
+    <div class="card"><h3><code>unregister_kb</code></h3><p>Remove a named KB from the registry.</p></div>
+    <div class="card"><h3><code>list_kbs</code></h3><p>List registered KBs with metadata: hash, version, fact/rule counts.</p></div>
+  </div>
+</section>
+
+<section id="kb-lifecycle">
+  <div class="kicker">Token efficiency</div>
+  <h2>Load the rules once. Query them forever.</h2>
+  <p class="section-sub">
+    Complex business rules don't belong in a prompt. Preload a KB at server startup
+    (<code>EUCLID_KB_PATH</code>) or register it under a <code>kb_id</code> — then each request carries only
+    session-specific facts via <code>delta_knowledge</code>. Small models can reason over large rule sets
+    without ever seeing the whole thing.
+  </p>
+  <div class="grid cols-3">
+    <div class="card">
+      <h3>Auditable by construction</h3>
+      <p>Every result carries <code>content_hash</code> (sha256 of the exact KB text) and <code>version</code> — pin any answer to the precise knowledge it was computed from.</p>
+    </div>
+    <div class="card">
+      <h3>Stateless &amp; scalable</h3>
+      <p>Instances share nothing: run any number behind a load balancer with zero session affinity. One persistent engine per instance serves many requests cheaply.</p>
+    </div>
+    <div class="card">
+      <h3>Battle-tested backend</h3>
+      <p>SWI-Prolog — 35+ years of continuous development — does the heavy lifting, behind a clean intermediate language.</p>
+    </div>
+  </div>
+</section>
+
+<section id="benchmarks">
+  <div class="kicker">Evidence</div>
+  <h2>An 8B model beats a 480B cloud model</h2>
+  <p class="section-sub">
+    Large-scale RBAC task over 1,000+ facts with role hierarchies and separation-of-duties constraints.
+    Both LLMs alone fail systematically; the 8B model augmented with Euclid-MCP answers everything,
+    faster and cheaper.
+  </p>
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr><th>Metric</th><th>8B alone</th><th>480B cloud</th><th>8B + Euclid-MCP</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Accuracy (RBAC, 1000+ facts)</td><td>2 / 5</td><td>2 / 5</td><td class="win">5 / 5</td></tr>
+        <tr><td>Avg response time</td><td>6,966 ms</td><td>3,695 ms</td><td class="win">963 ms</td></tr>
+        <tr><td>Avg output tokens</td><td>165</td><td>212</td><td class="win">12</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="bench-note">
+    On small tasks (5–50 facts) all configurations score 5/5 — scale is where probabilistic reasoning breaks.
+    Full methodology: <a href="https://github.com/meob/Euclid-MCP/tree/main/BENCHMARKS.md">benchmark reports</a>.
+  </p>
+</section>
+
+<section id="quickstart" style="background: var(--bg-soft);">
+  <div class="kicker">Get started</div>
+  <h2>Up and running in two minutes</h2>
+  <div class="qs-block">
+    <h3>Install</h3>
+    <pre class="code">pip install euclid-mcp           <span class="c-com"># MCP server + CLI/REPL — pure Python, works out of the box</span>
+
+<span class="c-com"># Suggested for best performance (optional): without it, a built-in pure-Python engine takes over.</span>
+brew install swi-prolog          <span class="c-com"># apt install swi-prolog · choco install swi-prolog</span></pre>
+  </div>
+  <div class="qs-block">
+    <h3>Use via MCP — Claude Desktop, OpenCode, Cursor, …</h3>
+    <pre class="code">{
+  <span class="c-key">"mcpServers"</span>: {
+    <span class="c-key">"euclid-mcp"</span>: { <span class="c-key">"command"</span>: <span class="c-str">"euclid-mcp"</span> }
+  }
+}</pre>
+    <p class="bench-note">The <code>euclid-mcp</code> executable ships with the pip package — no paths or working directory needed. Running from source instead? Use <code>"command": "python3", "args": ["-m", "euclid_mcp"]</code> with <code>cwd</code> set to the repo.</p>
+  </div>
+  <div class="qs-block">
+    <h3>Or try the interactive REPL — included in the same pip package</h3>
+    <pre class="code">$ euclid-cli
+Euclid-MCP REPL — type facts and rules in Euclid-IR, then <span class="c-str">`? query`</span>.
+euclid &gt; human(socrates)
+euclid &gt; mortal($x) IF human($x)
+euclid &gt; ? mortal($who)
+Solution 1:
+  who: socrates
+mortal(socrates)  [rule]
+  human(socrates)  [fact]</pre>
+  </div>
+  <div class="qs-block">
+    <h3>Or call the HTTP API from n8n, Zapier, Make, curl…</h3>
+    <pre class="code"><span class="c-com"># Start the API server once — from a clone:</span>
+git clone https://github.com/meob/Euclid-MCP &amp;&amp; cd Euclid-MCP
+python3 integrations/euclid_api.py --port 8080
+<span class="c-com"># …or with Docker (bundles SWI-Prolog): docker compose up euclid-api</span>
+
+<span class="c-com"># …then call it:</span>
+curl -X POST http://localhost:8080/reason \
+  -H "Content-Type: application/json" \
+  -d '{"knowledge": "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"}'</pre>
+  </div>
+</section>
+
+<section id="use-cases">
+  <div class="kicker">Applications</div>
+  <h2>Built for rules that matter</h2>
+  <div class="grid cols-3">
+    <div class="card"><h3>🔐 RBAC &amp; IAM</h3><p>Access decisions with inheritance and separation of duties — each grant provable down to the source rule.</p></div>
+    <div class="card"><h3>📋 Compliance automation</h3><p>CIS controls, company policies, EU AI Act classifications. Ship the policy as data, not as if/else chains.</p></div>
+    <div class="card"><h3>🏦 Eligibility engines</h3><p>Loan approval, benefits, licensing — auditable outcomes instead of opaque model judgments.</p></div>
+    <div class="card"><h3>🧠 Small-model reasoning</h3><p>Offload deduction from 3–8B edge models to the engine; run serious reasoning on modest hardware.</p></div>
+    <div class="card"><h3>🧩 Agentic pipelines</h3><p>Agents self-correct: diagnose tells them why a query failed, what_if lets them test repairs safely.</p></div>
+    <div class="card"><h3>🎓 Education</h3><p>Interactive logic tutoring with visible proof chains — see exactly how a conclusion was reached.</p></div>
+  </div>
+</section>
+
+<section style="background: var(--bg-soft);">
+  <div class="kicker">Ecosystem</div>
+  <h2>Consume it your way</h2>
+  <div class="grid cols-4">
+    <div class="card"><h3>MCP stdio</h3><p>Native tool server for any MCP client.</p></div>
+    <div class="card"><h3>HTTP API</h3><p>REST endpoints, Prometheus metrics, health checks — production-ready.</p></div>
+    <div class="card"><h3>CLI + REPL</h3><p>Scriptable batch mode and an interactive Euclid-IR shell.</p></div>
+    <div class="card"><h3>Python API</h3><p>Import the tools directly into your application.</p></div>
+  </div>
+</section>
+
+<footer>
+  <div class="links">
+    <a href="https://github.com/meob/Euclid-MCP">GitHub</a>
+    <a href="https://pypi.org/project/euclid-mcp/">PyPI</a>
+    <a href="https://arxiv.org/abs/2607.21412" target="_blank">arXiv paper</a>
+    <a href="https://github.com/meob/Euclid-MCP/blob/main/docs/EUCLID_IR.md">Euclid-IR spec</a>
+    <a href="https://github.com/meob/Euclid-MCP/blob/main/docs/DIDACTIC.md">Tutorial</a>
+  </div>
+  <div>LLMs describe. Euclid proves. · Apache 2.0 · Built on SWI-Prolog</div>
+</footer>
+
+</body>
+</html>
