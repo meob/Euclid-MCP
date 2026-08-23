@@ -115,8 +115,9 @@ class TestCliInProcess:
 
     def test_reason_no_knowledge(self, monkeypatch, capsys):
         monkeypatch.setenv("EUCLID_KB_PATH", "")
-        _, err = self._invoke(monkeypatch, capsys, ["reason"], expect_code=1)
-        assert "No knowledge provided" in err
+        # Tool errors surface on stdout so they are never lost in pipes.
+        out, _ = self._invoke(monkeypatch, capsys, ["reason"], expect_code=1)
+        assert "No knowledge provided" in out
 
     def test_explain_steps(self, monkeypatch, capsys):
         out, _ = self._invoke(monkeypatch, capsys, ["explain", "--knowledge", KB])
@@ -223,6 +224,19 @@ class TestCliRepl:
         assert "KB valid: True" in out
         assert "human(socrates)" in out
 
+    def test_kb_listing_has_paste_safe_header(self, monkeypatch, capsys):
+        out, _ = self._run(
+            monkeypatch, capsys, "human(socrates)\nmortal($x) IF human($x)\n:kb\n"
+        )
+        assert "# session KB: 1 facts, 1 rules" in out
+        # The listing stays verbatim (as typed) and paste-safe.
+        assert "human(socrates)\nmortal($x) IF human($x)" in out
+
+    def test_list_alias_works(self, monkeypatch, capsys):
+        out, _ = self._run(monkeypatch, capsys, "human(socrates)\n:list\n")
+        assert "# session KB:" in out
+        assert "human(socrates)" in out
+
     def test_check_empty_session(self, monkeypatch, capsys):
         out, _ = self._run(monkeypatch, capsys, ":check\n")
         assert "(session KB is empty)" in out
@@ -262,8 +276,9 @@ class TestCliRepl:
 
     def test_syntax_error_rolled_back(self, monkeypatch, capsys):
         monkeypatch.setenv("EUCLID_KB_PATH", "")
-        out, err = self._run(monkeypatch, capsys, "human(socrates\n? red($x)\n")
-        assert "Error:" in err
+        # Flush errors surface on stdout so they are never lost in pipes.
+        out, _ = self._run(monkeypatch, capsys, "human(socrates\n? red($x)\n")
+        assert "Error:" in out
 
     def test_unknown_command(self, monkeypatch, capsys):
         out, err = self._run(monkeypatch, capsys, ":bogus\n")

@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 from euclid_mcp.engine import kb_fingerprint
+from euclid_mcp.ir_parser import VarCounter, parse_goals, parse_term
 from euclid_mcp.language import parse
 from euclid_mcp.linter import lint_rule
 from euclid_mcp.models import KBCheckResult, KBError, PredicateInfo
@@ -155,7 +156,25 @@ def run_check_kb(knowledge: str) -> KBCheckResult:
         name: entry["arities"] for name, entry in predicates.items()
     }
 
-    # Check 1: duplicate facts
+    # Check 1: engine-parseable statements. language.parse is deliberately
+    # line-lenient, but both inference backends re-parse every fact and
+    # rule with the strict term parser — a statement they reject would turn
+    # a green :check into a runtime engine error. Validate against the same
+    # parser so a green check guarantees the KB runs on either backend.
+    counter = VarCounter()
+    try:
+        for fact in kb.facts:
+            parse_term(fact, counter)
+        for rule in kb.rules:
+            head, body = _split_rule(rule)
+            parse_term(head.strip(), counter)
+            parse_goals(body, counter)
+        if kb.query:
+            parse_goals(kb.query, counter)
+    except ValueError as exc:
+        errors.append(KBError(type="parse_error", message=str(exc)))
+
+    # Check 2: duplicate facts
     seen_facts: dict[str, int] = {}
     for fact in kb.facts:
         normalized = fact.strip().rstrip(".")
@@ -167,7 +186,7 @@ def run_check_kb(knowledge: str) -> KBCheckResult:
             ))
         seen_facts[normalized] = seen_facts.get(normalized, 0) + 1
 
-    # Check 2: undefined predicates in rule bodies
+    # Check 3: undefined predicates in rule bodies
     for rule in kb.rules:
         _, body = _split_rule(rule)
         body_goals = _split_conjunction(body)
@@ -195,7 +214,7 @@ def run_check_kb(knowledge: str) -> KBCheckResult:
                         predicate=f"{goal_name}/{goal_arity}",
                     ))
 
-    # Check 3: circular rules
+    # Check 4: circular rules
     rule_heads: dict[str, list[str]] = {}
     for rule in kb.rules:
         head, _ = _split_rule(rule)
@@ -228,7 +247,7 @@ def run_check_kb(knowledge: str) -> KBCheckResult:
                         predicate=pred_name,
                     ))
 
-    # Check 4: query referenced but not defined
+    # Check 5: query referenced but not defined
     if kb.query:
         query_pred = _extract_predicate(kb.query)
         if query_pred:
@@ -240,13 +259,13 @@ def run_check_kb(knowledge: str) -> KBCheckResult:
                     predicate=name,
                 ))
 
-    # Check 5: unsafe negation
+    # Check 6: unsafe negation
     for rule in kb.rules:
         lint_warnings = lint_rule(rule)
         for w in lint_warnings:
             warnings.append(KBError(type="unsafe_negation", message=w))
 
-    # Check 6: duplicate rule IDs
+    # Check 7: duplicate rule IDs
     seen_rule_ids: dict[str, int] = {}
     for idx, rule in enumerate(kb.rules):
         rid = kb.rule_ids.get(idx)
@@ -260,7 +279,7 @@ def run_check_kb(knowledge: str) -> KBCheckResult:
             ))
         seen_rule_ids[rid] = seen_rule_ids.get(rid, 0) + 1
 
-    # Check 7: inconsistent arity
+    # Check 8: inconsistent arity
     predicate_infos: list[PredicateInfo] = []
     for name in sorted(predicates):
         entry = predicates[name]

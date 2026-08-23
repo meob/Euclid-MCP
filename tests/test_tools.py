@@ -365,9 +365,13 @@ class TestCheckKB:
         assert r.valid is True
         assert not any(w.type == "inconsistent_arity" for w in r.warnings)
 
-    def test_garbage_input_no_errors(self):
+    def test_garbage_input_flagged_without_crashing(self):
+        # Garbage used to slip through as a valid-but-empty KB (a green
+        # check followed by engine errors at query time); it must now be
+        # flagged with a parse_error while still not raising.
         r = check_kb("??? INVALID @#$%")
-        assert r.valid is True
+        assert r.valid is False
+        assert any(e.type == "parse_error" for e in r.errors)
         assert r.facts_count == 0
         assert r.rules_count == 0
 

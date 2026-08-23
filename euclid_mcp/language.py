@@ -213,6 +213,21 @@ def _extract_rule_id(raw_line: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _strip_statement_line(raw: str) -> tuple[str, list[str], str | None]:
+    """Comment-strip, fold and rule-id-extract one raw source line.
+
+    Returns ``(line, strings, rule_id)``; ``line`` is ``""`` for blank or
+    comment-only lines. Shared by the statement loop and the rule-body
+    continuation logic so both treat source lines identically.
+    """
+    raw, strings = _extract_strings(raw)
+    rule_id = _extract_rule_id(raw)
+    line = re.sub(r"(?<!\S)\s*(#|//|%).*$", "", raw).strip()
+    if not line:
+        return "", strings, rule_id
+    return _fold_ascii(line.rstrip(".")), strings, rule_id
+
+
 def _parse_text(text: str) -> KB:
     facts: list[str] = []
     rules: list[str] = []
@@ -220,24 +235,25 @@ def _parse_text(text: str) -> KB:
     query: str | None = None
 
     lines = text.split("\n")
-    i = 0
-    while i < len(lines):
-        raw_line = lines[i]
-        # Extract strings before stripping comments (strings may contain #)
-        raw_line, line_strings = _extract_strings(raw_line)
-        rule_id = _extract_rule_id(raw_line)
-        # Strip comments (#, //, %)
-        line = re.sub(r"(?<!\S)\s*(#|//|%).*$", "", raw_line).strip()
-        i += 1
-        if not line:
-            continue
+    idx = 0
+
+    def next_line() -> tuple[str | None, list[str], str | None]:
+        """Next meaningful (non-blank) processed line, or None at EOF."""
+        nonlocal idx
+        while idx < len(lines):
+            line, strings, rid = _strip_statement_line(lines[idx])
+            idx += 1
+            if line:
+                return line, strings, rid
+        return None, [], None
+
+    while True:
+        line, line_strings, rule_id = next_line()
+        if line is None:
+            break
         # Skip @version directive
         if VERSION_PATTERN.match(line):
             continue
-        line = line.rstrip(".")
-        # Keywords are case-insensitive: normalize to lowercase while
-        # preserving quoted-string placeholders for later restoration.
-        line = _fold_ascii(line)
 
         if line.startswith("?"):
             if rule_id:
@@ -253,28 +269,37 @@ def _parse_text(text: str) -> KB:
                 head = line[:-3]  # Remove trailing " if"
                 body_str = ""
             body_str = body_str.strip()
-            # Multi-line rule: if body is empty or ends with and, keep reading
-            while body_str == "" or body_str.endswith("and"):
-                if i >= len(lines):
-                    break
-                next_raw = lines[i]
-                next_raw, next_strings = _extract_strings(next_raw)
-                line_strings.extend(next_strings)
-                next_rule_id = _extract_rule_id(next_raw)
-                if next_rule_id:
-                    rule_id = next_rule_id  # last body line wins
-                next_line = re.sub(r"(?<!\S)\s*(#|//|%).*$", "", next_raw).strip()
-                i += 1
-                if not next_line:
+            # Multi-line rule bodies. A line is a continuation when the
+            # body so far is empty or ends with `and` (trailing style),
+            # or when the NEXT meaningful line opens with `and`
+            # (leading style — the common Prolog habit):
+            #
+            #     p($x) IF $x > 0
+            #           AND $y is $x - 1
+            #
+            # A non-continuation line is pushed back for the main loop.
+            pieces: list[str] = [body_str] if body_str else []
+            while True:
+                if not pieces or pieces[-1].endswith("and"):
+                    nxt, nxt_strings, nxt_rid = next_line()
+                    if nxt is None:
+                        break
+                    line_strings.extend(nxt_strings)
+                    if nxt_rid:
+                        rule_id = nxt_rid  # last body line wins
+                    pieces.append(nxt)
                     continue
-                next_line = _fold_ascii(next_line.rstrip("."))
-                if body_str == "":
-                    body_str = next_line
-                elif body_str.endswith("and"):
-                    body_str = body_str + " " + next_line
-                else:
-                    body_str = body_str + " " + next_line
-            body_parts = re.split(r"\s+and\s+", body_str)
+                mark = idx
+                nxt, nxt_strings, nxt_rid = next_line()
+                if nxt is not None and (nxt == "and" or nxt.startswith("and ")):
+                    line_strings.extend(nxt_strings)
+                    if nxt_rid:
+                        rule_id = nxt_rid
+                    pieces.append(nxt)
+                    continue
+                idx = mark  # not a continuation: unread it
+                break
+            body_parts = re.split(r"\s+and\s+", " ".join(pieces))
             body = ", ".join(p.strip() for p in body_parts)
             rule_index = len(rules)
             rules.append(_restore_strings(f"{head.strip()} if {body}", line_strings))
@@ -285,6 +310,11 @@ def _parse_text(text: str) -> KB:
                 raise ValueError(
                     "`# rule:` is not allowed on a fact. "
                     "It applies only to rules."
+                )
+            if line == "and" or line.startswith("and "):
+                raise ValueError(
+                    "Statement starts with 'and': continuation lines belong "
+                    "to a rule written above them."
                 )
             facts.append(_restore_strings(line, line_strings))
 

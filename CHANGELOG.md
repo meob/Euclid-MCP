@@ -55,11 +55,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   decomposed (NFD) spellings unify symmetrically on both backends instead
   of failing on the native engine and matching only byte-identical forms
   on SWI-Prolog.
+- **`--backend` flag silently discarded an exported `EUCLID_BACKEND`** — the
+  CLI wrote the flag's default (`auto`) into the environment on every run,
+  so `EUCLID_BACKEND=native euclid-cli` still launched SWI-Prolog. The flag
+  is now applied only when explicitly passed: an exported value is honored,
+  and an explicit `--backend` wins over it.
+- **Multi-line rules with leading `AND` split into garbage statements** — a
+  rule continued with the conjunction at the START of each line (the common
+  Prolog habit) was cut at its first complete body goal, while the leftover
+  `AND ...` lines were accepted as facts by the lenient language parser and
+  then rejected at runtime by both engines. The parser now absorbs
+  AND-leading continuation lines (and rejects orphan ones with a clear
+  message), and the interactive REPL holds a completed rule until the next
+  input settles whether a continuation follows. Continuation detection is
+  buffer-aware: a line trails the open statement when the buffered text ends
+  with `IF`/`AND` or the line itself opens with `AND`, so trailing-style and
+  leading-style multi-line rules both work in files, seeded KBs and live
+  sessions (previously a continuation line without an inner `IF`, e.g.
+  `$y is $x - 1 AND`, was flushed as its own statement).
+- **`:check` could stay green on statements the engines refuse** —
+  validation relied only on the lenient parser while both backends re-parse
+  every statement with the strict term parser. `run_check_kb` now runs each
+  fact, rule and the query through that same parser, so a green check
+  guarantees the KB loads and queries on either backend.
+- **REPL errors vanished into stderr** — engine and parse errors printed
+  only a terse message to stderr, easy to lose next to the tool-call log
+  lines (and invisible in piped sessions). They now print to stdout.
 - **String literals bind bare values on both backends** — IR quoted values
   are translated to single-quoted Prolog *atoms* instead of SWI string
   terms; bindings are now identical to the native engine's bare content
   (e.g. `müller`, not `"müller"`). Operators inside literals were already
   inert data and remain so.
+
+### Changed
+- **REPL banner renamed** — `Euclid-MCP REPL …` → `Euclid-IR REPL vX.Y.Z —
+  type facts and rules, then `? query`.`. The REPL calls the tool functions
+  in-process; no MCP server or protocol is involved, so the banner now names
+  the language. The version comes from the in-tree package constant (with a
+  new drift test against `pyproject.toml`), not from possibly stale install
+  metadata.
 
 ### Added
 - **Reserved boolean keywords** — `true` / `false` join `if`, `and`, `not`,
@@ -81,6 +115,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   variables: explicit `null` bindings, cross-backend proof-tree identity,
   run-to-run determinism, and quoted-data safety of the wildcard
   normalization.
+- `tests/test_multiline_continuations.py` — AND-leading rule continuations
+  in parser and REPL, plus stdout visibility of engine errors.
+- `tests/test_check_kb_engine_alignment.py` — statements the engines reject
+  are flagged at check time; unicode/quoted KBs stay green.
+- `tests/test_backend_precedence.py` — `EUCLID_BACKEND` survives a run
+  without `--backend`; an explicit flag overrides it.
+- `tests/test_version.py` — package version matches `pyproject.toml`.
+- REPL: `:kb` listing gained a paste-safe counts header (`# session KB: N
+  facts, M rules`) and the help documents the hidden `:list` alias.
 
 ## [0.4.5] — 2026-08-22
 

@@ -45,7 +45,8 @@ EXIT_USAGE = 2
 # A rule keeps consuming lines while its body is empty or ends with `and`
 # (see language._parse_text). Mirror that here to drive the continuation prompt.
 _IF_PATTERN = re.compile(r"\s+if\s+", re.IGNORECASE)
-_INCOMPLETE_TAIL = re.compile(r"(?:if|and)\s*$", re.IGNORECASE)
+_TRAILING_CONTINUATION = re.compile(r"(?:and|if)\s*$", re.IGNORECASE)
+_LEADING_CONTINUATION = re.compile(r"and(\s|$)", re.IGNORECASE)
 _COMMENT_PATTERN = re.compile(r"(?<!\S)\s*(#|//|%).*$")
 
 
@@ -61,6 +62,12 @@ def _load_kb(file: str | None) -> str | None:
 
 
 def _set_backend(backend: str) -> None:
+    """Pin the backend via the environment (explicit ``--backend`` only).
+
+    Called solely when the user passes ``--backend``; the EUCLID_BACKEND
+    environment variable must survive untouched otherwise, so an exported
+    value is honored instead of being clobbered by the flag default.
+    """
     os.environ["EUCLID_BACKEND"] = backend
 
 
@@ -158,7 +165,7 @@ def _render_check(result) -> None:
 def _handle(result) -> int:
     """Dispatch rendering; returns the process exit code."""
     if result.error:
-        print(f"Error: {result.error}", file=sys.stderr)
+        print(f"Error: {result.error}")
         return EXIT_ERROR
     return EXIT_OK
 
@@ -172,8 +179,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--backend",
         choices=("auto", "prolog", "native"),
-        default="auto",
-        help="inference backend (default: auto)",
+        default=None,
+        help="inference backend (default: EUCLID_BACKEND env var, or auto)",
     )
     parser.add_argument(
         "-f", "--file",
@@ -409,7 +416,7 @@ class _Repl:
         if result.error or any(e.type == "parse_error" for e in result.errors):
             del self._lines[start:]
             message = result.error or result.errors[0].message
-            print(f"Error: {message}", file=sys.stderr)
+            print(f"Error: {message}")
 
     @staticmethod
     def _is_incomplete(line: str) -> bool:
@@ -418,7 +425,7 @@ class _Repl:
         if not cleaned:
             return False
         is_rule = bool(_IF_PATTERN.search(cleaned)) or cleaned.lower().endswith(" if")
-        return is_rule and bool(_INCOMPLETE_TAIL.search(cleaned))
+        return is_rule and bool(_TRAILING_CONTINUATION.search(cleaned))
 
     # -- line processing -----------------------------------------------------
 
@@ -435,8 +442,22 @@ class _Repl:
                 self._last_query = stripped[1:].strip()
                 self._query(self._last_query)
             return
+        cleaned = _strip_comment(stripped).strip()
+        # A line continues the buffered statement when the buffer's last
+        # line trails with IF/AND (trailing style) or the line itself opens
+        # with AND (leading style). Anything else starts a fresh statement.
+        held_open = bool(self._pending) and bool(
+            _TRAILING_CONTINUATION.search(_strip_comment(self._pending[-1]).strip())
+        )
+        if held_open or _LEADING_CONTINUATION.match(cleaned):
+            self._pending.append(line)
+            return
+        opens_rule = bool(_IF_PATTERN.search(cleaned)) or cleaned.lower().endswith(" if")
+        self._flush()  # close a previously held statement, if any
         self._pending.append(line)
-        if not self._is_incomplete(line):
+        if not opens_rule:
+            # Facts validate immediately; rules are held one line longer so
+            # an AND-leading continuation can still join them.
             self._flush()
 
     # -- tool handlers --------------------------------------------------------
@@ -449,7 +470,7 @@ class _Repl:
             max_depth=self._max_depth,
         )
         if result.error:
-            print(f"Error: {result.error}", file=sys.stderr)
+            print(f"Error: {result.error}")
             return
         print(f"Query: {query}")
         if not result.solutions:
@@ -463,7 +484,7 @@ class _Repl:
             return
         result = check_kb(knowledge=self._session_text())
         if result.error:
-            print(f"Error: {result.error}", file=sys.stderr)
+            print(f"Error: {result.error}")
             return
         _render_check(result)
 
@@ -480,7 +501,7 @@ class _Repl:
             max_depth=self._max_depth,
         )
         if result.error:
-            print(f"Error: {result.error}", file=sys.stderr)
+            print(f"Error: {result.error}")
             return
         _render_explain(result)
 
@@ -509,7 +530,7 @@ class _Repl:
             max_depth=self._max_depth,
         )
         if result.error:
-            print(f"Error: {result.error}", file=sys.stderr)
+            print(f"Error: {result.error}")
             return
         _render_diagnose(result)
 
@@ -530,7 +551,7 @@ class _Repl:
             max_depth=self._max_depth,
         )
         if result.error:
-            print(f"Error: {result.error}", file=sys.stderr)
+            print(f"Error: {result.error}")
             return
         _render_what_if(result)
 
@@ -589,10 +610,17 @@ class _Repl:
         if text is None:
             print("(session KB is empty)")
             return
+        result = check_kb(knowledge=text)
+        # The header is itself a Euclid-IR comment, so the whole listing
+        # stays paste-safe: feed it straight back or save it as a file.
+        print(f"# session KB: {result.facts_count} facts, "
+              f"{result.rules_count} rules")
         print(text)
 
     def _print_banner(self) -> None:
-        print("Euclid-MCP REPL — type facts and rules in Euclid-IR, then `? query`.")
+        from euclid_mcp import __version__
+
+        print(f"Euclid-IR REPL v{__version__} — type facts and rules, then `? query`.")
         print("Commands: :help  :check  :kb  :load  :explain  :diagnose  "
               ":what-if  :reset  :quit")
         print()
@@ -615,7 +643,7 @@ Run a deduction with `? query`.
 
 Commands:
     :check               validate the session KB (check_kb)
-    :kb                  print the accumulated session KB
+    :kb                  print the accumulated session KB (alias: :list)
     :load <file>         append a .euclid file to the session KB
     :explain [query]     explain solutions in natural language
     :diagnose <query> [why|why_not|what_needs]
@@ -649,6 +677,7 @@ a fallback.
                     self._process_line(line)
         except _ExitRepl:
             pass
+        self._flush()  # commit a trailing held rule (EOF / piped input)
         if interactive:
             print()
         return EXIT_OK
@@ -662,7 +691,8 @@ def main(argv: list[str] | None = None) -> int:
     _setup_logging()
     parser = build_parser()
     args = parser.parse_args(argv)
-    _set_backend(args.backend)
+    if args.backend is not None:
+        _set_backend(args.backend)
     if args.tool is None:
         return _run_repl(args)
     return cast(int, args.func(args))

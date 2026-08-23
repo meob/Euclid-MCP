@@ -340,8 +340,20 @@ can_deploy($user, $env) IF
 
 **Parsing rules:**
 - If a line ends with `IF` or `AND`, the parser continues to the next line
+  (*trailing* style)
+- If a line starts with `AND`, it continues the rule written above it
+  (*leading* style — the common Prolog habit):
+
+  ```
+  dimmi($x) IF $x > 0
+            AND $y is $x - 1
+            AND dimmi($y)
+  ```
+
 - All parts are joined into a single rule statement
 - Indentation is ignored (cosmetic only)
+
+A leading `AND` without a preceding rule is a parse error.
 
 ### Wildcard Arguments
 
