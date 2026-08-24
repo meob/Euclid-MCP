@@ -98,6 +98,17 @@
   .card p { color: var(--muted); font-size: 14.5px; }
   .card .icon { font-size: 24px; margin-bottom: 12px; display: block; }
 
+  /* Demo GIFs */
+  .demo-grid { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 900px) { .demo-grid { grid-template-columns: 1fr; } }
+  .demo-card { padding: 14px 14px 18px; }
+  .demo-card img {
+    width: 100%; display: block; border-radius: 8px;
+    border: 1px solid var(--border); background: #0d1117;
+  }
+  .demo-card h3 { margin-top: 14px; margin-bottom: 6px; }
+  .demo-card p { font-size: 13.5px; }
+
   /* Pipeline */
   .pipeline {
     display: flex; align-items: stretch; justify-content: center;
@@ -172,6 +183,7 @@
 <nav>
   <div class="logo">Euclid<span>-MCP</span></div>
   <ul>
+    <li><a href="#demo">Demo</a></li>
     <li><a href="#why">Why</a></li>
     <li><a href="#how">How it works</a></li>
     <li><a href="#language">Euclid-IR</a></li>
@@ -202,6 +214,32 @@
     <img src="https://img.shields.io/github/actions/workflow/status/meob/Euclid-MCP/ci.yml?branch=main&label=CI" alt="CI">
   </div>
 </header>
+
+<section id="demo">
+  <div class="kicker">Demos</div>
+  <h2>See it in action</h2>
+  <p class="section-sub">
+    Real <span class="mono">euclid-cli</span> sessions, unedited. Facts in, proof trees out —
+    every step deterministic, every conclusion auditable.
+  </p>
+  <div class="grid demo-grid">
+    <div class="card demo-card">
+      <img src="assets/demo/rbac.gif" alt="RBAC session: who can deploy to prod, with proof tree" loading="lazy" decoding="async">
+      <h3>Multi-hop RBAC</h3>
+      <p>Who can deploy to production? Roles, clearance levels and an arithmetic check chained into one derivation — with the full proof tree.</p>
+    </div>
+    <div class="card demo-card">
+      <img src="assets/demo/diagnose.gif" alt="Diagnose why bob cannot deploy, then enable it with what-if" loading="lazy" decoding="async">
+      <h3>Diagnose &amp; what-if</h3>
+      <p>bob is denied. <i>Why not?</i> The diagnosis pinpoints the gap, and a hypothetical role grant flips the answer from 0 to 1 solution.</p>
+    </div>
+    <div class="card demo-card">
+      <img src="assets/demo/security.gif" alt="Security rule SEC-042 blocks a suspended user via negation" loading="lazy" decoding="async">
+      <h3>Negation as failure</h3>
+      <p>SEC-042 denies the vault to suspended users. carol fails, dave passes — and the explanation cites the rule by ID for audit.</p>
+    </div>
+  </div>
+</section>
 
 <section id="why">
   <div class="kicker">The problem</div>
