@@ -1,4 +1,4 @@
-# Euclid-MCP CLI
+# Euclid-MCP CLI (Command Line Interface)
 
 `euclid-cli` is a thin, human-friendly command-line wrapper around the same
 five reasoning tools exposed by the MCP server (`check_kb`, `reason`,
@@ -88,7 +88,7 @@ euclid-cli reason -f policies.euclid --json
 ## Interactive REPL
 
 Run `euclid-cli` with **no subcommand** to open an interactive Euclid-IR
-REPL. You type facts, rules and `? query` lines directly — like `swipl` or
+REPL (Read–Eval–Print Loop). You type facts, rules and `? query` lines directly — like `swipl` or
 `psql` — and the session knowledge base accumulates across queries:
 
 ```

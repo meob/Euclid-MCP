@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- **Project landing page** — `website/index.html`, deployed to GitHub Pages
+  via `.github/workflows/pages.yml`: a single-page site covering the why,
+  the architecture, an Euclid-IR tour, the eight tools, the KB lifecycle,
+  live demo GIFs, benchmarks and quickstart.
+- **Demo GIFs** — three recorded `euclid-cli` sessions embedded in the
+  landing page's Demo section (`website/assets/demo/`): multi-hop RBAC with
+  proof tree, diagnose + what-if on a denied deploy, and negation as failure
+  citing rule SEC-042. `diagnose.gif` is also showcased in the README via a
+  raw URL, so it renders on GitHub and PyPI alike.
+
+### Changed
+- **Landing-page flow** — nav and sections reordered to follow the visitor
+  funnel: Why → Quickstart → How it works → Euclid-IR → Tools → Demo →
+  Benchmarks (KB lifecycle stays tool-adjacent; use cases close the page).
+- **docs/DIDACTIC.md** — meta-interpreter comments realigned with the code;
+  historical note on the syllogism added.
+- **docs/CLI.md** — CLI and REPL acronyms spelled out at first use.
+- **Zenodo metadata** — creator recorded with the full author name.
+
 ## [0.4.6] — 2026-08-23
 
 ### Fixed
