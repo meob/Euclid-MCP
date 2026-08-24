@@ -183,13 +183,13 @@
 <nav>
   <div class="logo">Euclid<span>-MCP</span></div>
   <ul>
-    <li><a href="#demo">Demo</a></li>
     <li><a href="#why">Why</a></li>
+    <li><a href="#quickstart">Quickstart</a></li>
     <li><a href="#how">How it works</a></li>
     <li><a href="#language">Euclid-IR</a></li>
     <li><a href="#tools">Tools</a></li>
+    <li><a href="#demo">Demo</a></li>
     <li><a href="#benchmarks">Benchmarks</a></li>
-    <li><a href="#quickstart">Quickstart</a></li>
   </ul>
   <a class="gh-btn" href="https://github.com/meob/Euclid-MCP">★ GitHub</a>
 </nav>
@@ -214,32 +214,6 @@
     <img src="https://img.shields.io/github/actions/workflow/status/meob/Euclid-MCP/ci.yml?branch=main&label=CI" alt="CI">
   </div>
 </header>
-
-<section id="demo">
-  <div class="kicker">Demos</div>
-  <h2>See it in action</h2>
-  <p class="section-sub">
-    Real <span class="mono">euclid-cli</span> sessions, unedited. Facts in, proof trees out —
-    every step deterministic, every conclusion auditable.
-  </p>
-  <div class="grid demo-grid">
-    <div class="card demo-card">
-      <img src="assets/demo/rbac.gif" alt="RBAC session: who can deploy to prod, with proof tree" loading="lazy" decoding="async">
-      <h3>Multi-hop RBAC</h3>
-      <p>Who can deploy to production? Roles, clearance levels and an arithmetic check chained into one derivation — with the full proof tree.</p>
-    </div>
-    <div class="card demo-card">
-      <img src="assets/demo/diagnose.gif" alt="Diagnose why bob cannot deploy, then enable it with what-if" loading="lazy" decoding="async">
-      <h3>Diagnose &amp; what-if</h3>
-      <p>bob is denied. <i>Why not?</i> The diagnosis pinpoints the gap, and a hypothetical role grant flips the answer from 0 to 1 solution.</p>
-    </div>
-    <div class="card demo-card">
-      <img src="assets/demo/security.gif" alt="Security rule SEC-042 blocks a suspended user via negation" loading="lazy" decoding="async">
-      <h3>Negation as failure</h3>
-      <p>SEC-042 denies the vault to suspended users. carol fails, dave passes — and the explanation cites the rule by ID for audit.</p>
-    </div>
-  </div>
-</section>
 
 <section id="why">
   <div class="kicker">The problem</div>
@@ -268,7 +242,52 @@
   </div>
 </section>
 
-<section id="how" style="background: var(--bg-soft);">
+<section id="quickstart" style="background: var(--bg-soft);">
+  <div class="kicker">Get started</div>
+  <h2>Up and running in two minutes</h2>
+  <div class="qs-block">
+    <h3>Install</h3>
+    <pre class="code">pip install euclid-mcp           <span class="c-com"># MCP server + CLI/REPL — pure Python, works out of the box</span>
+
+<span class="c-com"># Suggested for best performance (optional): without it, a built-in pure-Python engine takes over.</span>
+brew install swi-prolog          <span class="c-com"># apt install swi-prolog · choco install swi-prolog</span></pre>
+  </div>
+  <div class="qs-block">
+    <h3>Use via MCP — Claude Desktop, OpenCode, Cursor, …</h3>
+    <pre class="code">{
+  <span class="c-key">"mcpServers"</span>: {
+    <span class="c-key">"euclid-mcp"</span>: { <span class="c-key">"command"</span>: <span class="c-str">"euclid-mcp"</span> }
+  }
+}</pre>
+    <p class="bench-note">The <code>euclid-mcp</code> executable ships with the pip package — no paths or working directory needed. Running from source instead? Use <code>"command": "python3", "args": ["-m", "euclid_mcp"]</code> with <code>cwd</code> set to the repo.</p>
+  </div>
+  <div class="qs-block">
+    <h3>Or try the interactive REPL — included in the same pip package</h3>
+    <pre class="code">$ euclid-cli
+Euclid-MCP REPL — type facts and rules in Euclid-IR, then <span class="c-str">`? query`</span>.
+euclid &gt; human(socrates)
+euclid &gt; mortal($x) IF human($x)
+euclid &gt; ? mortal($who)
+Solution 1:
+  who: socrates
+mortal(socrates)  [rule]
+  human(socrates)  [fact]</pre>
+  </div>
+  <div class="qs-block">
+    <h3>Or call the HTTP API from n8n, Zapier, Make, curl…</h3>
+    <pre class="code"><span class="c-com"># Start the API server once — from a clone:</span>
+git clone https://github.com/meob/Euclid-MCP &amp;&amp; cd Euclid-MCP
+python3 integrations/euclid_api.py --port 8080
+<span class="c-com"># …or with Docker (bundles SWI-Prolog): docker compose up euclid-api</span>
+
+<span class="c-com"># …then call it:</span>
+curl -X POST http://localhost:8080/reason \
+  -H "Content-Type: application/json" \
+  -d '{"knowledge": "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"}'</pre>
+  </div>
+</section>
+
+<section id="how">
   <div class="kicker">Architecture</div>
   <h2>How it works</h2>
   <p class="section-sub">
@@ -292,7 +311,7 @@
   </ul>
 </section>
 
-<section id="language">
+<section id="language" style="background: var(--bg-soft);">
   <div class="kicker">The language</div>
   <h2>Euclid-IR — logic without the Prolog syntax</h2>
   <p class="section-sub">
@@ -351,7 +370,7 @@ blocked(<span class="c-var">$u</span>) <span class="c-kw">IF</span> <span class=
   </div>
 </section>
 
-<section id="tools" style="background: var(--bg-soft);">
+<section id="tools">
   <div class="kicker">Tooling</div>
   <h2>Eight tools, one purpose</h2>
   <p class="section-sub">
@@ -369,7 +388,7 @@ blocked(<span class="c-var">$u</span>) <span class="c-kw">IF</span> <span class=
   </div>
 </section>
 
-<section id="kb-lifecycle">
+<section id="kb-lifecycle" style="background: var(--bg-soft);">
   <div class="kicker">Token efficiency</div>
   <h2>Load the rules once. Query them forever.</h2>
   <p class="section-sub">
@@ -394,7 +413,33 @@ blocked(<span class="c-var">$u</span>) <span class="c-kw">IF</span> <span class=
   </div>
 </section>
 
-<section id="benchmarks">
+<section id="demo">
+  <div class="kicker">Demos</div>
+  <h2>See it in action</h2>
+  <p class="section-sub">
+    Real <span class="mono">euclid-cli</span> sessions, unedited. Facts in, proof trees out —
+    every step deterministic, every conclusion auditable.
+  </p>
+  <div class="grid demo-grid">
+    <div class="card demo-card">
+      <img src="assets/demo/rbac.gif" alt="RBAC session: who can deploy to prod, with proof tree" loading="lazy" decoding="async">
+      <h3>Multi-hop RBAC</h3>
+      <p>Who can deploy to production? Roles, clearance levels and an arithmetic check chained into one derivation — with the full proof tree.</p>
+    </div>
+    <div class="card demo-card">
+      <img src="assets/demo/diagnose.gif" alt="Diagnose why bob cannot deploy, then enable it with what-if" loading="lazy" decoding="async">
+      <h3>Diagnose &amp; what-if</h3>
+      <p>bob is denied. <i>Why not?</i> The diagnosis pinpoints the gap, and a hypothetical role grant flips the answer from 0 to 1 solution.</p>
+    </div>
+    <div class="card demo-card">
+      <img src="assets/demo/security.gif" alt="Security rule SEC-042 blocks a suspended user via negation" loading="lazy" decoding="async">
+      <h3>Negation as failure</h3>
+      <p>SEC-042 denies the vault to suspended users. carol fails, dave passes — and the explanation cites the rule by ID for audit.</p>
+    </div>
+  </div>
+</section>
+
+<section id="benchmarks" style="background: var(--bg-soft);">
   <div class="kicker">Evidence</div>
   <h2>An 8B model beats a 480B cloud model</h2>
   <p class="section-sub">
@@ -418,51 +463,6 @@ blocked(<span class="c-var">$u</span>) <span class="c-kw">IF</span> <span class=
     On small tasks (5–50 facts) all configurations score 5/5 — scale is where probabilistic reasoning breaks.
     Full methodology: <a href="https://github.com/meob/Euclid-MCP/tree/main/BENCHMARKS.md">benchmark reports</a>.
   </p>
-</section>
-
-<section id="quickstart" style="background: var(--bg-soft);">
-  <div class="kicker">Get started</div>
-  <h2>Up and running in two minutes</h2>
-  <div class="qs-block">
-    <h3>Install</h3>
-    <pre class="code">pip install euclid-mcp           <span class="c-com"># MCP server + CLI/REPL — pure Python, works out of the box</span>
-
-<span class="c-com"># Suggested for best performance (optional): without it, a built-in pure-Python engine takes over.</span>
-brew install swi-prolog          <span class="c-com"># apt install swi-prolog · choco install swi-prolog</span></pre>
-  </div>
-  <div class="qs-block">
-    <h3>Use via MCP — Claude Desktop, OpenCode, Cursor, …</h3>
-    <pre class="code">{
-  <span class="c-key">"mcpServers"</span>: {
-    <span class="c-key">"euclid-mcp"</span>: { <span class="c-key">"command"</span>: <span class="c-str">"euclid-mcp"</span> }
-  }
-}</pre>
-    <p class="bench-note">The <code>euclid-mcp</code> executable ships with the pip package — no paths or working directory needed. Running from source instead? Use <code>"command": "python3", "args": ["-m", "euclid_mcp"]</code> with <code>cwd</code> set to the repo.</p>
-  </div>
-  <div class="qs-block">
-    <h3>Or try the interactive REPL — included in the same pip package</h3>
-    <pre class="code">$ euclid-cli
-Euclid-MCP REPL — type facts and rules in Euclid-IR, then <span class="c-str">`? query`</span>.
-euclid &gt; human(socrates)
-euclid &gt; mortal($x) IF human($x)
-euclid &gt; ? mortal($who)
-Solution 1:
-  who: socrates
-mortal(socrates)  [rule]
-  human(socrates)  [fact]</pre>
-  </div>
-  <div class="qs-block">
-    <h3>Or call the HTTP API from n8n, Zapier, Make, curl…</h3>
-    <pre class="code"><span class="c-com"># Start the API server once — from a clone:</span>
-git clone https://github.com/meob/Euclid-MCP &amp;&amp; cd Euclid-MCP
-python3 integrations/euclid_api.py --port 8080
-<span class="c-com"># …or with Docker (bundles SWI-Prolog): docker compose up euclid-api</span>
-
-<span class="c-com"># …then call it:</span>
-curl -X POST http://localhost:8080/reason \
-  -H "Content-Type: application/json" \
-  -d '{"knowledge": "human(socrates)\nmortal($x) IF human($x)\n? mortal($who)"}'</pre>
-  </div>
 </section>
 
 <section id="use-cases">
