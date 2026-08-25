@@ -1,22 +1,22 @@
 # Euclid-MCP
 
-[![Euclid-MCP MCP server](https://glama.ai/mcp/servers/meob/Euclid-MCP/badges/score.svg)](https://glama.ai/mcp/servers/meob/Euclid-MCP)
+[![Euclid-MCP MCP server](https://glama.ai/mcp/servers/Euclid-BG/Euclid-MCP/badges/score.svg)](https://glama.ai/mcp/servers/Euclid-BG/Euclid-MCP)
 [![PyPI version](https://img.shields.io/pypi/v/euclid-mcp?color=blue)](https://pypi.org/project/euclid-mcp/)
 [![Python versions](https://img.shields.io/pypi/pyversions/euclid-mcp)](https://pypi.org/project/euclid-mcp/)
-[![License](https://img.shields.io/github/license/meob/Euclid-MCP?cacheSeconds=86400)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/meob/Euclid-MCP/ci.yml?branch=main&label=CI)](https://github.com/meob/Euclid-MCP/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/codecov/c/github/meob/Euclid-MCP)](https://codecov.io/gh/meob/Euclid-MCP)
+[![License](https://img.shields.io/github/license/Euclid-BG/Euclid-MCP?cacheSeconds=86400)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/Euclid-BG/Euclid-MCP/ci.yml?branch=main&label=CI)](https://github.com/Euclid-BG/Euclid-MCP/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/Euclid-BG/Euclid-MCP)](https://codecov.io/gh/Euclid-BG/Euclid-MCP)
 
 **MCP server for logical reasoning** — turns facts into formal proofs.
 
-<!-- mcp-name: io.github.meob/euclid-mcp -->
+<!-- mcp-name: io.github.Euclid-BG/euclid-mcp -->
 
 Euclid-MCP is a hybrid cognitive architecture: a lightweight LLM describes the world in facts, and a deterministic engine performs the actual deduction. The LLM never needs to reason — it only needs to describe.
 
 With Euclid-MCP, an 8B model can solve reasoning tasks that stump even 400B+ cloud models — because the engine handles deduction deterministically. Every answer comes with a proof tree, so you can trace *why* a conclusion holds, not just *what* it is. Use it to enforce RBAC policies, audit cloud compliance, validate loan eligibility rules, or reason over any domain where answers must be explainable and verifiable.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/meob/Euclid-MCP/main/website/assets/demo/diagnose.gif"
+  <img src="https://raw.githubusercontent.com/Euclid-BG/Euclid-MCP/main/website/assets/demo/diagnose.gif"
        alt="euclid-cli session: diagnose why bob cannot deploy, then enable it with a what-if role grant"
        width="720">
 </p>
@@ -377,7 +377,7 @@ pip install euclid-mcp
 ### From source
 
 ```bash
-git clone https://github.com/meob/Euclid-MCP
+git clone https://github.com/Euclid-BG/Euclid-MCP
 cd Euclid-MCP
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
